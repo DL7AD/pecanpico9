@@ -1,0 +1,3 @@
+(fp_lib_table
+  (lib (name stm32f7)(type KiCad)(uri "$(KIPRJMOD)/stm32f7.pretty")(options "")(descr ""))
+)

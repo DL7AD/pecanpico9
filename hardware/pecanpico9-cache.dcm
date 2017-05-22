@@ -1,0 +1,13 @@
+EESchema-DOCLIB  Version 2.0
+#
+$CMP +OSC
+K POWER, PWR
+$ENDCMP
+#
+$CMP FDN306P
+D 50V Vds, 0.22A Id, N-Channel MOSFET, SOT-23
+K N-Channel MOSFET Logic Level
+F http://www.fairchildsemi.com/ds/BS/BSS138.pdf
+$ENDCMP
+#
+#End Doc Library
