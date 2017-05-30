@@ -1,0 +1,13 @@
+(module SMA_Antenna (layer F.Cu) (tedit 57ACB311)
+  (fp_text reference REF** (at 0 -0.7) (layer F.SilkS)
+    (effects (font (size 1 1) (thickness 0.15)))
+  )
+  (fp_text value SMA_Antenna (at 0 0.8) (layer F.Fab)
+    (effects (font (size 1 1) (thickness 0.15)))
+  )
+  (model ../../../../../src/pecanpico82/3dmodels/sma_antenna.wrl
+    (at (xyz 0 0 0.015))
+    (scale (xyz 0.3 0.3 0.3))
+    (rotate (xyz 0 90 180))
+  )
+)
