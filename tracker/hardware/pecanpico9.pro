@@ -119,4 +119,3 @@ LibName77=Worldsemi
 LibName78=Xicor
 LibName79=xilinx
 LibName80=Zilog
-LibName81=pecanpico8-cache

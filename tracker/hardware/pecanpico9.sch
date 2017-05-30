@@ -85,7 +85,7 @@ EELAYER END
 $Descr A2 23386 16535
 encoding utf-8
 Sheet 1 1
-Title "Pecan Pico 8b"
+Title "Pecan Pico 9a"
 Date ""
 Rev "1"
 Comp "Pecan Group"
