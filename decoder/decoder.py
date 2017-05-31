@@ -8,6 +8,7 @@ import urllib2
 import io
 import sys
 import argparse
+import aprs
 
 # Parse arguments from terminal
 parser = argparse.ArgumentParser(description='APRS/SSDV decoder')
@@ -19,8 +20,14 @@ parser.add_argument('-b', '--baudrate', help='Baudrate for serial device', defau
 parser.add_argument('-s', '--server', help='Server URL', default='https://ssdv.habhub.org/api/v0/packets')
 args = parser.parse_args()
 
-if args.device is not '-': # Use serial connection (probably TNC)
-	try: 
+if args.device == 'I': # Connect to APRS-IS
+
+	aprsis = aprs.TCP('DL4MDW', aprs_filter='t/u u/APECAN')
+	aprsis.start()
+
+elif args.device is not '-': # Use serial connection (probably TNC)
+
+	try:
 		serr = serial.Serial(
 			port=args.device,
 			baudrate=args.baudrate,
@@ -42,17 +49,25 @@ if args.log is not None:
 
 jsons = []
 
-while 1:
-	# Read a line (from stdin or serial)
-	data = sys.stdin.readline() if args.device is '-' else ser.readline()
+def received_data(data):		
+	global jsons
 
-	# Parse line and detect data
-	m = re.search("(.*)\>APECAN:\{\{I(.*)", data)
-	try:
-		call = m.group(1)
-		aprs = m.group(2)
-	except:
-		continue # message format incorrect (probably no APRS message or line cut off too short)
+	if str(type(data)) == "<class 'aprs.classes.Frame'>": # APRS-IS
+
+		call = str(data.source)
+		aprs = data.text[3:]
+		receiver = 'APRS-IS/' + str(data.path.pop())
+
+	else: # serial or stdin
+
+		# Parse line and detect data
+		m = re.search("(.*)\>APECAN(.*):\{\{I(.*)", data)
+		try:
+			call = m.group(1)
+			aprs = m.group(3)
+			receiver = 'APRS/'+m.group(2) if len(m.group(2)) > 0 else 'APRS/'+args.call
+		except:
+			return # message format incorrect (probably no APRS message or line cut off too short)
 
 	if args.log is not None:
 		f.write(data) # Log data to file
@@ -60,7 +75,7 @@ while 1:
 	data = base91.decode(aprs) # Decode Base91
 
 	if len(data) != 219:
-		continue # APRS message sampled too short
+		return # APRS message sampled too short
 
 	# Calculate CRC for SSDV server
 	crc = binascii.crc32(data) & 0xffffffff
@@ -72,7 +87,7 @@ while 1:
 		\"packet\": \"""" + ssdv + """\",
 		\"encoding\": \"hex\",
 		\"received\": \"""" + datetime.datetime.now().isoformat('T')[:19] + """Z\",
-		\"receiver\": \"""" + args.call + """\"
+		\"receiver\": \"""" + receiver + """\"
 	}""")
 
 	print 'Received packet call %02x%02x%02x%02x image %d packet %d' % (data[1], data[2], data[3], data[4], data[5], data[7] + data[6] * 256)
@@ -86,9 +101,26 @@ while 1:
 		jsons = []
 
 		try:
-			result = urllib2.urlopen(req, "".join(json.split(' '))) # Send packets to server
-			print 'Send to SSDV data server: OK'
+			error = True
+			while error:
+				try:
+					result = urllib2.urlopen(req, "".join(json.split(' '))) # Send packets to server
+					print 'Send to SSDV data server: OK'
+					error = False
+				except urllib2.URLError, error:
+					print 'Send to SSDV data server: failed (connection error :( trying again...)'
+
 		except urllib2.HTTPError, error: # The server did not like our packets :(
-			print 'Send to SSDV data server: failed'
+			print 'Send to SSDV data server: failed (the server did not like our packets :( )'
 			print error.read()
+
+if args.device == 'I': # APRS-IS
+
+	aprsis.receive(callback=received_data) # Register APRS callback
+
+else: # stdin or serial
+
+	while 1:
+		data = sys.stdin.readline() if args.device is '-' else ser.readline() # Read a line
+		received_data(data)
 
