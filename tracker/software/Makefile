@@ -98,10 +98,11 @@ include $(CHIBIOS)/os/hal/osal/rt/osal.mk
 include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/common/ports/ARMCMx/compilers/GCC/mk/port_v7m.mk
 # Other files (optional).
-#include $(CHIBIOS)/test/rt/test.mk
+include $(CHIBIOS)/test/rt/test.mk
+include $(CHIBIOS)/os/hal/lib/streams/streams.mk
 
 # Define linker script file here
-LDSCRIPT= board/STM32F429xI.ld
+LDSCRIPT= $(STARTUPLD)/STM32F412xG.ld
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
@@ -112,17 +113,12 @@ CSRC = $(STARTUPSRC) \
        $(HALSRC) \
        $(PLATFORMSRC) \
        $(BOARDSRC) \
-       $(TESTSRC) \
-       $(CHIBIOS)/os/various/evtimer.c \
-       $(CHIBIOS)/os/various/syscalls.c \
        $(CHIBIOS)/os/hal/lib/streams/memstreams.c \
        $(CHIBIOS)/os/hal/lib/streams/chprintf.c \
-       $(CHIBIOS)/os/various/fatfs_bindings/fatfs_diskio.c \
        modules/tracking.c \
        modules/position.c \
        modules/image.c \
        modules/log.c \
-       modules/error.c \
        protocols/ssdv/ssdv.c \
        protocols/ssdv/rs8.c \
        protocols/aprs/aprs.c \
@@ -139,7 +135,6 @@ CSRC = $(STARTUPSRC) \
        drivers/flash/flash.c \
        drivers/flash/helper.c \
        drivers/flash/ihex.c \
-       drivers/flash/ihexhelper.c \
        debug.c \
        radio.c \
        sleep.c \
@@ -148,8 +143,8 @@ CSRC = $(STARTUPSRC) \
        math/sgp4.c \
        math/geofence.c \
        config.c \
-       fatfs/src/ff.c \
-       drivers/usbcfg.c \
+       watchdog.c \
+       usbcfg.c \
        main.c
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
@@ -182,7 +177,7 @@ ASMXSRC = $(STARTUPASM) $(PORTASM) $(OSALASM)
 
 INCDIR = $(CHIBIOS)/os/license \
          $(STARTUPINC) $(KERNINC) $(PORTINC) $(OSALINC) \
-         $(HALINC) $(PLATFORMINC) $(BOARDINC) $(TESTINC) \
+         $(HALINC) $(PLATFORMINC) $(BOARDINC) \
          $(CHIBIOS)/os/hal/lib/streams $(CHIBIOS)/os/various \
 
 #
@@ -219,10 +214,10 @@ AOPT =
 TOPT = -mthumb -DTHUMB
 
 # Define C warning options here
-CWARN = -Wall -Wextra -Wundef -Wstrict-prototypes -std=c99
+CWARN = -Wall -Wextra -Wundef -Wstrict-prototypes
 
 # Define C++ warning options here
-CPPWARN = -Wall -Wextra -Wundef -std=c99
+CPPWARN = -Wall -Wextra -Wundef
 
 #
 # Compiler settings
@@ -240,8 +235,7 @@ UADEFS =
 
 # List all user directories here
 UINCDIR = modules/ drivers/ drivers/wrapper/ protocols/aprs \
-          protocols/ssdv protocols/morse math/ fatfs/src/ \
-          drivers/flash/
+          protocols/ssdv protocols/morse math/ drivers/flash/
 
 # List the user directory to look for the libraries here
 ULIBDIR =
@@ -257,13 +251,4 @@ RULESPATH = $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC
 include $(RULESPATH)/rules.mk
 
 burn:
-	st-flash write build/$(PROJECT).bin 0x8000000
-
-eraselog:
-	dd if=/dev/zero ibs=256k count=1 | tr "\000" "\377" > /tmp/erase.bin
-	st-flash write /tmp/erase.bin 0x080C0000
-
-readlog:
-	st-flash read /tmp/log.bin 0x080C0000 0x40000
-	hexdump -e '4/4 "%u " "\n"' /tmp/log.bin | grep '[0-9]* [0-9]* [0-9]* [0-9]*'
-
+	st-flash write build/$(PROJECT).bin 0x08000000

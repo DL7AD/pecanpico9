@@ -8,9 +8,7 @@
 
 #define RADIO_SDN_SET(state)			palWritePad(PORT(RADIO_SDN), PIN(RADIO_SDN), state)
 #define RADIO_CS_SET(state)				palWritePad(PORT(RADIO_CS), PIN(RADIO_CS), state)
-#define RF_GPIO0_SET(state)				palWritePad(PORT(RADIO_GPIO0), PIN(RADIO_GPIO0), state)
-#define RF_GPIO1_SET(state)				palWritePad(PORT(RADIO_GPIO1), PIN(RADIO_GPIO1), state)
-#define MOD_GPIO_SET(state)				RF_GPIO0_SET(state)
+#define RADIO_MOD_GPIO(state)			palWritePad(PORT(RADIO_GPIO), PIN(RADIO_GPIO), state)
 #define RADIO_WITHIN_FREQ_RANGE(frequ)	((frequ) >= 119000000 && (frequ) <= 1050000000)
 
 #define inRadioBand(freq) 				(RADIO_MIN_FREQ <= (freq) && (freq) <= RADIO_MAX_FREQ)

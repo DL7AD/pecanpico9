@@ -9,11 +9,27 @@
 #include "padc.h"
 #include <string.h>
 
-#define PLAYBACK_RATE		129000									/* Samples per second (SYSCLK = 45MHz) */
+#define PLAYBACK_RATE		483000									/* Samples per second (SYSCLK = 45MHz) */
 #define BAUD_RATE			1200									/* APRS AFSK baudrate */
 #define SAMPLES_PER_BAUD	(PLAYBACK_RATE / BAUD_RATE)				/* Samples per baud */
 #define PHASE_DELTA_1200	(((2 * 1200) << 16) / PLAYBACK_RATE)	/* Delta-phase per sample for 1200Hz tone */
 #define PHASE_DELTA_2200	(((2 * 2200) << 16) / PLAYBACK_RATE)	/* Delta-phase per sample for 2200Hz tone */
+
+
+char *SMODE_STRING[] = {
+	"ACTIVE", "SLEEP"
+};
+char *PROTOCOL_STRING[] = {
+	"UKHAS 2FSK", "UKHAS DominoEX16", "APRS AFSK 1200", "APRS 2GFSK 9600",
+	"APRS TELEMETRY CONFIG AFSK 1200", "APRS TELEMETRY CONFIG 2GFSK 9600",
+	"SSDV 2FSK", "SSDV on APRS AFSK 1200", "SSDV on APRS 2GFSK 9600", "MORSE"
+};
+static const char *getModulation(uint8_t key) {
+	const char *val[] = {"OOK", "2FSK", "2GFSK 9k6", "DOMINOEX16", "AFSK 1k2"};
+	return val[key];
+};
+
+
 
 mutex_t radio_mtx;                             // Radio mutex
 
@@ -82,12 +98,11 @@ CH_FAST_IRQ_HANDLER(STM32_TIM7_HANDLER)
 		phase_delta = (current_byte & 1) ? PHASE_DELTA_1200 : PHASE_DELTA_2200;
 
 		phase += phase_delta;								// Add delta-phase (delta-phase tone dependent)
-		MOD_GPIO_SET((phase >> 16) & 1);		// Set modulaton pin (connected to Si4464)
+		RADIO_MOD_GPIO((phase >> 16) & 1);		// Set modulaton pin (connected to Si4464)
 
 		current_sample_in_baud++;
 
 		if(current_sample_in_baud == SAMPLES_PER_BAUD) {	// Old bit consumed, load next bit
-			//palTogglePad(PORT(LED_2YELLOW), PIN(LED_2YELLOW));
 			current_sample_in_baud = 0;
 			packet_pos++;
 		}
@@ -106,11 +121,8 @@ CH_FAST_IRQ_HANDLER(STM32_TIM7_HANDLER)
 			current_byte = current_byte / 2; // Load next bit
 		}
 
-		MOD_GPIO_SET(current_byte & 0x1);
+		RADIO_MOD_GPIO(current_byte & 0x1);
 		gfsk_bit++;
-
-		//palTogglePad(PORT(LED_2YELLOW), PIN(LED_2YELLOW));
-
 	}
 
 	TIM7->SR &= ~STM32_TIM_SR_UIF;						// Reset interrupt flag
@@ -130,7 +142,7 @@ void sendOOK(radioMSG_t *msg) {
 	uint32_t bit = 0;
 	systime_t time = chVTGetSystemTimeX();
 	while(bit < msg->bin_len) {
-		MOD_GPIO_SET((msg->msg[bit/8] >> (bit%8)) & 0x1);
+		RADIO_MOD_GPIO((msg->msg[bit/8] >> (bit%8)) & 0x1);
 		bit++;
 
 		time = chThdSleepUntilWindowed(time, time + MS2ST(1200 / msg->ook_config->speed));
@@ -162,23 +174,23 @@ static void serial_cb(void *arg) {
 			if(txj < fsk_msg->bin_len/8) {
 				txc = fsk_msg->msg[txj]; // Select char
 				txj++;
-				MOD_GPIO_SET(LOW); // Start Bit (Synchronizing)
+				RADIO_MOD_GPIO(LOW); // Start Bit (Synchronizing)
 				txi = 0;
 				txs = 8;
 			} else {
 				txj = 0;
 				txs = 0; // Finished to transmit string
-				MOD_GPIO_SET(HIGH);
+				RADIO_MOD_GPIO(HIGH);
 			}
 			break;
 
 		case 8:
 			if(txi < fsk_msg->fsk_config->bits) {
 				txi++;
-				MOD_GPIO_SET(txc & 1);
+				RADIO_MOD_GPIO(txc & 1);
 				txc = txc >> 1;
 			} else {
-				MOD_GPIO_SET(HIGH); // Stop Bit
+				RADIO_MOD_GPIO(HIGH); // Stop Bit
 				txi = 0;
 				txs = 9;
 			}
@@ -186,7 +198,7 @@ static void serial_cb(void *arg) {
 
 		case 9:
 			if(fsk_msg->fsk_config->stopbits == 2)
-				MOD_GPIO_SET(HIGH); // Stop Bit
+				RADIO_MOD_GPIO(HIGH); // Stop Bit
 			txs = 7;
 	}
 
@@ -205,7 +217,7 @@ void init2FSK(radioMSG_t *msg) {
 
 	// Initialize radio and tune
 	Si4464_Init(MOD_2FSK);
-	MOD_GPIO_SET(HIGH);
+	RADIO_MOD_GPIO(HIGH);
 	radioTune(msg->freq, msg->fsk_config->shift, msg->power, 0);
 }
 
@@ -233,7 +245,7 @@ void send2GFSK(radioMSG_t *msg) {
 	radioTune(msg->freq, 0, msg->power, 0);
 	chThdSleepMilliseconds(30);
 
-	uint32_t initial_interval = 1355; // in timer ticks
+	uint32_t initial_interval = 5075; // in timer ticks
 	RCC->APB1ENR |= RCC_APB1ENR_TIM7EN;
 	nvicEnableVector(TIM7_IRQn, 1/*priority*/);
 	TIM7->ARR = initial_interval; /* Timer's period */
@@ -321,31 +333,28 @@ bool transmitOnRadio(radioMSG_t *msg) {
 
 		TRACE_INFO(	"RAD  > Transmit %d.%03d MHz, %d dBm (%d), %s, %d bits",
 					msg->freq/1000000, (msg->freq%1000000)/1000, msg->power,
-					dBm2powerLvl(msg->power), VAL2MOULATION(msg->mod), msg->bin_len
+					dBm2powerLvl(msg->power), getModulation(msg->mod), msg->bin_len
 		);
 
 		#if RADIO_BOOST
-		// Switch voltage to 3.2V for transmission (increases output power by ~6dB)
+		// Switch voltage to 3.0V for transmission (increases output power by ~6dB)
 		boost_voltage(HIGH);
 		#endif
 		
 		switch(msg->mod) {
 			case MOD_2FSK:
-				if(!isRadioInitialized())
-					init2FSK(msg);
+				init2FSK(msg);
 				send2FSK(msg);
 				break;
 			case MOD_2GFSK:
 				send2GFSK(msg);
 				break;
 			case MOD_AFSK:
-				if(!isRadioInitialized())
-					initAFSK(msg);
+				initAFSK(msg);
 				sendAFSK(msg);
 				break;
 			case MOD_OOK:
-				if(!isRadioInitialized())
-					initOOK(msg);
+				initOOK(msg);
 				sendOOK(msg);
 				break;
 			case MOD_DOMINOEX16:
@@ -356,7 +365,7 @@ bool transmitOnRadio(radioMSG_t *msg) {
 		radioShutdown(); // Shutdown radio for reinitialization
 
 		#if RADIO_BOOST
-		// Switch voltage back to 1.85V
+		// Switch voltage back to 1.8V
 		boost_voltage(LOW);
 		#endif
 
@@ -366,7 +375,7 @@ bool transmitOnRadio(radioMSG_t *msg) {
 
 		TRACE_ERROR("RAD  > No radio available for this frequency, %d.%03d MHz, %d dBm (%d), %s, %d bits",
 					msg->freq/1000000, (msg->freq%1000000)/1000, msg->power,
-					dBm2powerLvl(msg->power), VAL2MOULATION(msg->mod), msg->bin_len
+					dBm2powerLvl(msg->power), getModulation(msg->mod), msg->bin_len
 		);
 
 	}

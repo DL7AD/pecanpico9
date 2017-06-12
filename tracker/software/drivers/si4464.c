@@ -15,7 +15,7 @@
 static const SPIConfig ls_spicfg1 = {
 	.ssport	= PORT(RADIO_CS),
 	.sspad	= PIN(RADIO_CS),
-	.cr1	= SPI_CR1_MSTR
+	.cr1	= SPI_CR1_MSTR | SPI_CR1_BR_0
 };
 #define getSPIDriver() &ls_spicfg1
 
@@ -29,34 +29,34 @@ bool initialized = false;
  */
 void Si4464_Init(mod_t modulation) {
 	// Initialize SPI
-	palSetPadMode(PORT(SPI_SCK), PIN(SPI_SCK), PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);			// SCK
-	palSetPadMode(PORT(SPI_MISO), PIN(SPI_MISO), PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);			// MISO
-	palSetPadMode(PORT(SPI_MOSI), PIN(SPI_MOSI), PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);			// MOSI
+	palSetPadMode(PORT(SPI_SCK), PIN(SPI_SCK), PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);		// SCK
+	palSetPadMode(PORT(SPI_MISO), PIN(SPI_MISO), PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);		// MISO
+	palSetPadMode(PORT(SPI_MOSI), PIN(SPI_MOSI), PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);		// MOSI
 	palSetPadMode(PORT(RADIO_CS), PIN(RADIO_CS), PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);	// RADIO CS
 	palSetPad(PORT(RADIO_CS), PIN(RADIO_CS));
 
 	// Configure pins
-	palSetPadMode(PORT(RADIO_SDN), PIN(RADIO_SDN), PAL_MODE_OUTPUT_PUSHPULL);		// RADIO SDN
-	palSetPadMode(PORT(RADIO_GPIO0), PIN(RADIO_GPIO0), PAL_MODE_OUTPUT_PUSHPULL);	// RADIO GPIO0
-	palSetPadMode(PORT(RADIO_GPIO1), PIN(RADIO_GPIO1), PAL_MODE_OUTPUT_PUSHPULL);	// RADIO GPIO1
+	palSetPadMode(PORT(RADIO_SDN), PIN(RADIO_SDN), PAL_MODE_OUTPUT_PUSHPULL);	// RADIO SDN
+	palSetPadMode(PORT(RADIO_GPIO), PIN(RADIO_GPIO), PAL_MODE_OUTPUT_PUSHPULL);	// RADIO GPIO1
 
 	// Power up transmitter
 	RADIO_SDN_SET(false);	// Radio SDN low (power up transmitter)
-	chThdSleepMilliseconds(5);		// Wait for transmitter to power up
+	chThdSleepMilliseconds(10);		// Wait for transmitter to power up
 
 	// Power up (transmits oscillator type)
-	uint8_t x3 = (OSC_FREQ >> 24) & 0x0FF;
-	uint8_t x2 = (OSC_FREQ >> 16) & 0x0FF;
-	uint8_t x1 = (OSC_FREQ >>  8) & 0x0FF;
-	uint8_t x0 = (OSC_FREQ >>  0) & 0x0FF;
+	uint8_t x3 = (RADIO_CLK >> 24) & 0x0FF;
+	uint8_t x2 = (RADIO_CLK >> 16) & 0x0FF;
+	uint8_t x1 = (RADIO_CLK >>  8) & 0x0FF;
+	uint8_t x0 = (RADIO_CLK >>  0) & 0x0FF;
 	uint8_t init_command[] = {0x02, 0x01, 0x01, x3, x2, x1, x0};
 	Si4464_write(init_command, 7);
+	chThdSleepMilliseconds(25);
 
 	// Set transmitter GPIOs
 	uint8_t gpio_pin_cfg_command[] = {
 		0x13,	// Command type = GPIO settings
-		0x44,	// GPIO0        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x00,	// GPIO1        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x00,	// GPIO0        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x44,	// GPIO1        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
 		0x00,	// GPIO2        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
 		0x00,	// GPIO3        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
 		0x00,	// NIRQ
@@ -64,6 +64,7 @@ void Si4464_Init(mod_t modulation) {
 		0x00	// GEN_CONFIG
 	};
 	Si4464_write(gpio_pin_cfg_command, 8);
+	chThdSleepMilliseconds(25);
 
 	// Set modem
 	switch(modulation)
@@ -81,7 +82,7 @@ void Si4464_Init(mod_t modulation) {
 			setModem2GFSK();
 			break;
 		case MOD_DOMINOEX16:
-			TRACE_WARN("SI   > Unimplemented modulation %s", VAL2MOULATION(modulation)); // TODO: Implement DominoEX16
+			TRACE_WARN("SI   > Unimplemented modulation DominoEX16"); // TODO: Implement DominoEX16
 	}
 
 	// Temperature readout
@@ -94,12 +95,12 @@ void Si4464_write(uint8_t* txData, uint32_t len) {
 	uint8_t rxData[len];
 	
 	// SPI transfer
-	spiAcquireBus(&SPID2);
-	spiStart(&SPID2, getSPIDriver());
-	spiSelect(&SPID2);
-	spiExchange(&SPID2, len, txData, rxData);
-	spiUnselect(&SPID2);
-	spiReleaseBus(&SPID2);
+	spiAcquireBus(&SPID1);
+	spiStart(&SPID1, getSPIDriver());
+	spiSelect(&SPID1);
+	spiExchange(&SPID1, len, txData, rxData);
+	spiUnselect(&SPID1);
+	spiReleaseBus(&SPID1);
 
 	// Reqest ACK by Si4464
 	uint32_t counter = 0; // FIXME: Sometimes CTS is not returned by Si4464 correctly
@@ -110,12 +111,12 @@ void Si4464_write(uint8_t* txData, uint32_t len) {
 		uint8_t rx_ready[] = {0x44};
 
 		// SPI transfer
-		spiAcquireBus(&SPID2);
-		spiStart(&SPID2, getSPIDriver());
-		spiSelect(&SPID2);
-		spiExchange(&SPID2, 3, rx_ready, rxData);
-		spiUnselect(&SPID2);
-		spiReleaseBus(&SPID2);
+		spiAcquireBus(&SPID1);
+		spiStart(&SPID1, getSPIDriver());
+		spiSelect(&SPID1);
+		spiExchange(&SPID1, 3, rx_ready, rxData);
+		spiUnselect(&SPID1);
+		spiReleaseBus(&SPID1);
 	}
 }
 
@@ -126,12 +127,12 @@ void Si4464_read(uint8_t* txData, uint32_t txlen, uint8_t* rxData, uint32_t rxle
 	// Transmit data by SPI
 	uint8_t null_spi[txlen];
 	// SPI transfer
-	spiAcquireBus(&SPID2);
-	spiStart(&SPID2, getSPIDriver());
-	spiSelect(&SPID2);
-	spiExchange(&SPID2, txlen, txData, null_spi);
-	spiUnselect(&SPID2);
-	spiReleaseBus(&SPID2);
+	spiAcquireBus(&SPID1);
+	spiStart(&SPID1, getSPIDriver());
+	spiSelect(&SPID1);
+	spiExchange(&SPID1, txlen, txData, null_spi);
+	spiUnselect(&SPID1);
+	spiReleaseBus(&SPID1);
 
 	// Reqest ACK by Si4464
 	uint32_t counter = 0; // FIXME: Sometimes CTS is not returned by Si4464 correctly
@@ -143,12 +144,12 @@ void Si4464_read(uint8_t* txData, uint32_t txlen, uint8_t* rxData, uint32_t rxle
 		rx_ready[0] = 0x44;
 
 		// SPI transfer
-		spiAcquireBus(&SPID2);
-		spiStart(&SPID2, getSPIDriver());
-		spiSelect(&SPID2);
-		spiExchange(&SPID2, rxlen, rx_ready, rxData);
-		spiUnselect(&SPID2);
-		spiReleaseBus(&SPID2);
+		spiAcquireBus(&SPID1);
+		spiStart(&SPID1, getSPIDriver());
+		spiSelect(&SPID1);
+		spiExchange(&SPID1, rxlen, rx_ready, rxData);
+		spiUnselect(&SPID1);
+		spiReleaseBus(&SPID1);
 	}
 }
 
@@ -167,7 +168,7 @@ void setFrequency(uint32_t freq, uint16_t shift) {
 	Si4464_write(set_band_property_command, 5);
 
 	// Set the PLL parameters
-	uint32_t f_pfd = 2 * OSC_FREQ / outdiv;
+	uint32_t f_pfd = 2 * RADIO_CLK / outdiv;
 	uint32_t n = ((uint32_t)(freq / f_pfd)) - 1;
 	float ratio = (float)freq / (float)f_pfd;
 	float rest  = ratio - (float)n;
@@ -177,14 +178,14 @@ void setFrequency(uint32_t freq, uint16_t shift) {
 	uint32_t m1 = (m - m2 * 0x10000) >> 8;
 	uint32_t m0 = (m - m2 * 0x10000 - (m1 << 8));
 
-	uint32_t channel_increment = 524288 * outdiv * shift / (2 * OSC_FREQ);
+	uint32_t channel_increment = 524288 * outdiv * shift / (2 * RADIO_CLK);
 	uint8_t c1 = channel_increment / 0x100;
 	uint8_t c0 = channel_increment - (0x100 * c1);
 
 	uint8_t set_frequency_property_command[] = {0x11, 0x40, 0x04, 0x00, n, m2, m1, m0, c1, c0};
 	Si4464_write(set_frequency_property_command, 10);
 
-	uint32_t x = ((((uint32_t)1 << 19) * outdiv * 1300.0)/(2*OSC_FREQ))*2;
+	uint32_t x = ((((uint32_t)1 << 19) * outdiv * 1300.0)/(2*RADIO_CLK))*2;
 	uint8_t x2 = (x >> 16) & 0xFF;
 	uint8_t x1 = (x >>  8) & 0xFF;
 	uint8_t x0 = (x >>  0) & 0xFF;
@@ -196,7 +197,7 @@ void setShift(uint16_t shift) {
 	if(!shift)
 		return;
 
-	float units_per_hz = (( 0x40000 * outdiv ) / (float)OSC_FREQ);
+	float units_per_hz = (( 0x40000 * outdiv ) / (float)RADIO_CLK);
 
 	// Set deviation for 2FSK
 	uint32_t modem_freq_dev = (uint32_t)(units_per_hz * shift / 2.0 );
@@ -218,7 +219,7 @@ void setModemAFSK(void) {
 	Si4464_write(no_sync_word, 5);
 
 	// Setup the NCO modulo and oversampling mode
-	uint32_t s = OSC_FREQ / 10;
+	uint32_t s = RADIO_CLK / 10;
 	uint8_t f3 = (s >> 24) & 0xFF;
 	uint8_t f2 = (s >> 16) & 0xFF;
 	uint8_t f1 = (s >>  8) & 0xFF;
@@ -230,8 +231,8 @@ void setModemAFSK(void) {
 	uint8_t setup_data_rate[] = {0x11, 0x20, 0x03, 0x03, 0x00, 0x11, 0x30};
 	Si4464_write(setup_data_rate, 7);
 
-	// Use 2GFSK from async GPIO0
-	uint8_t use_2gfsk[] = {0x11, 0x20, 0x01, 0x00, 0x0B};
+	// Use 2GFSK from async GPIO1
+	uint8_t use_2gfsk[] = {0x11, 0x20, 0x01, 0x00, 0x2B};
 	Si4464_write(use_2gfsk, 5);
 
 	// Set AFSK filter
@@ -244,14 +245,14 @@ void setModemAFSK(void) {
 }
 
 void setModemOOK(void) {
-	// Use OOK from async GPIO0
-	uint8_t use_ook[] = {0x11, 0x20, 0x01, 0x00, 0x89};
+	// Use OOK from async GPIO1
+	uint8_t use_ook[] = {0x11, 0x20, 0x01, 0x00, 0xA9};
 	Si4464_write(use_ook, 5);
 }
 
 void setModem2FSK(void) {
-	// use 2FSK from async GPIO0
-	uint8_t use_2fsk[] = {0x11, 0x20, 0x01, 0x00, 0x8A};
+	// use 2FSK from async GPIO1
+	uint8_t use_2fsk[] = {0x11, 0x20, 0x01, 0x00, 0xAA};
 	Si4464_write(use_2fsk, 5);
 }
 
@@ -265,7 +266,7 @@ void setModem2GFSK(void) {
 	Si4464_write(no_sync_word, 5);
 
 	// Setup the NCO modulo and oversampling mode
-	uint32_t s = OSC_FREQ / 10;
+	uint32_t s = RADIO_CLK / 10;
 	uint8_t f3 = (s >> 24) & 0xFF;
 	uint8_t f2 = (s >> 16) & 0xFF;
 	uint8_t f1 = (s >>  8) & 0xFF;
@@ -277,8 +278,8 @@ void setModem2GFSK(void) {
 	uint8_t setup_data_rate[] = {0x11, 0x20, 0x03, 0x03, 0x00, 0x25, 0x80};
 	Si4464_write(setup_data_rate, 7);
 
-	// Use 2GFSK from async GPIO0
-	uint8_t use_2gfsk[] = {0x11, 0x20, 0x01, 0x00, 0x0B};
+	// Use 2GFSK from async GPIO1
+	uint8_t use_2gfsk[] = {0x11, 0x20, 0x01, 0x00, 0x2B};
 	Si4464_write(use_2gfsk, 5);
 }
 
@@ -289,24 +290,26 @@ void setPowerLevel(int8_t level) {
 }
 
 void startTx(uint16_t size) {
+	palClearPad(PORT(IO_LED1), PIN(IO_LED1));
 	uint8_t change_state_command[] = {0x31, 0x00, 0x30, (size >> 8) & 0x1F, size & 0xFF};
 	Si4464_write(change_state_command, 5);
 }
 
 void stopTx(void) {
+	palSetPad(PORT(IO_LED1), PIN(IO_LED1));
 	uint8_t change_state_command[] = {0x34, 0x03};
 	Si4464_write(change_state_command, 2);
 }
 
 void radioShutdown(void) {
+	palSetPad(PORT(IO_LED1), PIN(IO_LED1));
 	RADIO_SDN_SET(true);	// Power down chip
-	RF_GPIO1_SET(false);	// Set GPIO1 low
+	RADIO_MOD_GPIO(false);		// Set GPIO1 low
 	initialized = false;
 
 	// Deinit pins
 	palSetPadMode(PORT(RADIO_CS), PIN(RADIO_CS), PAL_MODE_INPUT);		// RADIO CS
-	palSetPadMode(PORT(RADIO_GPIO0), PIN(RADIO_GPIO0), PAL_MODE_INPUT);	// RADIO GPIO0
-	palSetPadMode(PORT(RADIO_GPIO1), PIN(RADIO_GPIO1), PAL_MODE_INPUT);	// RADIO GPIO1
+	palSetPadMode(PORT(RADIO_GPIO), PIN(RADIO_GPIO), PAL_MODE_INPUT);	// RADIO GPIO1
 }
 
 /**
@@ -394,4 +397,3 @@ uint8_t dBm2powerLvl(int32_t dBm) {
 bool isRadioInitialized(void) {
 	return initialized;
 }
-

@@ -11,6 +11,7 @@
 #include "chprintf.h"
 #include <string.h>
 #include <math.h>
+#include "watchdog.h"
 
 void str_replace(char *string, uint32_t size, char *search, char *replace) {
 	for(uint32_t i=0; string[i] != 0; i++) { // Find search string
@@ -104,15 +105,8 @@ void replace_placeholders(char* fskmsg, uint16_t size, trackPoint_t *tp) {
 	str_replace(fskmsg, size, "<LOC>", buf);
 }
 
-THD_FUNCTION(modulePOS, arg) {
+THD_FUNCTION(posThread, arg) {
 	module_conf_t* config = (module_conf_t*)arg;
-
-	// Execute Initial delay
-	if(config->init_delay)
-		chThdSleepMilliseconds(config->init_delay);
-
-	// Print initialization message
-	TRACE_INFO("POS  > Startup module %s", config->name);
 
 	trackPoint_t *trackPoint = getLastTrackPoint();
 	systime_t time = chVTGetSystemTimeX();
@@ -123,7 +117,7 @@ THD_FUNCTION(modulePOS, arg) {
 	while(true)
 	{
 		TRACE_INFO("POS  > Do module POSITION cycle");
-		config->last_update = chVTGetSystemTimeX(); // Update Watchdog timer
+		config->wdg_timeout = chVTGetSystemTimeX() + S2ST(600); // TODO: Implement more sophisticated method
 
 		TRACE_INFO("POS  > Get last track point");
 		trackPoint = getLastTrackPoint();
@@ -213,3 +207,17 @@ THD_FUNCTION(modulePOS, arg) {
 	}
 }
 
+void start_position_thread(module_conf_t *conf)
+{
+	if(config->init_delay) chThdSleepMilliseconds(config->init_delay);
+	TRACE_INFO("POS  > Startup position thread");
+	chsnprintf(conf->name, sizeof(conf->name), "POS");
+	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(2*1024), "POS", NORMALPRIO, posThread, conf);
+	if(!th) {
+		// Print startup error, do not start watchdog for this thread
+		TRACE_ERROR("POS  > Could not startup thread (not enough memory available)");
+	} else {
+		register_thread_at_wdg(conf);
+		conf->wdg_timeout = chVTGetSystemTimeX() + S2ST(1);
+	}
+}

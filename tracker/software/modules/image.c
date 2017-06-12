@@ -12,8 +12,10 @@
 #include <string.h>
 #include "types.h"
 #include "sleep.h"
+#include "watchdog.h"
+#include "flash.h"
 
-static uint32_t gimage_id;
+static uint8_t gimage_id; // Global image ID (for all image threads)
 mutex_t camera_mtx;
 
 void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* config, uint8_t image_id)
@@ -32,7 +34,7 @@ void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* config, uint
 
 	while(true)
 	{
-		config->last_update = chVTGetSystemTimeX(); // Update Watchdog timer
+		config->wdg_timeout = chVTGetSystemTimeX() + S2ST(600); // TODO: Implement more sophisticated method
 
 		while((c = ssdv_enc_get_packet(&ssdv)) == SSDV_FEED_ME)
 		{
@@ -103,21 +105,14 @@ void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* config, uint
 	TRACE_INFO("SSDV > %i packets", i);
 }
 
-THD_FUNCTION(moduleIMG, arg) {
+THD_FUNCTION(imgThread, arg) {
 	module_conf_t* config = (module_conf_t*)arg;
-
-	// Execute Initial delay
-	if(config->init_delay)
-		chThdSleepMilliseconds(config->init_delay);
-
-	// Print initialization message
-	TRACE_INFO("IMG  > Startup module %s", config->name);
 
 	systime_t time = chVTGetSystemTimeX();
 	while(true)
 	{
 		TRACE_INFO("IMG  > Do module IMAGE cycle");
-		config->last_update = chVTGetSystemTimeX(); // Update Watchdog timer
+		config->wdg_timeout = chVTGetSystemTimeX() + S2ST(600); // TODO: Implement more sophisticated method
 
 		if(!p_sleep(&config->sleep_config))
 		{
@@ -208,8 +203,9 @@ THD_FUNCTION(moduleIMG, arg) {
 				// Encode/Transmit SSDV if image sampled successfully
 				if(status)
 				{
-					TRACE_INFO("IMG  > Encode/Transmit SSDV ID=%d", gimage_id++);
-					encode_ssdv(image, image_len, config, gimage_id);
+					gimage_id++;
+					TRACE_INFO("IMG  > Encode/Transmit SSDV ID=%d", gimage_id-1);
+					encode_ssdv(image, image_len, config, gimage_id-1);
 				}
 
 			} else {
@@ -225,6 +221,21 @@ THD_FUNCTION(moduleIMG, arg) {
 		}
 
 		time = waitForTrigger(time, &config->trigger);
+	}
+}
+
+void start_image_thread(module_conf_t *conf)
+{
+	if(config->init_delay) chThdSleepMilliseconds(config->init_delay);
+	TRACE_INFO("IMG  > Startup image thread");
+	chsnprintf(conf->name, sizeof(conf->name), "IMG");
+	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(6*1024), "IMG", NORMALPRIO, imgThread, conf);
+	if(!th) {
+		// Print startup error, do not start watchdog for this thread
+		TRACE_ERROR("IMG  > Could not startup thread (not enough memory available)");
+	} else {
+		register_thread_at_wdg(conf);
+		conf->wdg_timeout = chVTGetSystemTimeX() + S2ST(1);
 	}
 }
 

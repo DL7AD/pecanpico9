@@ -1,7 +1,7 @@
 #ifndef __LOG_H__
 #define __LOG_H__
 
-THD_FUNCTION(moduleLOG, arg);
+void start_logging_thread(module_conf_t *conf);
 
 #endif
 

@@ -6,8 +6,8 @@
 #include "chprintf.h"
 #include "ptime.h"
 #include "config.h"
-#include "error.h"
 #include <string.h>
+#include "usbcfg.h"
 
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
@@ -16,14 +16,11 @@ extern const SerialConfig uart_config;
 
 // Initializer for serial debug and LEDs
 #define DEBUG_INIT() { \
-	palSetPadMode(PORT(IO_LED4), PIN(IO_LED4), PAL_MODE_OUTPUT_PUSHPULL); \
-	palSetPadMode(PORT(IO_LED3), PIN(IO_LED3), PAL_MODE_OUTPUT_PUSHPULL); \
-	palSetPadMode(PORT(IO_LED2), PIN(IO_LED2), PAL_MODE_OUTPUT_PUSHPULL); \
 	palSetPadMode(PORT(IO_LED1), PIN(IO_LED1), PAL_MODE_OUTPUT_PUSHPULL); \
+	palSetPadMode(PORT(IO_LED2), PIN(IO_LED2), PAL_MODE_OUTPUT_PUSHPULL); \
 	\
 	sdStart(&SD3, &uart_config); \
 	palSetPadMode(PORT(IO_TXD), PIN(IO_TXD), PAL_MODE_ALTERNATE(7)); \
-	/*palSetPadMode(PORT(IO_RXD), PIN(IO_RXD), PAL_MODE_ALTERNATE(7));*/ \
 	chMtxObjectInit(&trace_mtx); \
 	chMtxLock(&trace_mtx); \
 	chprintf((BaseSequentialStream*)&SD3, "\r\n"); \
@@ -32,24 +29,34 @@ extern const SerialConfig uart_config;
 
 #define TRACE_BASE(format, type, args...) { \
 	chMtxLock(&trace_mtx); \
-	if(TRACE_TIME) \
+	if(TRACE_TIME) { \
 		chprintf((BaseSequentialStream*)&SD3, "[%8d.%03d]", chVTGetSystemTimeX()/CH_CFG_ST_FREQUENCY, (chVTGetSystemTimeX()*1000/CH_CFG_ST_FREQUENCY)%1000); \
+	} \
 	chprintf((BaseSequentialStream*)&SD3, "[%s]", type); \
-	if(TRACE_FILE) \
+	if(TRACE_FILE) { \
 		chprintf((BaseSequentialStream*)&SD3, "[%10s %04d]", __FILENAME__, __LINE__); \
+	} \
 	chprintf((BaseSequentialStream*)&SD3, " "); \
 	chprintf((BaseSequentialStream*)&SD3, (format), ##args); \
 	chprintf((BaseSequentialStream*)&SD3, "\r\n"); \
+	\
+	if(TRACE_TIME) { \
+		chprintf((BaseSequentialStream*)&SDU1, "[%8d.%03d]", chVTGetSystemTimeX()/CH_CFG_ST_FREQUENCY, (chVTGetSystemTimeX()*1000/CH_CFG_ST_FREQUENCY)%1000); \
+	} \
+	chprintf((BaseSequentialStream*)&SDU1, "[%s]", type); \
+	if(TRACE_FILE) { \
+		chprintf((BaseSequentialStream*)&SDU1, "[%10s %04d]", __FILENAME__, __LINE__); \
+	} \
+	chprintf((BaseSequentialStream*)&SDU1, " "); \
+	chprintf((BaseSequentialStream*)&SDU1, (format), ##args); \
+	chprintf((BaseSequentialStream*)&SDU1, "\r\n"); \
 	chMtxUnlock(&trace_mtx); \
 }
 
 #define TRACE_DEBUG(format, args...) TRACE_BASE(format, "DEBUG", ##args)
 #define TRACE_INFO(format, args...)  TRACE_BASE(format, "     ", ##args)
-#define TRACE_WARN(format, args...) TRACE_BASE(format, "WARN ", ##args)
-#define TRACE_ERROR(format, args...) { \
-	TRACE_BASE(format, "ERROR", ##args); \
-	log_error(__FILENAME__, __LINE__); \
-}
+#define TRACE_WARN(format, args...)  TRACE_BASE(format, "WARN ", ##args)
+#define TRACE_ERROR(format, args...) TRACE_BASE(format, "ERROR", ##args)
 
 #if TRACE_TIME && TRACE_FILE
 #define TRACE_TAB "                                             "

@@ -15,25 +15,24 @@
 */
 
 /*
- * ST32F429xI memory setup.
- * Note: Use of ram1, ram2 and ram3 is mutually exclusive with use of ram0.
+ * STM32F412xG memory setup.
  */
 MEMORY
 {
-    flash0  : org = 0x08000000, len = 768k    /* Program memory */
-    flash1  : org = 0x080C0000, len = 256k    /* Log memeory (page 10 and 11) */
+    flash0  : org = 0x08000000, len = 1M
+    flash1  : org = 0x00000000, len = 0
     flash2  : org = 0x00000000, len = 0
     flash3  : org = 0x00000000, len = 0
     flash4  : org = 0x00000000, len = 0
     flash5  : org = 0x00000000, len = 0
     flash6  : org = 0x00000000, len = 0
     flash7  : org = 0x00000000, len = 0
-    ram0    : org = 0x20000000, len = 192k    /* SRAM1 + SRAM2 + SRAM3 */
-    ram1    : org = 0x20000000, len = 112k    /* SRAM1 */
-    ram2    : org = 0x2001C000, len = 16k     /* SRAM2 */
-    ram3    : org = 0x20020000, len = 64k     /* SRAM3 */
-    ram4    : org = 0x10000000, len = 64k     /* CCM SRAM */
-    ram5    : org = 0x40024000, len = 4k      /* BCKP SRAM */
+    ram0    : org = 0x20000000, len = 256k
+    ram1    : org = 0x00000000, len = 0
+    ram2    : org = 0x00000000, len = 0
+    ram3    : org = 0x00000000, len = 0
+    ram4    : org = 0x00000000, len = 0
+    ram5    : org = 0x00000000, len = 0
     ram6    : org = 0x00000000, len = 0
     ram7    : org = 0x00000000, len = 0
 }

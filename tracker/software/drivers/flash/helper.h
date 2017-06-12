@@ -8,7 +8,6 @@
 #ifndef HELPER_H
 #define HELPER_H
 
-#include <ff.h>
 #include <stdint.h>
 
 #define BOOTLOADER_SUCCESS           0

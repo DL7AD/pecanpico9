@@ -200,8 +200,7 @@ typedef struct {
 	char				sat_tle2[70];
 
 	// Watchdog
-	systime_t			last_update;
-	bool				active;
+	systime_t			wdg_timeout;		// Time at which watchdog will reset the STM32, 0 inactive
 } module_conf_t;
 
 typedef struct {

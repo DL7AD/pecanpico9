@@ -36,6 +36,10 @@ bool I2C_send(uint8_t addr, uint8_t *txbuf, uint32_t txbytes, uint8_t *rxbuf, ui
 void pi2cInit(void)
 {
 	TRACE_INFO("I2C  > Initialize I2C");
+
+	palSetPadMode(PORT(I2C_SDA), PIN(I2C_SDA), PAL_MODE_ALTERNATE(4) | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_OTYPE_OPENDRAIN );	// SDA
+	palSetPadMode(PORT(I2C_SCL), PIN(I2C_SCL), PAL_MODE_ALTERNATE(4) | PAL_STM32_OSPEED_HIGHEST | PAL_STM32_OTYPE_OPENDRAIN );	// SCL
+
 	i2cStart(&I2CD1, &_i2cfg);
 	chMtxObjectInit(&pi2c_mtx);
 }

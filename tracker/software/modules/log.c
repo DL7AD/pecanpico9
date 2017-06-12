@@ -11,8 +11,9 @@
 #include "base.h"
 #include "aprs.h"
 #include <math.h>
+#include "watchdog.h"
 
-static uint16_t pkt[LOG_TRANSMISSION_TIME*3+2];
+static uint16_t pkt[16*3+2];
 static uint8_t pkt_base91[BASE91LEN(sizeof(pkt))];
 static uint32_t nextLogEntryCounter; // Current log pointer (determines next log transmission)
 
@@ -106,54 +107,47 @@ uint16_t cpr_encode(bool cprFormat, double lat, double lon)
 	return (yz << 8) | xz;
 }
 
-THD_FUNCTION(moduleLOG, arg)
+THD_FUNCTION(logThread, arg)
 {
 	module_conf_t* config = (module_conf_t*)arg;
-
-	// Execute Initial delay
-	if(config->init_delay)
-		chThdSleepMilliseconds(config->init_delay);
-
-	// Print initialization message
-	TRACE_INFO("LOG  > Startup module %s", config->name);
 
 	systime_t time = chVTGetSystemTimeX();
 	while(true)
 	{
 		TRACE_INFO("LOG  > Do module LOG cycle");
-		config->last_update = chVTGetSystemTimeX(); // Update Watchdog timer
+		config->wdg_timeout = chVTGetSystemTimeX() + S2ST(600); // TODO: Implement more sophisticated method
 
 		if(!p_sleep(&config->sleep_config))
 		{
 			// Get log from memory
-			logTrackPoint_t log;
-			getLogTrackPoints(&log, nextLogEntryCounter++, 1);
+			trackPoint_t log;
+			//getLogTrackPoints(&log, nextLogEntryCounter++, 1);
 
 			// Encode absolute time
-			pkt[0] = log.time >> 16;
-			pkt[1] = log.time & 0xFFFF;
-			uint32_t rel_time = log.time;
+			//pkt[0] = log.time >> 16;
+			//pkt[1] = log.time & 0xFFFF;
+			uint32_t rel_time;
 
 			// Encode log points
-			for(uint32_t i=0,z=0; i<LOG_TRANSMISSION_TIME; i++,z++)
+			for(uint32_t i=0,z=0; i<16; i++,z++)
 			{
-				getLogTrackPoints(&log, nextLogEntryCounter++, 1); // Read log point
+				//getLogTrackPoints(&log, nextLogEntryCounter++, 1); // Read log point
 
-				if(z == LOG_FLASH_SIZE / sizeof(logTrackPoint_t)) // No entry in log memory
-					break;
+				//if(z == LOG_FLASH_SIZE / sizeof(trackPoint_t)) // No entry in log memory
+				//	break;
 
-				if(log.time == 0xFFFFFFFF) { // Log entry invalid (not set)
-					i--;
-					continue;
-				}
+				//if(log.time == 0xFFFFFFFF) { // Log entry invalid (not set)
+				//	i--;
+				//	continue;
+				//}
 
-				TRACE_INFO("LOG  > Encode log ID=%d", (nextLogEntryCounter-1) % (LOG_FLASH_SIZE / sizeof(logTrackPoint_t)));
+				//TRACE_INFO("LOG  > Encode log ID=%d", (nextLogEntryCounter-1) % (LOG_FLASH_SIZE / sizeof(trackPoint_t)));
 
-				pkt[i*3+2] = log.time - rel_time; // Time difference to last log point
-				pkt[i*3+3] = cpr_encode(i%2, log.gps_lat/10000000.0, log.gps_lon/10000000.0);
-				pkt[i*3+4] = log.gps_alt; // Altitude in meters				
+				//pkt[i*3+2] = log.time - rel_time; // Time difference to last log point
+				//pkt[i*3+3] = cpr_encode(i%2, log.gps_lat/10000000.0, log.gps_lon/10000000.0);
+				//pkt[i*3+4] = log.gps_alt; // Altitude in meters				
 
-				rel_time = log.time; // Set absolute time for next log point
+				//rel_time = log.time; // Set absolute time for next log point
 			}
 
 			// Encode radio message
@@ -184,6 +178,21 @@ THD_FUNCTION(moduleLOG, arg)
 		}
 
 		time = waitForTrigger(time, &config->trigger);
+	}
+}
+
+void start_logging_thread(module_conf_t *conf)
+{
+	if(config->init_delay) chThdSleepMilliseconds(config->init_delay);
+	TRACE_INFO("LOG  > Startup logging thread");
+	chsnprintf(conf->name, sizeof(conf->name), "LOG");
+	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(2*1024), "LOG", NORMALPRIO, logThread, conf);
+	if(!th) {
+		// Print startup error, do not start watchdog for this thread
+		TRACE_ERROR("LOG  > Could not startup thread (not enough memory available)");
+	} else {
+		register_thread_at_wdg(conf);
+		conf->wdg_timeout = chVTGetSystemTimeX() + S2ST(1);
 	}
 }
 

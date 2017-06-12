@@ -9,7 +9,6 @@
 #include "flash.h"
 #include <ch.h>
 #include <hal.h>
-#include <ff.h>
 
 void flashJumpApplication(uint32_t address)
 {

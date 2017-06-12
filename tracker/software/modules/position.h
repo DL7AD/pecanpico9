@@ -4,6 +4,6 @@
 #include "ch.h"
 #include "hal.h"
 
-THD_FUNCTION(modulePOS, arg);
+void start_position_thread(module_conf_t *conf);
 
 #endif

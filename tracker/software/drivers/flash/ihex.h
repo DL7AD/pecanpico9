@@ -19,8 +19,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <ff.h>
-
 /* General definition of the Intel HEX8 specification */
 enum _IHexDefinitions {
 	/* 768 should be plenty of space to read in a Intel HEX8 record */
@@ -89,19 +87,6 @@ typedef struct {
  * \retval IHEX_ERROR_INVALID_ARGUMENTS if the record pointer is NULL, or if the length of the 8-bit data array is out of range (less than zero or greater than the maximum data length allowed by record specifications, see IHexRecord.data).
 */
 int New_IHexRecord(int type, uint16_t address, const uint8_t *data, int dataLen, IHexRecord *ihexRecord);
-
-/**
- * Reads an Intel HEX8 record from an opened file.
- * \param ihexRecord A pointer to the Intel HEX8 record structure that will store the read record.
- * \param in A FIL pointer to an opened FIL that can be read.
- * \return IHEX_OK on success, otherwise one of the IHEX_ERROR_ error codes.
- * \retval IHEX_OK on success.
- * \retval IHEX_ERROR_INVALID_ARGUMENTS if the record pointer or FIL pointer is NULL.
- * \retval IHEX_ERROR_EOF if end-of-file has been reached.
- * \retval IHEX_ERROR_FILE if a FIL reading error has occured.
- * \retval IHEX_INVALID_RECORD if the record read is invalid (record did not match specifications or record checksum was invalid).
-*/
-int Read_IHexRecord(IHexRecord *ihexRecord, FIL *in);
 
 /**
  * Calculates the checksum of an Intel HEX8 IHexRecord structure.
