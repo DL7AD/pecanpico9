@@ -4,7 +4,7 @@
 #include "debug.h"
 #include "ptime.h"
 #include "config.h"
-#include "max.h"
+#include "ublox.h"
 #include "bme280.h"
 #include "padc.h"
 #include "pac1720.h"
@@ -390,7 +390,7 @@ THD_FUNCTION(trackingThread, arg) {
 	lastTrackPoint->adc_vsol = getSolarVoltageMV();
 	lastTrackPoint->adc_vbat = getBatteryVoltageMV();
 	lastTrackPoint->adc_vusb = getUSBVoltageMV();
-	lastTrackPoint->adc_psol = pac1720_getPsol();
+	lastTrackPoint->adc_isol = pac1720_getIsol();
 	lastTrackPoint->adc_pbat = pac1720_getPbat();
 
 	bme280_t bme280;
@@ -497,7 +497,7 @@ THD_FUNCTION(trackingThread, arg) {
 		tp->adc_vsol = getSolarVoltageMV();
 		tp->adc_vbat = getBatteryVoltageMV();
 		tp->adc_vusb = getUSBVoltageMV();
-		tp->adc_psol = pac1720_getAvgPsol();
+		tp->adc_isol = pac1720_getAvgIsol();
 		tp->adc_pbat = pac1720_getAvgPbat();
 
 		bme280_t bme280;
@@ -520,13 +520,13 @@ THD_FUNCTION(trackingThread, arg) {
 					"%s Time %04d-%02d-%02d %02d:%02d:%02d\r\n"
 					"%s Pos  %d.%07d %d.%07d Alt %dm\r\n"
 					"%s Sats %d  TTFF %dsec\r\n"
-					"%s ADC Vbat=%d.%03dV Vsol=%d.%03dV VUSB=%d.%03dV Pbat=%dmW Psol=%dmW\r\n"
+					"%s ADC Vbat=%d.%03dV Vsol=%d.%03dV VUSB=%d.%03dV Pbat=%dmW Isol=%dmA\r\n"
 					"%s AIR p=%6d.%01dPa T=%2d.%02ddegC phi=%2d.%01d%%",
 					tp->id,
 					TRACE_TAB, tp->time.year, tp->time.month, tp->time.day, tp->time.hour, tp->time.minute, tp->time.day,
 					TRACE_TAB, tp->gps_lat/10000000, (tp->gps_lat > 0 ? 1:-1)*tp->gps_lat%10000000, tp->gps_lon/10000000, (tp->gps_lon > 0 ? 1:-1)*tp->gps_lon%10000000, tp->gps_alt,
 					TRACE_TAB, tp->gps_sats, tp->gps_ttff,
-					TRACE_TAB, tp->adc_vbat/1000, (tp->adc_vbat%1000), tp->adc_vsol/1000, (tp->adc_vsol%1000), tp->adc_vusb/1000, (tp->adc_vusb%1000), tp->adc_pbat, tp->adc_psol,
+					TRACE_TAB, tp->adc_vbat/1000, (tp->adc_vbat%1000), tp->adc_vsol/1000, (tp->adc_vsol%1000), tp->adc_vusb/1000, (tp->adc_vusb%1000), tp->adc_pbat, tp->adc_isol,
 					TRACE_TAB, tp->air_press/10, tp->air_press%10, tp->air_temp/100, tp->air_temp%100, tp->air_hum/10, tp->air_hum%10
 		);
 

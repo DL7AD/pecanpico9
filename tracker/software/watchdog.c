@@ -34,7 +34,7 @@ THD_FUNCTION(wdgThread, arg) {
 			wdgReset(&WDGD1);	// Reset hardware watchdog at no error
 
 		// Switch LEDs
-		palTogglePad(PORT(IO_LED2), PIN(IO_LED2));		// Show I'M ALIVE
+		palToggleLine(LINE_IO_LED2);					// Show I'M ALIVE
 		chThdSleepMilliseconds(healthy ? 500 : 100);	// Blink faster (less delay) in case of an error
 	}
 }

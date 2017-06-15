@@ -23,8 +23,6 @@
 #include "hal.h"
 #include "ov2640.h"
 #include "pi2c.h"
-#include "stm32f4xx_rcc.h"
-#include "stm32f4xx_dcmi.h"
 #include "board.h"
 #include "defines.h"
 #include "debug.h"
@@ -635,7 +633,7 @@ static const struct regval_list ov2640_jpeg_regs[] = {
 
 
 bool ov2640_samplingFinished;
-ssdv_config_t *ov2640_config;
+ssdv_conf_t *ov2640_conf;
 
 /**
   * Captures an image from the camera.
@@ -651,15 +649,15 @@ bool OV2640_Snapshot2RAM(void)
 
 bool OV2640_BufferOverflow(void)
 {
-	return OV2640_getBuffer(NULL) > ov2640_config->ram_size-3;
+	return OV2640_getBuffer(NULL) > ov2640_conf->ram_size-3;
 }
 
 uint32_t OV2640_getBuffer(uint8_t** buffer) {
-	*buffer = ov2640_config->ram_buffer;
+	*buffer = ov2640_conf->ram_buffer;
 
 	// Detect size
-	uint32_t size = ov2640_config->ram_size;
-	while(!ov2640_config->ram_buffer[size-1])
+	uint32_t size = ov2640_conf->ram_size;
+	while(!ov2640_conf->ram_buffer[size-1])
 		size--;
 
 	return size;
@@ -671,22 +669,22 @@ void OV2640_Capture(void)
 
 	while(1)
 	{
-		while(palReadPad(PORT(CAM_VSYNC), PIN(CAM_VSYNC)));
-		while(!palReadPad(PORT(CAM_VSYNC), PIN(CAM_VSYNC)));
+		while(palReadLine(LINE_CAM_VSYNC));
+		while(!palReadLine(LINE_CAM_VSYNC));
 
 		uint32_t i=0;
-		while(palReadPad(PORT(CAM_VSYNC), PIN(CAM_VSYNC)))
+		while(palReadLine(LINE_CAM_VSYNC))
 		{
-			if(!palReadPad(PORT(CAM_HREF), PIN(CAM_HREF)))
+			if(!palReadLine(LINE_CAM_HREF))
 				continue;
 
-			while(!palReadPad(PORT(CAM_PCLK), PIN(CAM_PCLK)));
+			while(!palReadLine(LINE_CAM_PCLK));
 			// We've got a rising edge
 
-			ov2640_config->ram_buffer[i++] = (uint8_t)GPIOA->IDR;
+			ov2640_conf->ram_buffer[i++] = (uint8_t)GPIOA->IDR;
 
 			// Wait for falling edge
-			while(palReadPad(PORT(CAM_PCLK), PIN(CAM_PCLK)));
+			while(palReadLine(LINE_CAM_PCLK));
 		}
 		if(i > 1000)
 		{
@@ -701,21 +699,21 @@ void OV2640_Capture(void)
   */
 void OV2640_InitGPIO(void)
 {
-	palSetPadMode(PORT(CAM_HREF), PIN(CAM_HREF), PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
-	palSetPadMode(PORT(CAM_PCLK), PIN(CAM_PCLK), PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
-	palSetPadMode(PORT(CAM_VSYNC), PIN(CAM_VSYNC), PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
-	palSetPadMode(PORT(CAM_XCLK), PIN(CAM_XCLK), PAL_MODE_ALTERNATE(0));
-	palSetPadMode(PORT(CAM_D2), PIN(CAM_D2), PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
-	palSetPadMode(PORT(CAM_D3), PIN(CAM_D3), PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
-	palSetPadMode(PORT(CAM_D4), PIN(CAM_D4), PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
-	palSetPadMode(PORT(CAM_D5), PIN(CAM_D5), PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
-	palSetPadMode(PORT(CAM_D6), PIN(CAM_D6), PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
-	palSetPadMode(PORT(CAM_D7), PIN(CAM_D7), PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
-	palSetPadMode(PORT(CAM_D8), PIN(CAM_D8), PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
-	palSetPadMode(PORT(CAM_D9), PIN(CAM_D9), PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_HREF, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_PCLK, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_VSYNC, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_XCLK, PAL_MODE_ALTERNATE(0));
+	palSetLineMode(LINE_CAM_D2, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_D3, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_D4, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_D5, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_D6, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_D7, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_D8, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_D9, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
 
-	palSetPadMode(PORT(CAM_EN), PIN(CAM_EN), PAL_MODE_OUTPUT_PUSHPULL);
-	palSetPadMode(PORT(CAM_RESET), PIN(CAM_RESET), PAL_MODE_OUTPUT_PUSHPULL);
+	palSetLineMode(LINE_CAM_EN, PAL_MODE_OUTPUT_PUSHPULL);
+	palSetLineMode(LINE_CAM_RESET, PAL_MODE_OUTPUT_PUSHPULL);
 }
 
 void OV2640_TransmitConfig(void)
@@ -733,7 +731,7 @@ void OV2640_TransmitConfig(void)
 	for(uint32_t i=0; (ov2640_size_change_preamble_regs[i].reg != 0xff) || (ov2640_size_change_preamble_regs[i].val != 0xff); i++)
 		I2C_write8_locked(OV2640_I2C_ADR, ov2640_size_change_preamble_regs[i].reg, ov2640_size_change_preamble_regs[i].val);
 
-	switch(ov2640_config->res) {
+	switch(ov2640_conf->res) {
 		case RES_QCIF:
 			for(uint32_t i=0; (ov2640_qcif_regs[i].reg != 0xff) || (ov2640_qcif_regs[i].val != 0xff); i++)
 				I2C_write8_locked(OV2640_I2C_ADR, ov2640_qcif_regs[i].reg, ov2640_qcif_regs[i].val);
@@ -773,24 +771,24 @@ void OV2640_TransmitConfig(void)
 		I2C_write8_locked(OV2640_I2C_ADR, ov2640_jpeg_regs[i].reg, ov2640_jpeg_regs[i].val);
 }
 
-void OV2640_init(ssdv_config_t *config) {
-	ov2640_config = config;
+void OV2640_init(ssdv_conf_t *config) {
+	ov2640_conf = config;
 
 	// Take I2C (due to silicon bug of OV2640, it interferes if byte 0x30 transmitted on I2C bus)
 	I2C_lock();
 
 	// Clearing buffer
 	uint32_t i;
-	for(i=0; i<ov2640_config->ram_size; i++)
-		ov2640_config->ram_buffer[i] = 0;
+	for(i=0; i<ov2640_conf->ram_size; i++)
+		ov2640_conf->ram_buffer[i] = 0;
 
 	TRACE_INFO("CAM  > Init pins");
 	OV2640_InitGPIO();
 
 	// Power on OV2640
 	TRACE_INFO("CAM  > Switch on");
-	palSetPad(PORT(CAM_EN), PIN(CAM_EN)); 		// Switch on camera
-	palSetPad(PORT(CAM_RESET), PIN(CAM_RESET)); // Toggle reset
+	palSetLine(LINE_CAM_EN); 		// Switch on camera
+	palSetLine(LINE_CAM_RESET); // Toggle reset
 
 	// Send settings to OV2640
 	TRACE_INFO("CAM  > Transmit config to camera");
@@ -802,7 +800,7 @@ void OV2640_init(ssdv_config_t *config) {
 void OV2640_deinit(void) {
 	// Power off OV2640
 	TRACE_INFO("CAM  > Switch off");
-	palClearPad(PORT(CAM_EN), PIN(CAM_EN)); // Switch off camera
+	palClearLine(LINE_CAM_EN); // Switch off camera
 
 	// Release I2C (due to silicon bug of OV2640, it interferes if byte 0x30 transmitted on I2C bus)
 	I2C_unlock();
@@ -816,8 +814,8 @@ bool OV2640_isAvailable(void)
 	OV2640_InitGPIO();
 
 	// Switch on camera
-	palSetPad(PORT(CAM_EN), PIN(CAM_EN)); 		// Switch on camera
-	palSetPad(PORT(CAM_RESET), PIN(CAM_RESET)); // Toggle reset
+	palSetLine(LINE_CAM_EN); 		// Switch on camera
+	palSetLine(LINE_CAM_RESET); // Toggle reset
 
 	chThdSleepMilliseconds(100);
 
@@ -828,8 +826,8 @@ bool OV2640_isAvailable(void)
 	else
 		ret = false;
 
-	palClearPad(PORT(CAM_EN), PIN(CAM_EN)); // Switch off camera
-	palSetPadMode(PORT(CAM_RESET), PIN(CAM_RESET), PAL_MODE_INPUT);	// CAM_RESET
+	palClearLine(LINE_CAM_EN); // Switch off camera
+	palSetLineMode(LINE_CAM_RESET, PAL_MODE_INPUT);	// CAM_RESET
 	I2C_unlock();
 
 	return ret;

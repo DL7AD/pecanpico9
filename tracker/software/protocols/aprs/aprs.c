@@ -21,7 +21,6 @@
 #include <math.h>
 #include <string.h>
 #include "base.h"
-#include "max.h"
 #include "debug.h"
 
 #define METER_TO_FEET(m) (((m)*26876) / 8192)
@@ -39,7 +38,7 @@ static uint16_t msg_id;
  * - Number of satellites being used
  * - Number of cycles where GPS has been lost (if applicable in cycle)
  */
-uint32_t aprs_encode_position(uint8_t* message, mod_t mod, const aprs_config_t *config, trackPoint_t *trackPoint)
+uint32_t aprs_encode_position(uint8_t* message, mod_t mod, const aprs_conf_t *config, trackPoint_t *trackPoint)
 {
 	char temp[22];
 	ptime_t date = trackPoint->time;
@@ -140,8 +139,8 @@ uint32_t aprs_encode_position(uint8_t* message, mod_t mod, const aprs_config_t *
 			case TEL_TTFF:	t = trackPoint->gps_ttff;			break;
 			case TEL_VBAT:	t = trackPoint->adc_vbat;			break;
 			case TEL_VSOL:	t = trackPoint->adc_vsol;			break;
-			case TEL_PBAT:	t = trackPoint->adc_pbat;			break;
-			case TEL_PSOL:	t = trackPoint->adc_psol;			break;
+			case TEL_PBAT:	t = trackPoint->adc_pbat+4096;		break;
+			case TEL_ISOL:	t = trackPoint->adc_isol;			break;
 			case TEL_HUM:	t = trackPoint->air_hum;			break;
 			case TEL_PRESS:	t = trackPoint->air_press/125 - 40;	break;
 			case TEL_TEMP:	t = trackPoint->air_temp/10 + 1000;	break;
@@ -164,7 +163,7 @@ uint32_t aprs_encode_position(uint8_t* message, mod_t mod, const aprs_config_t *
 /**
  * Transmit custom experimental packet
  */
-uint32_t aprs_encode_experimental(char packetType, uint8_t* message, mod_t mod, const aprs_config_t *config, uint8_t *data, size_t size)
+uint32_t aprs_encode_experimental(char packetType, uint8_t* message, mod_t mod, const aprs_conf_t *config, uint8_t *data, size_t size)
 {
 	ax25_t packet;
 	packet.data = message;
@@ -191,7 +190,7 @@ uint32_t aprs_encode_experimental(char packetType, uint8_t* message, mod_t mod, 
 /**
  * Transmit message packet
  */
-uint32_t aprs_encode_message(uint8_t* message, mod_t mod, const aprs_config_t *config, const char *receiver, const char *text)
+uint32_t aprs_encode_message(uint8_t* message, mod_t mod, const aprs_conf_t *config, const char *receiver, const char *text)
 {
 	ax25_t packet;
 	packet.data = message;
@@ -224,7 +223,7 @@ uint32_t aprs_encode_message(uint8_t* message, mod_t mod, const aprs_config_t *c
 /**
  * Transmit APRS telemetry configuration
  */
-uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const aprs_config_t *config, const telemetry_config_t type)
+uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const aprs_conf_t *config, const telemetry_conf_t type)
 {
 	char temp[4];
 	ax25_t packet;
@@ -249,7 +248,7 @@ uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const 
 	ax25_send_string(&packet, ":"); // Message separator
 
 	switch(type) {
-		case CONFIG_PARM: // Telemetry parameter names
+		case CONF_PARM: // Telemetry parameter names
 
 			ax25_send_string(&packet, "PARM.");
 
@@ -260,7 +259,7 @@ uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const 
 					case TEL_VBAT:		ax25_send_string(&packet, "Vbat");			break;
 					case TEL_VSOL:		ax25_send_string(&packet, "Vsol");			break;
 					case TEL_PBAT:		ax25_send_string(&packet, "Pbat");			break;
-					case TEL_PSOL:		ax25_send_string(&packet, "Psol");			break;
+					case TEL_ISOL:		ax25_send_string(&packet, "Isol");			break;
 					case TEL_HUM:		ax25_send_string(&packet, "Humidity");		break;
 					case TEL_PRESS:		ax25_send_string(&packet, "Airpressure");	break;
 					case TEL_TEMP:		ax25_send_string(&packet, "Temperature");	break;
@@ -271,7 +270,7 @@ uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const 
 
 			break;
 
-		case CONFIG_UNIT: // Telemetry units
+		case CONF_UNIT: // Telemetry units
 
 			ax25_send_string(&packet, "UNIT.");
 
@@ -290,8 +289,11 @@ uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const 
 						break;
 
 					case TEL_PBAT:
-					case TEL_PSOL:
 						ax25_send_string(&packet, "W");
+						break;
+
+					case TEL_ISOL:
+						ax25_send_string(&packet, "A");
 						break;
 
 					case TEL_HUM:
@@ -312,7 +314,7 @@ uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const 
 
 			break;
 
-		case CONFIG_EQNS: // Telemetry conversion parameters
+		case CONF_EQNS: // Telemetry conversion parameters
 
 			ax25_send_string(&packet, "EQNS.");
 
@@ -323,11 +325,15 @@ uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const 
 						ax25_send_string(&packet, "0,1,0");
 						break;
 
-					case TEL_PBAT:
-					case TEL_PSOL:
+
+					case TEL_ISOL:
 					case TEL_VBAT:
 					case TEL_VSOL:
 						ax25_send_string(&packet, "0,.001,0");
+						break;
+
+					case TEL_PBAT:
+						ax25_send_string(&packet, "0,.001,-4.096");
 						break;
 
 					case TEL_HUM:
@@ -348,7 +354,7 @@ uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const 
 
 			break;
 
-		case CONFIG_BITS:
+		case CONF_BITS:
 			ax25_send_string(&packet, "BITS.11111111,");
 			ax25_send_string(&packet, config->tel_comment);
 			break;

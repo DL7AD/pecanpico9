@@ -18,7 +18,7 @@
 #define _BOARD_H_
 
 /*
- * Setup for STMicroelectronics STM32 Nucleo144-F412ZG board.
+ * Setup for Pecan Pico 9a board.
  */
 
 /*
@@ -28,8 +28,7 @@
 #define BOARD_NAME                  "Pecan Pico 9a"
 
 /*
- * Board oscillators-related settings.
- * NOTE: LSE not fitted.
+ * No LSE available
  */
 #if !defined(STM32_LSECLK)
 #define STM32_LSECLK                0U
@@ -39,87 +38,23 @@
 #define STM32_HSECLK                26000000U
 #endif
 
-#define STM32_HSE_BYPASS
-
 /*
- * Board voltages.
- * Required for performance limits calculation.
+ * Board voltages
+ * Required for performance limits calculation
  */
 #define STM32_VDD                   181U
 
 /*
- * MCU type as defined in the ST header.
+ * MCU type as defined in the ST header
  */
 #define STM32F412Zx
 
 /*
- * Peripheral components connected to the STM32
+ * Radio specifications
  */
-
-// IO
-#define IO_TXD                      (GPIOB, 10U)
-#define IO_LED1                     (GPIOB, 13U)
-#define IO_LED2                     (GPIOC, 9U)
-
-// GPS
-#define GPS_EN                      (GPIOC, 11U)
-#define GPS_RESET                   (GPIOC, 13U)
-#define GPS_TXD                     (GPIOB, 9U)
-#define GPS_RXD                     (GPIOB, 8U)
-
-// I2C
-#define I2C_SCL                     (GPIOB, 6U)
-#define I2C_SDA                     (GPIOB, 7U)
-
-// SPI
-#define SPI_SCK                     (GPIOB, 3U)
-#define SPI_MISO                    (GPIOB, 4U)
-#define SPI_MOSI                    (GPIOB, 5U)
-
-// Camera pins
-#define CAM_XCLK                    (GPIOA, 8U)
-#define CAM_PCLK                    (GPIOC, 0U)
-#define CAM_HREF                    (GPIOC, 2U)
-#define CAM_VSYNC                   (GPIOC, 1U)
-#define CAM_D2                      (GPIOA, 0U)
-#define CAM_D3                      (GPIOA, 1U)
-#define CAM_D4                      (GPIOA, 2U)
-#define CAM_D5                      (GPIOA, 3U)
-#define CAM_D6                      (GPIOA, 4U)
-#define CAM_D7                      (GPIOA, 5U)
-#define CAM_D8                      (GPIOA, 6U)
-#define CAM_D9                      (GPIOA, 7U)
-#define CAM_EN                      (GPIOB, 14U)
-#define CAM_RESET                   (GPIOC, 5U)
-
-// Radio pins
-#define RADIO_CS                    (GPIOD, 2U)
-#define RADIO_SDN                   (GPIOA, 15U)
-#define RADIO_GPIO                  (GPIOC, 12U)
-
-// ADC
-#define ADC_VSOL                    (GPIOB, 2U)
-#define ADC_VBAT                    (GPIOC, 3U)
-#define ADC_VUSB                    (GPIOC, 4U)
-
-// USB
-#define USB_ID                      (GPIOA, 10U)
-#define USB_VUSB                    (GPIOA, 9U)
-#define USB_DM                      (GPIOA, 11U)
-#define USB_DP                      (GPIOA, 12U)
-
-// Misc
-#define VBOOST                      (GPIOC, 8U)
-#define OSC_EN                      (GPIOC, 10U)
-#define SOL_SHORT_EN                (GPIOC, 7U)
-
-// Hardware specifications
 #define RADIO_MIN_FREQ				144000000
 #define RADIO_MAX_FREQ				148000000
 #define RADIO_CLK					STM32_HSECLK
-
-
-
 
 /*
  * IO pins assignments.
@@ -314,186 +249,63 @@
 /*
  * IO lines assignments.
  */
-/*#define LINE_ZIO_D32                PAL_LINE(GPIOA, 0U)
-#define LINE_TIM2_CH1               PAL_LINE(GPIOA, 0U)
-#define LINE_ZIO_A8                 PAL_LINE(GPIOA, 2U)
-#define LINE_ADC1_IN2               PAL_LINE(GPIOA, 2U)
-#define LINE_ARD_A0                 PAL_LINE(GPIOA, 3U)
-#define LINE_ADC1_IN3               PAL_LINE(GPIOA, 3U)
-#define LINE_ZIO_D24                PAL_LINE(GPIOA, 4U)
-#define LINE_SPI3_NSS               PAL_LINE(GPIOA, 4U)
-#define LINE_ARD_D13                PAL_LINE(GPIOA, 5U)
-#define LINE_SPI1_SCK               PAL_LINE(GPIOA, 5U)
-#define LINE_ARD_D12                PAL_LINE(GPIOA, 6U)
-#define LINE_SPI1_MISO              PAL_LINE(GPIOA, 6U)
-#define LINE_ARD_D11                PAL_LINE(GPIOA, 7U)
-#define LINE_SPI1_MOSI              PAL_LINE(GPIOA, 7U)
-#define LINE_ZIO_D71                PAL_LINE(GPIOA, 7U)
-#define LINE_USB_SOF                PAL_LINE(GPIOA, 8U)
-#define LINE_USB_VBUS               PAL_LINE(GPIOA, 9U)
+
+// IO
+#define LINE_IO_TXD                 PAL_LINE(GPIOB, 10U)
+#define LINE_IO_LED1                PAL_LINE(GPIOB, 13U)
+#define LINE_IO_LED2                PAL_LINE(GPIOC, 9U)
+
+// GPS
+#define LINE_GPS_EN                 PAL_LINE(GPIOC, 11U)
+#define LINE_GPS_RESET              PAL_LINE(GPIOC, 13U)
+#define LINE_GPS_TXD                PAL_LINE(GPIOB, 9U)
+#define LINE_GPS_RXD                PAL_LINE(GPIOB, 8U)
+
+// I2C
+#define LINE_I2C_SCL                PAL_LINE(GPIOB, 6U)
+#define LINE_I2C_SDA                PAL_LINE(GPIOB, 7U)
+
+// SPI
+#define LINE_SPI_SCK                PAL_LINE(GPIOB, 3U)
+#define LINE_SPI_MISO               PAL_LINE(GPIOB, 4U)
+#define LINE_SPI_MOSI               PAL_LINE(GPIOB, 5U)
+
+// Camera pins
+#define LINE_CAM_XCLK               PAL_LINE(GPIOA, 8U)
+#define LINE_CAM_PCLK               PAL_LINE(GPIOC, 0U)
+#define LINE_CAM_HREF               PAL_LINE(GPIOC, 2U)
+#define LINE_CAM_VSYNC              PAL_LINE(GPIOC, 1U)
+#define LINE_CAM_D2                 PAL_LINE(GPIOA, 0U)
+#define LINE_CAM_D3                 PAL_LINE(GPIOA, 1U)
+#define LINE_CAM_D4                 PAL_LINE(GPIOA, 2U)
+#define LINE_CAM_D5                 PAL_LINE(GPIOA, 3U)
+#define LINE_CAM_D6                 PAL_LINE(GPIOA, 4U)
+#define LINE_CAM_D7                 PAL_LINE(GPIOA, 5U)
+#define LINE_CAM_D8                 PAL_LINE(GPIOA, 6U)
+#define LINE_CAM_D9                 PAL_LINE(GPIOA, 7U)
+#define LINE_CAM_EN                 PAL_LINE(GPIOB, 14U)
+#define LINE_CAM_RESET              PAL_LINE(GPIOC, 5U)
+
+// Radio pins
+#define LINE_RADIO_CS               PAL_LINE(GPIOD, 2U)
+#define LINE_RADIO_SDN              PAL_LINE(GPIOA, 15U)
+#define LINE_RADIO_GPIO             PAL_LINE(GPIOC, 12U)
+
+// ADC
+#define LINE_ADC_VSOL               PAL_LINE(GPIOB, 1U)
+#define LINE_ADC_VBAT               PAL_LINE(GPIOC, 3U)
+#define LINE_ADC_VUSB               PAL_LINE(GPIOC, 4U)
+
+// USB
 #define LINE_USB_ID                 PAL_LINE(GPIOA, 10U)
+#define LINE_USB_VUSB               PAL_LINE(GPIOA, 9U)
 #define LINE_USB_DM                 PAL_LINE(GPIOA, 11U)
 #define LINE_USB_DP                 PAL_LINE(GPIOA, 12U)
-#define LINE_SWDIO                  PAL_LINE(GPIOA, 13U)
-#define LINE_SWCLK                  PAL_LINE(GPIOA, 14U)
-#define LINE_ZIO_D20                PAL_LINE(GPIOA, 15U)
-#define LINE_I2S3_WS                PAL_LINE(GPIOA, 15U)
 
-#define LINE_ZIO_D33                PAL_LINE(GPIOB, 0U)
-#define LINE_TIM3_CH3               PAL_LINE(GPIOB, 0U)
-#define LINE_LED1                   PAL_LINE(GPIOB, 0U)
-#define LINE_ZIO_A6                 PAL_LINE(GPIOB, 1U)
-#define LINE_ADC1_IN9               PAL_LINE(GPIOB, 1U)
-#define LINE_ZIO_D27                PAL_LINE(GPIOB, 2U)
-#define LINE_QUADSPI_CLK            PAL_LINE(GPIOB, 2U)
-#define LINE_ZIO_D23                PAL_LINE(GPIOB, 3U)
-#define LINE_I2S3_CK                PAL_LINE(GPIOB, 3U)
-#define LINE_ZIO_D25                PAL_LINE(GPIOB, 4U)
-#define LINE_SPI3_MISO              PAL_LINE(GPIOB, 4U)
-#define LINE_ZIO_D22                PAL_LINE(GPIOB, 5U)
-#define LINE_I2S3_SD                PAL_LINE(GPIOB, 5U)
-#define LINE_ZIO_D26                PAL_LINE(GPIOB, 6U)
-#define LINE_QUADSPI_BK1_NCS        PAL_LINE(GPIOB, 6U)
-#define LINE_LED2                   PAL_LINE(GPIOB, 7U)
-#define LINE_ARD_D15                PAL_LINE(GPIOB, 8U)
-#define LINE_I2C1_SCL               PAL_LINE(GPIOB, 8U)
-#define LINE_ARD_D14                PAL_LINE(GPIOB, 9U)
-#define LINE_I2C1_SDA               PAL_LINE(GPIOB, 9U)
-#define LINE_ZIO_D36                PAL_LINE(GPIOB, 10U)
-#define LINE_TIM2_CH3               PAL_LINE(GPIOB, 10U)
-#define LINE_ZIO_D35                PAL_LINE(GPIOB, 11U)
-#define LINE_TIM2_CH4               PAL_LINE(GPIOB, 11U)
-#define LINE_ZIO_D19                PAL_LINE(GPIOB, 12U)
-#define LINE_I2S2_WS                PAL_LINE(GPIOB, 12U)
-#define LINE_ZIO_D18                PAL_LINE(GPIOB, 13U)
-#define LINE_I2S2_CK                PAL_LINE(GPIOB, 13U)
-#define LINE_LED3                   PAL_LINE(GPIOB, 14U)
-#define LINE_ZIO_D17                PAL_LINE(GPIOB, 15U)
-#define LINE_I2S2_SD                PAL_LINE(GPIOB, 15U)
-
-#define LINE_ARD_A1                 PAL_LINE(GPIOC, 0U)
-#define LINE_ADC1_IN10              PAL_LINE(GPIOC, 0U)
-#define LINE_ARD_A3                 PAL_LINE(GPIOC, 1U)
-#define LINE_ADC1_IN11              PAL_LINE(GPIOC, 1U)
-#define LINE_ZIO_A7                 PAL_LINE(GPIOC, 2U)
-#define LINE_ADC1_IN12              PAL_LINE(GPIOC, 2U)
-#define LINE_ARD_A2                 PAL_LINE(GPIOC, 3U)
-#define LINE_ADC1_IN13              PAL_LINE(GPIOC, 3U)
-#define LINE_ARD_A4                 PAL_LINE(GPIOC, 4U)
-#define LINE_ADC1_IN14              PAL_LINE(GPIOC, 4U)
-#define LINE_ARD_A5                 PAL_LINE(GPIOC, 5U)
-#define LINE_ADC1_IN15              PAL_LINE(GPIOC, 5U)
-#define LINE_ZIO_D16                PAL_LINE(GPIOC, 6U)
-#define LINE_I2S2_MCK               PAL_LINE(GPIOC, 6U)
-#define LINE_ZIO_D21                PAL_LINE(GPIOC, 7U)
-#define LINE_I2S3_MCK               PAL_LINE(GPIOC, 7U)
-#define LINE_ZIO_D43                PAL_LINE(GPIOC, 8U)
-#define LINE_SDMMC_D0               PAL_LINE(GPIOC, 8U)
-#define LINE_ZIO_D44                PAL_LINE(GPIOC, 9U)
-#define LINE_SDMMC_D1               PAL_LINE(GPIOC, 9U)
-#define LINE_ZIO_D45                PAL_LINE(GPIOC, 10U)
-#define LINE_SDMMC_D2               PAL_LINE(GPIOC, 10U)
-#define LINE_ZIO_D46                PAL_LINE(GPIOC, 11U)
-#define LINE_SDMMC_D3               PAL_LINE(GPIOC, 11U)
-#define LINE_ZIO_D47                PAL_LINE(GPIOC, 12U)
-#define LINE_SDMMC_CK               PAL_LINE(GPIOC, 12U)
-#define LINE_BUTTON                 PAL_LINE(GPIOC, 13U)
-#define LINE_OSC32_IN               PAL_LINE(GPIOC, 14U)
-#define LINE_OSC32_OUT              PAL_LINE(GPIOC, 15U)
-
-#define LINE_ZIO_D67                PAL_LINE(GPIOD, 0U)
-#define LINE_CAN1_RX                PAL_LINE(GPIOD, 0U)
-#define LINE_ZIO_D66                PAL_LINE(GPIOD, 1U)
-#define LINE_CAN1_TX                PAL_LINE(GPIOD, 1U)
-#define LINE_ZIO_D48                PAL_LINE(GPIOD, 2U)
-#define LINE_SDMMC_CMD              PAL_LINE(GPIOD, 2U)
-#define LINE_ZIO_D55                PAL_LINE(GPIOD, 3U)
-#define LINE_USART2_CTS             PAL_LINE(GPIOD, 3U)
-#define LINE_ZIO_D54                PAL_LINE(GPIOD, 4U)
-#define LINE_USART2_RTS             PAL_LINE(GPIOD, 4U)
-#define LINE_ZIO_D53                PAL_LINE(GPIOD, 5U)
-#define LINE_USART2_TX              PAL_LINE(GPIOD, 5U)
-#define LINE_ZIO_D52                PAL_LINE(GPIOD, 6U)
-#define LINE_USART2_RX              PAL_LINE(GPIOD, 6U)
-#define LINE_ZIO_D51                PAL_LINE(GPIOD, 7U)
-#define LINE_USART2_SCLK            PAL_LINE(GPIOD, 7U)
-#define LINE_USART3_RX              PAL_LINE(GPIOD, 8U)
-#define LINE_STLK_RX                PAL_LINE(GPIOD, 8U)
-#define LINE_USART3_TX              PAL_LINE(GPIOD, 9U)
-#define LINE_STLK_TX                PAL_LINE(GPIOD, 9U)
-#define LINE_ZIO_D30                PAL_LINE(GPIOD, 11U)
-#define LINE_QUADSPI_BK1_IO0        PAL_LINE(GPIOD, 11U)
-#define LINE_ZIO_D29                PAL_LINE(GPIOD, 12U)
-#define LINE_QUADSPI_BK1_IO1        PAL_LINE(GPIOD, 12U)
-#define LINE_ZIO_D28                PAL_LINE(GPIOD, 13U)
-#define LINE_QUADSPI_BK1_IO3        PAL_LINE(GPIOD, 13U)
-#define LINE_ARD_D10                PAL_LINE(GPIOD, 14U)
-#define LINE_SPI1_NSS               PAL_LINE(GPIOD, 14U)
-#define LINE_ARD_D9                 PAL_LINE(GPIOD, 15U)
-#define LINE_TIM4_CH4               PAL_LINE(GPIOD, 15U)
-
-#define LINE_ZIO_D34                PAL_LINE(GPIOE, 0U)
-#define LINE_TIM4_ETR               PAL_LINE(GPIOE, 0U)
-#define LINE_ZIO_D31                PAL_LINE(GPIOE, 2U)
-#define LINE_ZIO_D56                PAL_LINE(GPIOE, 2U)
-#define LINE_QUADSPI_BK1_IO2        PAL_LINE(GPIOE, 2U)
-#define LINE_ZIO_D60                PAL_LINE(GPIOE, 3U)
-#define LINE_SAI1_SD_B              PAL_LINE(GPIOE, 3U)
-#define LINE_ZIO_D57                PAL_LINE(GPIOE, 4U)
-#define LINE_SAI1_FS_A              PAL_LINE(GPIOE, 4U)
-#define LINE_ZIO_D58                PAL_LINE(GPIOE, 5U)
-#define LINE_SAI1_SCK_A             PAL_LINE(GPIOE, 5U)
-#define LINE_ZIO_D59                PAL_LINE(GPIOE, 6U)
-#define LINE_SAI1_SD_A              PAL_LINE(GPIOE, 6U)
-#define LINE_ZIO_D41                PAL_LINE(GPIOE, 7U)
-#define LINE_TIM1_ETR               PAL_LINE(GPIOE, 7U)
-#define LINE_ZIO_D42                PAL_LINE(GPIOE, 8U)
-#define LINE_TIM1_CH1N              PAL_LINE(GPIOE, 8U)
-#define LINE_ARD_D6                 PAL_LINE(GPIOE, 9U)
-#define LINE_TIM1_CH1               PAL_LINE(GPIOE, 9U)
-#define LINE_ZIO_D40                PAL_LINE(GPIOE, 10U)
-#define LINE_TIM1_CH2N              PAL_LINE(GPIOE, 10U)
-#define LINE_ARD_D5                 PAL_LINE(GPIOE, 11U)
-#define LINE_TIM1_CH2               PAL_LINE(GPIOE, 11U)
-#define LINE_ZIO_D39                PAL_LINE(GPIOE, 12U)
-#define LINE_TIM1_CH3N              PAL_LINE(GPIOE, 12U)
-#define LINE_ARD_D3                 PAL_LINE(GPIOE, 13U)
-#define LINE_TIM1_CH3               PAL_LINE(GPIOE, 13U)
-#define LINE_ZIO_D38                PAL_LINE(GPIOE, 14U)
-#define LINE_ZIO_D37                PAL_LINE(GPIOE, 15U)
-#define LINE_TIM1_BKIN1             PAL_LINE(GPIOE, 15U)
-
-#define LINE_ZIO_D68                PAL_LINE(GPIOF, 0U)
-#define LINE_I2C2_SDA               PAL_LINE(GPIOF, 0U)
-#define LINE_ZIO_D69                PAL_LINE(GPIOF, 1U)
-#define LINE_I2C2_SCL               PAL_LINE(GPIOF, 1U)
-#define LINE_ZIO_D70                PAL_LINE(GPIOF, 2U)
-#define LINE_I2C2_SMBA              PAL_LINE(GPIOF, 2U)
-#define LINE_ZIO_D62                PAL_LINE(GPIOF, 7U)
-#define LINE_SAI1_MCLK_B            PAL_LINE(GPIOF, 7U)
-#define LINE_ZIO_D61                PAL_LINE(GPIOF, 8U)
-#define LINE_SAI1_SCK_B             PAL_LINE(GPIOF, 8U)
-#define LINE_ZIO_D63                PAL_LINE(GPIOF, 9U)
-#define LINE_SAI1_FS_B              PAL_LINE(GPIOF, 9U)
-#define LINE_ARD_D8                 PAL_LINE(GPIOF, 12U)
-#define LINE_ARD_D7                 PAL_LINE(GPIOF, 13U)
-#define LINE_ARD_D4                 PAL_LINE(GPIOF, 14U)
-#define LINE_ARD_D2                 PAL_LINE(GPIOF, 15U)
-
-#define LINE_ZIO_D65                PAL_LINE(GPIOG, 0U)
-#define LINE_ZIO_D64                PAL_LINE(GPIOG, 1U)
-#define LINE_ZIO_D49                PAL_LINE(GPIOG, 2U)
-#define LINE_ZIO_D50                PAL_LINE(GPIOG, 3U)
-#define LINE_USB_GPIO_OUT           PAL_LINE(GPIOG, 6U)
-#define LINE_USB_GPIO_IN            PAL_LINE(GPIOG, 7U)
-#define LINE_ARD_D0                 PAL_LINE(GPIOG, 9U)
-#define LINE_USART6_RX              PAL_LINE(GPIOG, 9U)
-#define LINE_ARD_D1                 PAL_LINE(GPIOG, 14U)
-#define LINE_USART6_TX              PAL_LINE(GPIOG, 14U)
-
-#define LINE_OSC_IN                 PAL_LINE(GPIOH, 0U)
-#define LINE_OSC_OUT                PAL_LINE(GPIOH, 1U)*/
-
+// Misc
+#define LINE_VBOOST                 PAL_LINE(GPIOC, 8U)
+#define LINE_OSC_EN                 PAL_LINE(GPIOC, 10U)
+#define LINE_SOL_SHORT_EN           PAL_LINE(GPIOC, 7U)
 
 
 

@@ -2,10 +2,10 @@
 #define __TYPES_H__
 
 typedef enum { // Modulation type
+	MOD_NOT_SET,
 	MOD_OOK,
 	MOD_2FSK,
 	MOD_2GFSK,
-	MOD_DOMINOEX16,
 	MOD_AFSK
 } mod_t;
 
@@ -19,11 +19,11 @@ typedef enum {
 } prot_t;
 
 typedef enum {
-	CONFIG_PARM,
-	CONFIG_UNIT,
-	CONFIG_EQNS,
-	CONFIG_BITS
-} telemetry_config_t;
+	CONF_PARM,
+	CONF_UNIT,
+	CONF_EQNS,
+	CONF_BITS
+} telemetry_conf_t;
 
 typedef enum {
 	TEL_SATS,
@@ -31,7 +31,7 @@ typedef enum {
 	TEL_VBAT,
 	TEL_VSOL,
 	TEL_PBAT,
-	TEL_PSOL,
+	TEL_ISOL,
 	TEL_PRESS,
 	TEL_TEMP,
 	TEL_HUM
@@ -47,7 +47,7 @@ typedef struct {
 	bool tel_encoding;			// Transmit telemetry encoding information
 	uint16_t tel_encoding_cycle;// Telemetry encoding cycle in seconds
 	char tel_comment[32];		// Telemetry comment
-} aprs_config_t;
+} aprs_conf_t;
 
 typedef enum {
 	SLEEP_DISABLED,
@@ -66,11 +66,11 @@ typedef struct {
 	sleep_type_t type;
 	uint16_t vbat_thres;
 	uint16_t vsol_thres;
-} sleep_config_t;
+} sleep_conf_t;
 
 typedef struct {
 	uint8_t speed;		// OOK speed in wpm
-} ook_config_t;
+} ook_conf_t;
 
 typedef struct {
 	uint8_t bits;
@@ -78,15 +78,15 @@ typedef struct {
 	uint16_t predelay;
 	uint16_t baud;
 	uint16_t shift;
-} fsk_config_t;
+} fsk_conf_t;
 
 typedef struct {
 	uint8_t dummy; // Not used yet
-} afsk_config_t;
+} afsk_conf_t;
 
 typedef struct {
-	uint8_t dummy; // Not used yet
-} gfsk_config_t;
+	uint32_t speed;
+} gfsk_conf_t;
 
 typedef struct { // Radio message type
 	uint8_t 		msg[512];		// Message (data)
@@ -95,10 +95,10 @@ typedef struct { // Radio message type
 	int8_t			power;			// Power in dBm
 	mod_t			mod;			// Modulation
 
-	ook_config_t*	ook_config;		// OOK config
-	fsk_config_t*	fsk_config;		// 2FSK config
-	afsk_config_t*	afsk_config;	// AFSK config
-	gfsk_config_t*	gfsk_config;	// 2GFSK config
+	ook_conf_t*		ook_conf;		// OOK config
+	fsk_conf_t*		fsk_conf;		// 2FSK config
+	afsk_conf_t*	afsk_conf;		// AFSK config
+	gfsk_conf_t*	gfsk_conf;		// 2GFSK config
 } radioMSG_t;
 
 typedef enum {
@@ -117,18 +117,17 @@ typedef struct {
 	uint8_t *ram_buffer;	// Camera Buffer (do not set in config)
 	size_t ram_size;		// Size of buffer (do not set in config)
 	bool no_camera;			// Camera disabled
-} ssdv_config_t;
+} ssdv_conf_t;
 
 typedef enum {
-	FREQ_STATIC,
-	FREQ_DYNAMIC
+	FREQ_STATIC,			// Fixed frequency
+	FREQ_APRS_REGION		// APRS region dependent (it changes it frequency automatically depending on which APRS frequency is used in this region)
 } freq_type_t;
 
 typedef struct {
 	freq_type_t type;
 	uint32_t hz;
-	void* method;
-} freuquency_config_t;
+} freq_conf_t;
 
 typedef enum {
 	TRIG_ONCE,				// Trigger once and never again (e.g. transmit specific position packet only at startup)
@@ -146,67 +145,57 @@ typedef struct {
 	trigger_type_t type;	// Trigger type
 	uint32_t timeout;		// Timeout in seconds
 	event_t event;			// Trigger events
-} trigger_config_t;
+} trigger_conf_t;
 
 typedef struct {
 	char callsign[16];		// Callsign
 	char format[150];		// Format
-} ukhas_config_t;
+} ukhas_conf_t;
 
 typedef struct {
 	uint32_t log_size;
 	uint32_t log_cycle;
 	uint32_t log_num;
-} log_config_t;
+} log_conf_t;
 
 typedef struct {
 	char callsign[16];		// Callsign
 	char format[50];		// Format
-} morse_config_t;
+} morse_conf_t;
 
 typedef struct {
 	char				name[32];
 
 	// Radio
 	int8_t				power;
-	freuquency_config_t	frequency;
+	freq_conf_t			frequency;
 	prot_t				protocol;
 
 	// Timing
 	uint32_t			init_delay;
 	uint32_t			packet_spacing;
-	sleep_config_t		sleep_config;
-	trigger_config_t	trigger;
+	sleep_conf_t		sleep_conf;
+	trigger_conf_t		trigger;
 
 	// Modulation
 	union {
-		fsk_config_t	fsk_config;
-		afsk_config_t	afsk_config;
-		gfsk_config_t	gfsk_config;
-		ook_config_t	ook_config;
+		fsk_conf_t		fsk_conf;
+		afsk_conf_t		afsk_conf;
+		gfsk_conf_t		gfsk_conf;
+		ook_conf_t		ook_conf;
 	};
 
 	// Protocol
 	union {
-		morse_config_t	morse_config;
-		ukhas_config_t	ukhas_config;
-		aprs_config_t	aprs_config;
+		morse_conf_t	morse_conf;
+		ukhas_conf_t	ukhas_conf;
+		aprs_conf_t		aprs_conf;
 	};
-	log_config_t		log_config;
-	ssdv_config_t		ssdv_config;
-
-	// Satellite
-	char				sat_tle1[70];
-	char				sat_tle2[70];
+	ssdv_conf_t			ssdv_conf;
 
 	// Watchdog
 	systime_t			wdg_timeout;		// Time at which watchdog will reset the STM32, 0 inactive
 } module_conf_t;
-
-typedef struct {
-	uint32_t time;	// Time of occurance in seconds
-	uint16_t error;
-} error_t;
 
 #endif
 

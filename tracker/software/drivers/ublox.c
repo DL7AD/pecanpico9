@@ -4,7 +4,7 @@
 
 #include "ch.h"
 #include "hal.h"
-#include "max.h"
+#include "ublox.h"
 #include "pi2c.h"
 #include "debug.h"
 #include "config.h"
@@ -93,10 +93,14 @@ uint16_t gps_receive_payload(uint8_t class_id, uint8_t msg_id, unsigned char *pa
 	uint16_t payload_len = 0;
 
 	systime_t sTimeout = chVTGetSystemTimeX() + MS2ST(timeout);
-	while(chVTGetSystemTimeX() <= sTimeout) {
+	while(true) {
 
 		// Receive one byte
-		rx_byte = sdGetTimeout(&SD6, sTimeout - chVTGetSystemTimeX());
+		systime_t uartTimeout = sTimeout - chVTGetSystemTimeX();
+		if(!uartTimeout)
+			break;
+
+		rx_byte = sdGetTimeout(&SD6, uartTimeout);
 
 		// Process one byte
 		switch (state) {
@@ -316,10 +320,10 @@ uint8_t gps_power_save(int on) {
 bool GPS_Init(void) {
 	// Initialize pins
 	TRACE_INFO("GPS  > Init pins");
-	palSetPadMode(PORT(GPS_RESET), PIN(GPS_RESET), PAL_MODE_OUTPUT_PUSHPULL);	// GPS reset
-	palSetPadMode(PORT(GPS_EN), PIN(GPS_EN), PAL_MODE_OUTPUT_PUSHPULL);			// GPS off
-	palSetPadMode(PORT(GPS_RXD), PIN(GPS_RXD), PAL_MODE_ALTERNATE(8));			// UART RXD
-	palSetPadMode(PORT(GPS_TXD), PIN(GPS_TXD), PAL_MODE_ALTERNATE(8));			// UART TXD
+	palSetLineMode(LINE_GPS_RESET, PAL_MODE_OUTPUT_PUSHPULL);	// GPS reset
+	palSetLineMode(LINE_GPS_EN, PAL_MODE_OUTPUT_PUSHPULL);		// GPS off
+	palSetLineMode(LINE_GPS_RXD, PAL_MODE_ALTERNATE(8));		// UART RXD
+	palSetLineMode(LINE_GPS_TXD, PAL_MODE_ALTERNATE(8));		// UART TXD
 
 	// Init UART
 	TRACE_INFO("GPS  > Init GPS UART");
@@ -327,8 +331,8 @@ bool GPS_Init(void) {
 
 	// Switch MOSFET
 	TRACE_INFO("GPS  > Switch on");
-	palSetPad(PORT(GPS_RESET), PIN(GPS_RESET));	// Pull up GPS reset
-	palSetPad(PORT(GPS_EN), PIN(GPS_EN));		// Switch on GPS
+	palSetLine(LINE_GPS_RESET);	// Pull up GPS reset
+	palSetLine(LINE_GPS_EN);	// Switch on GPS
 	
 	// Wait for GPS startup
 	chThdSleepMilliseconds(3000);
@@ -370,11 +374,6 @@ void GPS_Deinit(void)
 {
 	// Switch MOSFET
 	TRACE_INFO("GPS  > Switch off");
-	palClearPad(PORT(GPS_EN), PIN(GPS_EN));
-
-	// Deinit pins
-	palSetPadMode(PORT(GPS_RESET), PIN(GPS_RESET), PAL_MODE_INPUT);	// GPS reset
-	palSetPadMode(PORT(GPS_RXD), PIN(GPS_RXD), PAL_MODE_INPUT);		// UART RXD
-	palSetPadMode(PORT(GPS_TXD), PIN(GPS_TXD), PAL_MODE_INPUT);		// UART TXD
+	palClearLine(LINE_GPS_EN);
 }
 

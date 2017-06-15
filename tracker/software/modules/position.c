@@ -93,8 +93,8 @@ void replace_placeholders(char* fskmsg, uint16_t size, trackPoint_t *tp) {
 	str_replace(fskmsg, size, "<VSOL>", buf);
 	chsnprintf(buf, sizeof(buf), "%d.%03d", tp->adc_pbat/1000, (tp->adc_pbat >= 0 ? 1 : -1) * (tp->adc_pbat%1000));
 	str_replace(fskmsg, size, "<PBAT>", buf);
-	chsnprintf(buf, sizeof(buf), "%d.%03d", tp->adc_psol/1000, (tp->adc_psol >= 0 ? 1 : -1) * (tp->adc_psol%1000));
-	str_replace(fskmsg, size, "<PSOL>", buf);
+	chsnprintf(buf, sizeof(buf), "%d.%03d", tp->adc_isol/1000, (tp->adc_isol >= 0 ? 1 : -1) * (tp->adc_isol%1000));
+	str_replace(fskmsg, size, "<ISOL>", buf);
 	chsnprintf(buf, sizeof(buf), "%d", tp->air_press/10);
 	str_replace(fskmsg, size, "<PRESS>", buf);
 	chsnprintf(buf, sizeof(buf), "%d.%d", tp->air_temp/100, (tp->air_temp%100)/10);
@@ -111,8 +111,8 @@ THD_FUNCTION(posThread, arg) {
 	trackPoint_t *trackPoint = getLastTrackPoint();
 	systime_t time = chVTGetSystemTimeX();
 
-	systime_t last_config_transmission = chVTGetSystemTimeX();
-	uint32_t current_config_count = 0;
+	systime_t last_conf_transmission = chVTGetSystemTimeX();
+	uint32_t current_conf_count = 0;
 
 	while(true)
 	{
@@ -122,7 +122,7 @@ THD_FUNCTION(posThread, arg) {
 		TRACE_INFO("POS  > Get last track point");
 		trackPoint = getLastTrackPoint();
 
-		if(!p_sleep(&config->sleep_config))
+		if(!p_sleep(&config->sleep_conf))
 		{
 
 			TRACE_INFO("POS  > Transmit GPS position");
@@ -137,32 +137,32 @@ THD_FUNCTION(posThread, arg) {
 				case PROT_APRS_AFSK:
 					// Position transmission
 					msg.mod = config->protocol == PROT_APRS_AFSK ? MOD_AFSK : MOD_2GFSK;
-					msg.gfsk_config = &(config->gfsk_config);
-					msg.afsk_config = &(config->afsk_config);
+					msg.gfsk_conf = &(config->gfsk_conf);
+					msg.afsk_conf = &(config->afsk_conf);
 
-					msg.bin_len = aprs_encode_position(msg.msg, msg.mod, &(config->aprs_config), trackPoint); // Encode packet
-					transmitOnRadio(&msg);
+					msg.bin_len = aprs_encode_position(msg.msg, msg.mod, &(config->aprs_conf), trackPoint); // Encode packet
+					transmitOnRadio(&msg, true);
 
 					// Telemetry encoding parameter transmission
-					if(config->aprs_config.tel_encoding)
+					if(config->aprs_conf.tel_encoding)
 					{
 						// Telemetry encoding parameter transmission trigger
-						if(last_config_transmission + S2ST(config->aprs_config.tel_encoding_cycle) < chVTGetSystemTimeX() && current_config_count >= 4)
+						if(last_conf_transmission + S2ST(config->aprs_conf.tel_encoding_cycle) < chVTGetSystemTimeX() && current_conf_count >= 4)
 						{
-							last_config_transmission += S2ST(config->aprs_config.tel_encoding_cycle);
-							current_config_count = 0;
+							last_conf_transmission += S2ST(config->aprs_conf.tel_encoding_cycle);
+							current_conf_count = 0;
 						}
 
 						// Actual transmission (each cycle a different config type will be sent)
-						if(config->aprs_config.tel_encoding && current_config_count < 4)
+						if(config->aprs_conf.tel_encoding && current_conf_count < 4)
 						{
 							chThdSleepMilliseconds(5000); // Take a litte break between the package transmissions
 
-							const telemetry_config_t tel_config[] = {CONFIG_PARM, CONFIG_UNIT, CONFIG_EQNS, CONFIG_BITS};
-							msg.bin_len = aprs_encode_telemetry_configuration(msg.msg, msg.mod, &(config->aprs_config), tel_config[current_config_count]); // Encode packet
-							transmitOnRadio(&msg);
+							const telemetry_conf_t tel_conf[] = {CONF_PARM, CONF_UNIT, CONF_EQNS, CONF_BITS};
+							msg.bin_len = aprs_encode_telemetry_configuration(msg.msg, msg.mod, &(config->aprs_conf), tel_conf[current_conf_count]); // Encode packet
+							transmitOnRadio(&msg, true);
 
-							current_config_count++;
+							current_conf_count++;
 						}
 					}
 
@@ -170,32 +170,32 @@ THD_FUNCTION(posThread, arg) {
 
 				case PROT_UKHAS_2FSK: // Encode UKHAS
 					msg.mod = MOD_2FSK;
-					msg.fsk_config = &(config->fsk_config);
+					msg.fsk_conf = &(config->fsk_conf);
 
 					// Encode packet
 					char fskmsg[256];
-					memcpy(fskmsg, config->ukhas_config.format, sizeof(config->ukhas_config.format));
+					memcpy(fskmsg, config->ukhas_conf.format, sizeof(config->ukhas_conf.format));
 					replace_placeholders(fskmsg, sizeof(fskmsg), trackPoint);
-					str_replace(fskmsg, sizeof(fskmsg), "<CALL>", config->ukhas_config.callsign);
+					str_replace(fskmsg, sizeof(fskmsg), "<CALL>", config->ukhas_conf.callsign);
 					msg.bin_len = 8*chsnprintf((char*)msg.msg, sizeof(fskmsg), "$$$$$%s*%04X\n", fskmsg, crc16(fskmsg));
 
 					// Transmit message
-					transmitOnRadio(&msg);
+					transmitOnRadio(&msg, true);
 					break;
 
 				case PROT_MORSE: // Encode Morse
 					msg.mod = MOD_OOK;
-					msg.ook_config = &(config->ook_config);
+					msg.ook_conf = &(config->ook_conf);
 
 					// Encode morse message
 					char morse[128];
-					memcpy(morse, config->morse_config.format, sizeof(config->morse_config.format));
+					memcpy(morse, config->morse_conf.format, sizeof(config->morse_conf.format));
 					replace_placeholders(morse, sizeof(morse), trackPoint);
-					str_replace(morse, sizeof(morse), "<CALL>", config->morse_config.callsign);
+					str_replace(morse, sizeof(morse), "<CALL>", config->morse_conf.callsign);
 
 					// Transmit message
 					msg.bin_len = morse_encode(msg.msg, morse); // Convert message to binary stream
-					transmitOnRadio(&msg);
+					transmitOnRadio(&msg, true);
 					break;
 
 				default:

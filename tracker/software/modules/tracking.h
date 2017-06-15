@@ -26,7 +26,7 @@ typedef struct {
 	uint16_t adc_vbat;		// Current battery voltage in mV
 	uint16_t adc_vusb;		// Current USB voltage in mV
 	int16_t adc_pbat;		// Average battery current (since last track point)
-	int16_t adc_psol;		// Current solar shot current
+	int16_t adc_isol;		// Current solar shot current
 
 	// BME280 (on board)
 	uint32_t air_press;		// Airpressure in Pa*10 (in 0.1Pa)

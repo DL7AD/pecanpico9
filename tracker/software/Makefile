@@ -127,7 +127,7 @@ CSRC = $(STARTUPSRC) \
        drivers/wrapper/pi2c.c \
        drivers/wrapper/padc.c \
        drivers/wrapper/ptime.c \
-       drivers/max.c \
+       drivers/ublox.c \
        drivers/si4464.c \
        drivers/bme280.c \
        drivers/pac1720.c \

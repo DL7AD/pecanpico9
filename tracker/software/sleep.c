@@ -9,7 +9,7 @@
 /**
   * Sleeping method. Returns true if sleeping condition are given.
   */
-bool p_sleep(const sleep_config_t *config)
+bool p_sleep(const sleep_conf_t *config)
 {
 	switch(config->type)
 	{
@@ -39,7 +39,7 @@ bool p_sleep(const sleep_config_t *config)
 	return false;
 }
 
-systime_t waitForTrigger(systime_t prev, trigger_config_t *config)
+systime_t waitForTrigger(systime_t prev, trigger_conf_t *config)
 {
 	switch(config->type)
 	{

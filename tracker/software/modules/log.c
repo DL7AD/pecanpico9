@@ -117,7 +117,7 @@ THD_FUNCTION(logThread, arg)
 		TRACE_INFO("LOG  > Do module LOG cycle");
 		config->wdg_timeout = chVTGetSystemTimeX() + S2ST(600); // TODO: Implement more sophisticated method
 
-		if(!p_sleep(&config->sleep_config))
+		if(!p_sleep(&config->sleep_conf))
 		{
 			// Get log from memory
 			trackPoint_t log;
@@ -159,17 +159,17 @@ THD_FUNCTION(logThread, arg)
 				case PROT_APRS_2GFSK:
 				case PROT_APRS_AFSK:
 					msg.mod = config->protocol == PROT_APRS_AFSK ? MOD_AFSK : MOD_2GFSK;
-					msg.afsk_config = &(config->afsk_config);
-					msg.gfsk_config = &(config->gfsk_config);
+					msg.afsk_conf = &(config->afsk_conf);
+					msg.gfsk_conf = &(config->gfsk_conf);
 
 					// Deleting buffer
 					for(uint16_t t=0; t<sizeof(pkt_base91); t++)
 						pkt_base91[t] = 0;
 
 					base91_encode((uint8_t*)pkt, pkt_base91, sizeof(pkt));
-					msg.bin_len = aprs_encode_message(msg.msg, msg.mod, &config->aprs_config, APRS_DEST_CALLSIGN, (char*)pkt_base91);
+					msg.bin_len = aprs_encode_message(msg.msg, msg.mod, &config->aprs_conf, APRS_DEST_CALLSIGN, (char*)pkt_base91);
 
-					transmitOnRadio(&msg);
+					transmitOnRadio(&msg, true);
 					break;
 
 				default:

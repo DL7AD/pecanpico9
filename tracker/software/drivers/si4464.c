@@ -12,12 +12,12 @@
 #include "types.h"
 #include <string.h>
 
-static const SPIConfig ls_spicfg1 = {
-	.ssport	= PORT(RADIO_CS),
-	.sspad	= PIN(RADIO_CS),
+static const SPIConfig ls_spicfg = {
+	.ssport	= PAL_PORT(LINE_RADIO_CS),
+	.sspad	= PAL_PAD(LINE_RADIO_CS),
 	.cr1	= SPI_CR1_MSTR | SPI_CR1_BR_0
 };
-#define getSPIDriver() &ls_spicfg1
+#define getSPIDriver() &ls_spicfg
 
 uint32_t outdiv;
 bool initialized = false;
@@ -27,20 +27,24 @@ bool initialized = false;
  * oscillator voltage.
  * @param mv Oscillator voltage in mv
  */
-void Si4464_Init(mod_t modulation) {
+void Si4464_Init(void) {
+	// Reset radio)
+	radioShutdown();
+	chThdSleepMilliseconds(10);
+
 	// Initialize SPI
-	palSetPadMode(PORT(SPI_SCK), PIN(SPI_SCK), PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);		// SCK
-	palSetPadMode(PORT(SPI_MISO), PIN(SPI_MISO), PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);		// MISO
-	palSetPadMode(PORT(SPI_MOSI), PIN(SPI_MOSI), PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);		// MOSI
-	palSetPadMode(PORT(RADIO_CS), PIN(RADIO_CS), PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);	// RADIO CS
-	palSetPad(PORT(RADIO_CS), PIN(RADIO_CS));
+	palSetLineMode(LINE_SPI_SCK, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);		// SCK
+	palSetLineMode(LINE_SPI_MISO, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);	// MISO
+	palSetLineMode(LINE_SPI_MOSI, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);	// MOSI
+	palSetLineMode(LINE_RADIO_CS, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);	// RADIO CS
+	palSetLine(LINE_RADIO_CS);
 
 	// Configure pins
-	palSetPadMode(PORT(RADIO_SDN), PIN(RADIO_SDN), PAL_MODE_OUTPUT_PUSHPULL);	// RADIO SDN
-	palSetPadMode(PORT(RADIO_GPIO), PIN(RADIO_GPIO), PAL_MODE_OUTPUT_PUSHPULL);	// RADIO GPIO1
+	palSetLineMode(LINE_RADIO_SDN, PAL_MODE_OUTPUT_PUSHPULL);	// RADIO SDN
+	palSetLineMode(LINE_RADIO_GPIO, PAL_MODE_OUTPUT_PUSHPULL);	// RADIO GPIO1
 
 	// Power up transmitter
-	RADIO_SDN_SET(false);	// Radio SDN low (power up transmitter)
+	palClearLine(LINE_RADIO_SDN);	// Radio SDN low (power up transmitter)
 	chThdSleepMilliseconds(10);		// Wait for transmitter to power up
 
 	// Power up (transmits oscillator type)
@@ -65,25 +69,6 @@ void Si4464_Init(mod_t modulation) {
 	};
 	Si4464_write(gpio_pin_cfg_command, 8);
 	chThdSleepMilliseconds(25);
-
-	// Set modem
-	switch(modulation)
-	{
-		case MOD_AFSK:
-			setModemAFSK();
-			break;
-		case MOD_OOK:
-			setModemOOK();
-			break;
-		case MOD_2FSK:
-			setModem2FSK();
-			break;
-		case MOD_2GFSK:
-			setModem2GFSK();
-			break;
-		case MOD_DOMINOEX16:
-			TRACE_WARN("SI   > Unimplemented modulation DominoEX16"); // TODO: Implement DominoEX16
-	}
 
 	// Temperature readout
 	TRACE_INFO("SI   > Transmitter temperature %d degC", Si4464_getTemperature());
@@ -251,12 +236,15 @@ void setModemOOK(void) {
 }
 
 void setModem2FSK(void) {
+	// Initialize high tone
+	RADIO_MOD_GPIO(HIGH);
+
 	// use 2FSK from async GPIO1
 	uint8_t use_2fsk[] = {0x11, 0x20, 0x01, 0x00, 0xAA};
 	Si4464_write(use_2fsk, 5);
 }
 
-void setModem2GFSK(void) {
+void setModem2GFSK(gfsk_conf_t* conf) {
 	// Disable preamble
 	uint8_t disable_preamble[] = {0x11, 0x10, 0x01, 0x00, 0x00};
 	Si4464_write(disable_preamble, 5);
@@ -275,7 +263,7 @@ void setModem2GFSK(void) {
 	Si4464_write(setup_oversampling, 8);
 
 	// Setup the NCO data rate for 2GFSK
-	uint8_t setup_data_rate[] = {0x11, 0x20, 0x03, 0x03, 0x00, 0x25, 0x80};
+	uint8_t setup_data_rate[] = {0x11, 0x20, 0x03, 0x03, (uint8_t)(conf->speed >> 16), (uint8_t)(conf->speed >> 8), (uint8_t)conf->speed};
 	Si4464_write(setup_data_rate, 7);
 
 	// Use 2GFSK from async GPIO1
@@ -290,26 +278,24 @@ void setPowerLevel(int8_t level) {
 }
 
 void startTx(uint16_t size) {
-	palClearPad(PORT(IO_LED1), PIN(IO_LED1));
+	palClearLine(LINE_IO_LED1);	// Set indication LED
+
 	uint8_t change_state_command[] = {0x31, 0x00, 0x30, (size >> 8) & 0x1F, size & 0xFF};
 	Si4464_write(change_state_command, 5);
 }
 
 void stopTx(void) {
-	palSetPad(PORT(IO_LED1), PIN(IO_LED1));
+	palSetLine(LINE_IO_LED1);	// Set indication LED
+
 	uint8_t change_state_command[] = {0x34, 0x03};
 	Si4464_write(change_state_command, 2);
 }
 
 void radioShutdown(void) {
-	palSetPad(PORT(IO_LED1), PIN(IO_LED1));
-	RADIO_SDN_SET(true);	// Power down chip
+	palSetLine(LINE_RADIO_SDN);	// Power down chip
+	palSetLine(LINE_IO_LED1);	// Set indication LED
 	RADIO_MOD_GPIO(false);		// Set GPIO1 low
 	initialized = false;
-
-	// Deinit pins
-	palSetPadMode(PORT(RADIO_CS), PIN(RADIO_CS), PAL_MODE_INPUT);		// RADIO CS
-	palSetPadMode(PORT(RADIO_GPIO), PIN(RADIO_GPIO), PAL_MODE_INPUT);	// RADIO GPIO1
 }
 
 /**
@@ -322,14 +308,14 @@ bool radioTune(uint32_t frequency, uint16_t shift, int8_t level, uint16_t size) 
 	// Tracing
 	TRACE_INFO("SI   > Tune Si4464");
 
-	if(!RADIO_WITHIN_FREQ_RANGE(frequency)) {
+	if(!inRadioBand(frequency)) {
 		TRACE_ERROR("SI   > Frequency out of range");
 		TRACE_ERROR("SI   > abort transmission");
 		return false;
 	}
 
 	setFrequency(frequency, shift);	// Set frequency
-	setShift(shift);					// Set shift
+	setShift(shift);				// Set shift
 	setPowerLevel(level);			// Set power level
 
 	startTx(size);
@@ -374,7 +360,7 @@ int8_t Si4464_getTemperature(void) {
 
 /**
   * Converts power level from dBm to Si4464 power level. The calculation
-  * assumes Vcc = 2.6V and Si4464/Si4463 or Si4063.
+  * assumes Vcc = 3.3V
   */
 uint8_t dBm2powerLvl(int32_t dBm) {
 	if(dBm < -35) {

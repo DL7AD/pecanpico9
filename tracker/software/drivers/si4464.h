@@ -6,21 +6,17 @@
 #include "defines.h"
 #include "types.h"
 
-#define RADIO_SDN_SET(state)			palWritePad(PORT(RADIO_SDN), PIN(RADIO_SDN), state)
-#define RADIO_CS_SET(state)				palWritePad(PORT(RADIO_CS), PIN(RADIO_CS), state)
-#define RADIO_MOD_GPIO(state)			palWritePad(PORT(RADIO_GPIO), PIN(RADIO_GPIO), state)
-#define RADIO_WITHIN_FREQ_RANGE(frequ)	((frequ) >= 119000000 && (frequ) <= 1050000000)
-
+#define RADIO_MOD_GPIO(state)			palWriteLine(LINE_RADIO_GPIO, state)
 #define inRadioBand(freq) 				(RADIO_MIN_FREQ <= (freq) && (freq) <= RADIO_MAX_FREQ)
 
-void Si4464_Init(mod_t modulation);
+void Si4464_Init(void);
 void Si4464_write(uint8_t* txData, uint32_t len);
 void setFrequency(uint32_t freq, uint16_t shift);
 void setShift(uint16_t shift);
 void setModemAFSK(void);
 void setModemOOK(void);
 void setModem2FSK(void);
-void setModem2GFSK(void);
+void setModem2GFSK(gfsk_conf_t* conf);
 void setDeviation(uint32_t deviation);
 void setPowerLevel(int8_t level);
 void startTx(uint16_t size);

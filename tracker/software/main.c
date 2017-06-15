@@ -17,6 +17,7 @@ int main(void) {
 	boost_voltage(true);		// Ramp up voltage to 3V
 	chThdSleepMilliseconds(100);
 
+	// Start USB
 	sduObjectInit(&SDU1);
 	sduStart(&SDU1, &serusbcfg);
 
@@ -31,8 +32,6 @@ int main(void) {
 
 	start_essential_threads();	// Startup required modules (tracking managemer, watchdog)
 	start_user_modules();		// Startup optional modules (eg. POSITION, LOG, ...)
-
-
 
 	// Print time every 10 sec
 	while(true) {

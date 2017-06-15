@@ -7,11 +7,6 @@
 #include "si4464.h"
 #include "modules.h"
 
-// Preprocessor macros for config file
-#define APRS_REGION_FREQ_2M			getAPRSRegionFrequency2m
-#define APRS_REGION_FREQ_70CM		getAPRSRegionFrequency70cm
-#define APRS_ISS_FREQ				getAPRSISSFrequency
-
 // APRS region frequencies
 #define APRS_FREQ_OTHER				144800000
 #define APRS_FREQ_AMERICA			144390000
@@ -26,11 +21,8 @@
 
 extern mutex_t radio_mtx;
 
-uint32_t getAPRSRegionFrequency2m(void);
-uint32_t getAPRSRegionFrequency70cm(void);
-uint32_t getAPRSISSFrequency(void);
-bool transmitOnRadio(radioMSG_t *msg);
-uint32_t getFrequency(freuquency_config_t *config);
+bool transmitOnRadio(radioMSG_t *msg, bool shutdown);
+uint32_t getFrequency(freq_conf_t *config);
 
 THD_FUNCTION(moduleRADIO, arg);
 

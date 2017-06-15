@@ -16,11 +16,11 @@ extern const SerialConfig uart_config;
 
 // Initializer for serial debug and LEDs
 #define DEBUG_INIT() { \
-	palSetPadMode(PORT(IO_LED1), PIN(IO_LED1), PAL_MODE_OUTPUT_PUSHPULL); \
-	palSetPadMode(PORT(IO_LED2), PIN(IO_LED2), PAL_MODE_OUTPUT_PUSHPULL); \
+	palSetLineMode(LINE_IO_LED1, PAL_MODE_OUTPUT_PUSHPULL); \
+	palSetLineMode(LINE_IO_LED2, PAL_MODE_OUTPUT_PUSHPULL); \
 	\
 	sdStart(&SD3, &uart_config); \
-	palSetPadMode(PORT(IO_TXD), PIN(IO_TXD), PAL_MODE_ALTERNATE(7)); \
+	palSetLineMode(LINE_IO_TXD, PAL_MODE_ALTERNATE(7)); \
 	chMtxObjectInit(&trace_mtx); \
 	chMtxLock(&trace_mtx); \
 	chprintf((BaseSequentialStream*)&SD3, "\r\n"); \

@@ -23,13 +23,39 @@ void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* config, uint
 	ssdv_t ssdv;
 	uint8_t pkt[SSDV_PKT_SIZE];
 	uint8_t pkt_base91[BASE91LEN(SSDV_PKT_SIZE-37)];
-	uint16_t i = 0;
 	uint8_t *b;
 	uint32_t bi = 0;
 	uint8_t c = SSDV_OK;
+	uint16_t packet_count = 0;
+	uint16_t i = 0;
+
+	// Count packets
+	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, config->ssdv_conf.callsign, image_id);
+	ssdv_enc_set_buffer(&ssdv, pkt);
+
+	while(true)
+	{
+		while((c = ssdv_enc_get_packet(&ssdv)) == SSDV_FEED_ME)
+		{
+			b = &image[bi];
+			uint8_t r = bi < image_len-128 ? 128 : image_len - bi;
+			bi += r;
+			if(r <= 0)
+				break;
+			ssdv_enc_feed(&ssdv, b, r);
+		}
+
+		if(c == SSDV_EOI || c != SSDV_OK)
+			break;
+
+		packet_count++;
+	}
+
+	TRACE_INFO("SSDV > %i packets", packet_count);
 
 	// Init SSDV (FEC at 2FSK, non FEC at APRS)
-	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, config->ssdv_config.callsign, image_id);
+	bi = 0;
+	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, config->ssdv_conf.callsign, image_id);
 	ssdv_enc_set_buffer(&ssdv, pkt);
 
 	while(true)
@@ -68,27 +94,28 @@ void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* config, uint
 			case PROT_APRS_2GFSK:
 			case PROT_APRS_AFSK:
 				msg.mod = config->protocol == PROT_APRS_AFSK ? MOD_AFSK : MOD_2GFSK;
-				msg.afsk_config = &(config->afsk_config);
-				msg.gfsk_config = &(config->gfsk_config);
+				msg.afsk_conf = &(config->afsk_conf);
+				msg.gfsk_conf = &(config->gfsk_conf);
 
 				// Deleting buffer
 				for(uint16_t t=0; t<256; t++)
 					pkt_base91[t] = 0;
 
 				base91_encode(&pkt[1], pkt_base91, sizeof(pkt)-37); // Sync byte, CRC and FEC of SSDV not transmitted
-				msg.bin_len = aprs_encode_experimental('I', msg.msg, msg.mod, &config->aprs_config, pkt_base91, strlen((char*)pkt_base91));
+				msg.bin_len = aprs_encode_experimental('I', msg.msg, msg.mod, &config->aprs_conf, pkt_base91, strlen((char*)pkt_base91));
 
-				transmitOnRadio(&msg);
+				// Transmit on radio (keep transmitter switched on if packet spacing=0ms and it isnt the last packet being sent)
+				transmitOnRadio(&msg, config->packet_spacing != 0 || i == packet_count-1);
 				break;
 
 			case PROT_SSDV_2FSK:
 				msg.mod = MOD_2FSK;
-				msg.fsk_config = &(config->fsk_config);
+				msg.fsk_conf = &(config->fsk_conf);
 
 				memcpy(msg.msg, pkt, sizeof(pkt));
 				msg.bin_len = 8*sizeof(pkt);
 
-				transmitOnRadio(&msg);
+				transmitOnRadio(&msg, true);
 				break;
 
 			default:
@@ -101,8 +128,6 @@ void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* config, uint
 
 		i++;
 	}
-
-	TRACE_INFO("SSDV > %i packets", i);
 }
 
 THD_FUNCTION(imgThread, arg) {
@@ -114,13 +139,13 @@ THD_FUNCTION(imgThread, arg) {
 		TRACE_INFO("IMG  > Do module IMAGE cycle");
 		config->wdg_timeout = chVTGetSystemTimeX() + S2ST(600); // TODO: Implement more sophisticated method
 
-		if(!p_sleep(&config->sleep_config))
+		if(!p_sleep(&config->sleep_conf))
 		{
 			uint32_t image_len = 0;
 			uint8_t *image;
 
 			// Take photo if camera activated (if camera disabled, camera buffer is probably shared in config file)
-			if(!config->ssdv_config.no_camera)
+			if(!config->ssdv_conf.no_camera)
 			{
 				// Lock camera
 				TRACE_INFO("IMG  > Lock camera");
@@ -132,9 +157,6 @@ THD_FUNCTION(imgThread, arg) {
 				chMtxLock(&interference_mtx);
 				TRACE_INFO("IMG  > Locked radio");
 
-				// Shutdown radio (to avoid interference)
-				radioShutdown();
-
 				uint8_t tries;
 				bool status = false;
 
@@ -143,14 +165,14 @@ THD_FUNCTION(imgThread, arg) {
 				{
 					TRACE_INFO("IMG  > OV2640 found");
 
-					if(config->ssdv_config.res == RES_MAX) // Attempt maximum resolution (limited by memory)
+					if(config->ssdv_conf.res == RES_MAX) // Attempt maximum resolution (limited by memory)
 					{
-						config->ssdv_config.res = RES_UXGA; // Try maximum resolution
+						config->ssdv_conf.res = RES_UXGA; // Try maximum resolution
 
 						do {
 
 							// Init camera
-							OV2640_init(&config->ssdv_config);
+							OV2640_init(&config->ssdv_conf);
 
 							// Sample data from DCMI through DMA into RAM
 							tries = 5; // Try 5 times at maximum
@@ -158,16 +180,16 @@ THD_FUNCTION(imgThread, arg) {
 								status = OV2640_Snapshot2RAM();
 							} while(!status && --tries);
 
-							config->ssdv_config.res--; // Decrement resolution in next attempt (if status==false)
+							config->ssdv_conf.res--; // Decrement resolution in next attempt (if status==false)
 
-						} while(OV2640_BufferOverflow() && config->ssdv_config.res >= RES_QVGA);
+						} while(OV2640_BufferOverflow() && config->ssdv_conf.res >= RES_QVGA);
 
-						config->ssdv_config.res = RES_MAX; // Revert register
+						config->ssdv_conf.res = RES_MAX; // Revert register
 
 					} else { // Static resolution
 
 						// Init camera
-						OV2640_init(&config->ssdv_config);
+						OV2640_init(&config->ssdv_conf);
 
 						// Sample data from DCMI through DMA into RAM
 						tries = 5; // Try 5 times at maximum
