@@ -90,7 +90,7 @@ def received_data(data):
 		\"receiver\": \"""" + receiver + """\"
 	}""")
 
-	print 'Received packet call %02x%02x%02x%02x image %d packet %d' % (data[1], data[2], data[3], data[4], data[5], data[7] + data[6] * 256)
+	print datetime.datetime.now().isoformat('T') + ' Received packet call %02x%02x%02x%02x image %d packet %d' % (data[1], data[2], data[3], data[4], data[5], data[7] + data[6] * 256)
 
 	if len(jsons) >= args.grouping: # Enough packets collected, send them all to the server
 
