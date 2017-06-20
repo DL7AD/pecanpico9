@@ -109,15 +109,15 @@ uint16_t cpr_encode(bool cprFormat, double lat, double lon)
 
 THD_FUNCTION(logThread, arg)
 {
-	module_conf_t* config = (module_conf_t*)arg;
+	module_conf_t* conf = (module_conf_t*)arg;
 
 	systime_t time = chVTGetSystemTimeX();
 	while(true)
 	{
 		TRACE_INFO("LOG  > Do module LOG cycle");
-		config->wdg_timeout = chVTGetSystemTimeX() + S2ST(600); // TODO: Implement more sophisticated method
+		conf->wdg_timeout = chVTGetSystemTimeX() + S2ST(600); // TODO: Implement more sophisticated method
 
-		if(!p_sleep(&config->sleep_conf))
+		if(!p_sleep(&conf->sleep_conf))
 		{
 			// Get log from memory
 			trackPoint_t log;
@@ -152,22 +152,22 @@ THD_FUNCTION(logThread, arg)
 
 			// Encode radio message
 			radioMSG_t msg;
-			msg.freq = getFrequency(&config->frequency);
-			msg.power = config->power;
+			msg.freq = getFrequency(&conf->frequency);
+			msg.power = conf->power;
 
-			switch(config->protocol) {
+			switch(conf->protocol) {
 				case PROT_APRS_2GFSK:
 				case PROT_APRS_AFSK:
-					msg.mod = config->protocol == PROT_APRS_AFSK ? MOD_AFSK : MOD_2GFSK;
-					msg.afsk_conf = &(config->afsk_conf);
-					msg.gfsk_conf = &(config->gfsk_conf);
+					msg.mod = conf->protocol == PROT_APRS_AFSK ? MOD_AFSK : MOD_2GFSK;
+					msg.afsk_conf = &(conf->afsk_conf);
+					msg.gfsk_conf = &(conf->gfsk_conf);
 
 					// Deleting buffer
 					for(uint16_t t=0; t<sizeof(pkt_base91); t++)
 						pkt_base91[t] = 0;
 
 					base91_encode((uint8_t*)pkt, pkt_base91, sizeof(pkt));
-					msg.bin_len = aprs_encode_message(msg.msg, msg.mod, &config->aprs_conf, APRS_DEST_CALLSIGN, (char*)pkt_base91);
+					msg.bin_len = aprs_encode_message(msg.msg, msg.mod, &conf->aprs_conf, APRS_DEST_CALLSIGN, (char*)pkt_base91);
 
 					transmitOnRadio(&msg, true);
 					break;
@@ -177,13 +177,13 @@ THD_FUNCTION(logThread, arg)
 			}
 		}
 
-		time = waitForTrigger(time, &config->trigger);
+		time = waitForTrigger(time, &conf->trigger);
 	}
 }
 
 void start_logging_thread(module_conf_t *conf)
 {
-	if(config->init_delay) chThdSleepMilliseconds(config->init_delay);
+	if(conf->init_delay) chThdSleepMilliseconds(conf->init_delay);
 	TRACE_INFO("LOG  > Startup logging thread");
 	chsnprintf(conf->name, sizeof(conf->name), "LOG");
 	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(2*1024), "LOG", NORMALPRIO, logThread, conf);

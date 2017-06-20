@@ -39,14 +39,14 @@ int16_t pac1720_getIsol(void) {
 	if(getUSBVoltageMV() < 300) // USB not connected
 	{
 		// Short solar cells
-		palClearLine(LINE_SOL_SHORT_EN);
+		//palClearLine(LINE_SOL_SHORT_EN);
 		chThdSleepMilliseconds(300); // Wait a little bit to measure a correct value
 
 		int16_t val;
 		uint8_t ret = I2C_read16(PAC1720_ADDRESS, PAC1720_CH1_VSENSE_HIGH, (uint16_t*)&val);
 
 		// Unshort solar cells
-		palSetLine(LINE_SOL_SHORT_EN);
+		//palSetLine(LINE_SOL_SHORT_EN);
 
 		// Calculate solar current
 		if(ret) {

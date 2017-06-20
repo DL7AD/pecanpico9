@@ -273,7 +273,7 @@ void setModem2GFSK(gfsk_conf_t* conf) {
 
 void setPowerLevel(int8_t level) {
 	// Set the Power
-	uint8_t set_pa_pwr_lvl_property_command[] = {0x11, 0x22, 0x01, 0x01, dBm2powerLvl(level)};
+	uint8_t set_pa_pwr_lvl_property_command[] = {0x11, 0x22, 0x01, 0x01, level};
 	Si4464_write(set_pa_pwr_lvl_property_command, 5);
 }
 
@@ -339,7 +339,6 @@ uint8_t Si4464_freeFIFO(void) {
 	return rxData[3];
 }
 
-
 /**
   * Returns internal state of Si4464
   */
@@ -356,28 +355,6 @@ int8_t Si4464_getTemperature(void) {
 	Si4464_read(txData, 2, rxData, 8);
 	uint16_t adc = rxData[7] | ((rxData[6] & 0x7) << 8);
 	return (899*adc)/4096 - 293;
-}
-
-/**
-  * Converts power level from dBm to Si4464 power level. The calculation
-  * assumes Vcc = 3.3V
-  */
-uint8_t dBm2powerLvl(int32_t dBm) {
-	if(dBm < -35) {
-		return 0;
-	} else if(dBm < -7) {
-		return (uint8_t)((2*dBm+74)/15);
-	} else if(dBm < 2) {
-		return (uint8_t)((2*dBm+26)/3);
-	} else if(dBm < 8) {
-		return (uint8_t)((5*dBm+20)/3);
-	} else if(dBm < 13) {
-		return (uint8_t)(3*dBm-4);
-	} else if(dBm < 18) {
-		return (uint8_t)((92*dBm-1021)/5);
-	} else {
-		return 127;
-	}
 }
 
 bool isRadioInitialized(void) {

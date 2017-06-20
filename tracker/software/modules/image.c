@@ -18,7 +18,7 @@
 static uint8_t gimage_id; // Global image ID (for all image threads)
 mutex_t camera_mtx;
 
-void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* config, uint8_t image_id)
+void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_t image_id, bool redudantTx)
 {
 	ssdv_t ssdv;
 	uint8_t pkt[SSDV_PKT_SIZE];
@@ -30,7 +30,7 @@ void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* config, uint
 	uint16_t i = 0;
 
 	// Count packets
-	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, config->ssdv_conf.callsign, image_id);
+	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, conf->ssdv_conf.callsign, image_id);
 	ssdv_enc_set_buffer(&ssdv, pkt);
 
 	while(true)
@@ -55,12 +55,12 @@ void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* config, uint
 
 	// Init SSDV (FEC at 2FSK, non FEC at APRS)
 	bi = 0;
-	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, config->ssdv_conf.callsign, image_id);
+	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, conf->ssdv_conf.callsign, image_id);
 	ssdv_enc_set_buffer(&ssdv, pkt);
 
 	while(true)
 	{
-		config->wdg_timeout = chVTGetSystemTimeX() + S2ST(600); // TODO: Implement more sophisticated method
+		conf->wdg_timeout = chVTGetSystemTimeX() + S2ST(600); // TODO: Implement more sophisticated method
 
 		while((c = ssdv_enc_get_packet(&ssdv)) == SSDV_FEED_ME)
 		{
@@ -87,35 +87,37 @@ void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* config, uint
 
 		// Transmit packet
 		radioMSG_t msg;
-		msg.freq = getFrequency(&config->frequency);
-		msg.power = config->power;
+		msg.freq = getFrequency(&conf->frequency);
+		msg.power = conf->power;
 
-		switch(config->protocol) {
+		switch(conf->protocol) {
 			case PROT_APRS_2GFSK:
 			case PROT_APRS_AFSK:
-				msg.mod = config->protocol == PROT_APRS_AFSK ? MOD_AFSK : MOD_2GFSK;
-				msg.afsk_conf = &(config->afsk_conf);
-				msg.gfsk_conf = &(config->gfsk_conf);
+				msg.mod = conf->protocol == PROT_APRS_AFSK ? MOD_AFSK : MOD_2GFSK;
+				msg.afsk_conf = &(conf->afsk_conf);
+				msg.gfsk_conf = &(conf->gfsk_conf);
 
 				// Deleting buffer
 				for(uint16_t t=0; t<256; t++)
 					pkt_base91[t] = 0;
 
 				base91_encode(&pkt[1], pkt_base91, sizeof(pkt)-37); // Sync byte, CRC and FEC of SSDV not transmitted
-				msg.bin_len = aprs_encode_experimental('I', msg.msg, msg.mod, &config->aprs_conf, pkt_base91, strlen((char*)pkt_base91));
+				msg.bin_len = aprs_encode_experimental('I', msg.msg, msg.mod, &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91));
 
 				// Transmit on radio (keep transmitter switched on if packet spacing=0ms and it isnt the last packet being sent)
-				transmitOnRadio(&msg, config->packet_spacing != 0 || i == packet_count-1);
+				if(redudantTx) transmitOnRadio(&msg, false);
+				transmitOnRadio(&msg, conf->packet_spacing != 0 || i == packet_count-1);
 				break;
 
 			case PROT_SSDV_2FSK:
 				msg.mod = MOD_2FSK;
-				msg.fsk_conf = &(config->fsk_conf);
+				msg.fsk_conf = &(conf->fsk_conf);
 
 				memcpy(msg.msg, pkt, sizeof(pkt));
 				msg.bin_len = 8*sizeof(pkt);
 
-				transmitOnRadio(&msg, true);
+				if(redudantTx) transmitOnRadio(&msg, false);
+				transmitOnRadio(&msg, conf->packet_spacing != 0 || i == packet_count-1);
 				break;
 
 			default:
@@ -123,29 +125,29 @@ void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* config, uint
 		}
 
 		// Packet spacing (delay)
-		if(config->packet_spacing)
-			chThdSleepMilliseconds(config->packet_spacing);
+		if(conf->packet_spacing)
+			chThdSleepMilliseconds(conf->packet_spacing);
 
 		i++;
 	}
 }
 
 THD_FUNCTION(imgThread, arg) {
-	module_conf_t* config = (module_conf_t*)arg;
+	module_conf_t* conf = (module_conf_t*)arg;
 
 	systime_t time = chVTGetSystemTimeX();
 	while(true)
 	{
 		TRACE_INFO("IMG  > Do module IMAGE cycle");
-		config->wdg_timeout = chVTGetSystemTimeX() + S2ST(600); // TODO: Implement more sophisticated method
+		conf->wdg_timeout = chVTGetSystemTimeX() + S2ST(600); // TODO: Implement more sophisticated method
 
-		if(!p_sleep(&config->sleep_conf))
+		if(!p_sleep(&conf->sleep_conf))
 		{
 			uint32_t image_len = 0;
 			uint8_t *image;
 
 			// Take photo if camera activated (if camera disabled, camera buffer is probably shared in config file)
-			if(!config->ssdv_conf.no_camera)
+			if(!conf->ssdv_conf.no_camera)
 			{
 				// Lock camera
 				TRACE_INFO("IMG  > Lock camera");
@@ -165,14 +167,14 @@ THD_FUNCTION(imgThread, arg) {
 				{
 					TRACE_INFO("IMG  > OV2640 found");
 
-					if(config->ssdv_conf.res == RES_MAX) // Attempt maximum resolution (limited by memory)
+					if(conf->ssdv_conf.res == RES_MAX) // Attempt maximum resolution (limited by memory)
 					{
-						config->ssdv_conf.res = RES_UXGA; // Try maximum resolution
+						conf->ssdv_conf.res = RES_UXGA; // Try maximum resolution
 
 						do {
 
 							// Init camera
-							OV2640_init(&config->ssdv_conf);
+							OV2640_init(&conf->ssdv_conf);
 
 							// Sample data from DCMI through DMA into RAM
 							tries = 5; // Try 5 times at maximum
@@ -180,16 +182,16 @@ THD_FUNCTION(imgThread, arg) {
 								status = OV2640_Snapshot2RAM();
 							} while(!status && --tries);
 
-							config->ssdv_conf.res--; // Decrement resolution in next attempt (if status==false)
+							conf->ssdv_conf.res--; // Decrement resolution in next attempt (if status==false)
 
-						} while(OV2640_BufferOverflow() && config->ssdv_conf.res >= RES_QVGA);
+						} while(OV2640_BufferOverflow() && conf->ssdv_conf.res >= RES_QVGA);
 
-						config->ssdv_conf.res = RES_MAX; // Revert register
+						conf->ssdv_conf.res = RES_MAX; // Revert register
 
 					} else { // Static resolution
 
 						// Init camera
-						OV2640_init(&config->ssdv_conf);
+						OV2640_init(&conf->ssdv_conf);
 
 						// Sample data from DCMI through DMA into RAM
 						tries = 5; // Try 5 times at maximum
@@ -227,7 +229,7 @@ THD_FUNCTION(imgThread, arg) {
 				{
 					gimage_id++;
 					TRACE_INFO("IMG  > Encode/Transmit SSDV ID=%d", gimage_id-1);
-					encode_ssdv(image, image_len, config, gimage_id-1);
+					encode_ssdv(image, image_len, conf, gimage_id-1, conf->ssdv_conf.redundantTx);
 				}
 
 			} else {
@@ -237,18 +239,18 @@ THD_FUNCTION(imgThread, arg) {
 
 				TRACE_INFO("IMG  > Camera disabled");
 				TRACE_INFO("IMG  > Encode/Transmit SSDV ID=%d", gimage_id);
-				encode_ssdv(image, image_len, config, gimage_id);
+				encode_ssdv(image, image_len, conf, gimage_id, conf->ssdv_conf.redundantTx);
 
 			}
 		}
 
-		time = waitForTrigger(time, &config->trigger);
+		time = waitForTrigger(time, &conf->trigger);
 	}
 }
 
 void start_image_thread(module_conf_t *conf)
 {
-	if(config->init_delay) chThdSleepMilliseconds(config->init_delay);
+	if(conf->init_delay) chThdSleepMilliseconds(conf->init_delay);
 	TRACE_INFO("IMG  > Startup image thread");
 	chsnprintf(conf->name, sizeof(conf->name), "IMG");
 	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(6*1024), "IMG", NORMALPRIO, imgThread, conf);

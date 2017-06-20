@@ -44,8 +44,8 @@ typedef struct {
 	char path[16];				// APRS path
 	uint16_t preamble;			// Preamble in milliseconds
 	telemetry_t tel[5];			// Telemetry types
-	bool tel_encoding;			// Transmit telemetry encoding information
-	uint16_t tel_encoding_cycle;// Telemetry encoding cycle in seconds
+	bool tel_enc;				// Transmit telemetry encoding information
+	uint16_t tel_enc_cycle;		// Telemetry encoding cycle in seconds
 	char tel_comment[32];		// Telemetry comment
 } aprs_conf_t;
 
@@ -117,6 +117,7 @@ typedef struct {
 	uint8_t *ram_buffer;	// Camera Buffer (do not set in config)
 	size_t ram_size;		// Size of buffer (do not set in config)
 	bool no_camera;			// Camera disabled
+	bool redundantTx;		// Redundand packet transmission (APRS only)
 } ssdv_conf_t;
 
 typedef enum {
@@ -131,20 +132,14 @@ typedef struct {
 
 typedef enum {
 	TRIG_ONCE,				// Trigger once and never again (e.g. transmit specific position packet only at startup)
-	TRIG_EVENT,				// Triggered by specific event (e.g. transmit when new track point available)
+	TRIG_NEW_POINT,			// Triggered when new track point available
 	TRIG_TIMEOUT,			// Triggered by timeout (e.g. trasmit position every 120sec)
 	TRIG_CONTINOUSLY		// Continue continously (e.g. send new image once old image sent completely)
 } trigger_type_t;
 
-typedef enum {
-	NO_EVENT,				// No event, triggered once and never again
-	EVENT_NEW_POINT			// Triggered when new track point available
-} event_t;
-
 typedef struct {
 	trigger_type_t type;	// Trigger type
 	uint32_t timeout;		// Timeout in seconds
-	event_t event;			// Trigger events
 } trigger_conf_t;
 
 typedef struct {

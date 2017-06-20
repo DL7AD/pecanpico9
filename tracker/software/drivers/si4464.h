@@ -27,7 +27,6 @@ void Si4464_writeFIFO(uint8_t *msg, uint8_t size);
 uint8_t Si4464_freeFIFO(void);
 uint8_t Si4464_getState(void);
 int8_t Si4464_getTemperature(void);
-uint8_t dBm2powerLvl(int32_t dBm);
 bool isRadioInitialized(void);
 
 #endif

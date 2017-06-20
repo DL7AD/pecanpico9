@@ -314,14 +314,14 @@ bool transmitOnRadio(radioMSG_t *msg, bool shutdown) {
 	// Lock radio
 	chMtxLock(&radio_mtx);
 
-	if(inRadioBand(msg->freq)) { // Radio found
+	if(inRadioBand(msg->freq)) { // Frequency in radio radio band
 
 		// Lock interference mutex
 		chMtxLock(&interference_mtx);
 
-		TRACE_INFO(	"RAD  > Transmit %d.%03d MHz, %d dBm (%d), %s, %d bits",
+		TRACE_INFO(	"RAD  > Transmit %d.%03d MHz, Pwr %d, %s, %d bits",
 					msg->freq/1000000, (msg->freq%1000000)/1000, msg->power,
-					dBm2powerLvl(msg->power), getModulation(msg->mod), msg->bin_len
+					getModulation(msg->mod), msg->bin_len
 		);
 		
 		switch(msg->mod) {
@@ -360,11 +360,10 @@ bool transmitOnRadio(radioMSG_t *msg, bool shutdown) {
 
 		chMtxUnlock(&interference_mtx); // Heavy interference finished (HF)
 
-	} else { // Error
+	} else { // Frequency out of radio band
 
-		TRACE_ERROR("RAD  > Radio cant transmit on this frequency, %d.%03d MHz, %d dBm (%d), %s, %d bits",
-					msg->freq/1000000, (msg->freq%1000000)/1000, msg->power,
-					dBm2powerLvl(msg->power), getModulation(msg->mod), msg->bin_len
+		TRACE_ERROR("RAD  > Radio cant transmit on this frequency, %d.%03d MHz, Pwr dBm, %s, %d bits",
+					msg->freq/1000000, (msg->freq%1000000)/1000, msg->power, getModulation(msg->mod), msg->bin_len
 		);
 
 	}

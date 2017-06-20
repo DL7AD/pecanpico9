@@ -106,7 +106,7 @@ void replace_placeholders(char* fskmsg, uint16_t size, trackPoint_t *tp) {
 }
 
 THD_FUNCTION(posThread, arg) {
-	module_conf_t* config = (module_conf_t*)arg;
+	module_conf_t* conf = (module_conf_t*)arg;
 
 	trackPoint_t *trackPoint = getLastTrackPoint();
 	systime_t time = chVTGetSystemTimeX();
@@ -117,49 +117,49 @@ THD_FUNCTION(posThread, arg) {
 	while(true)
 	{
 		TRACE_INFO("POS  > Do module POSITION cycle");
-		config->wdg_timeout = chVTGetSystemTimeX() + S2ST(600); // TODO: Implement more sophisticated method
+		conf->wdg_timeout = chVTGetSystemTimeX() + S2ST(600); // TODO: Implement more sophisticated method
 
 		TRACE_INFO("POS  > Get last track point");
 		trackPoint = getLastTrackPoint();
 
-		if(!p_sleep(&config->sleep_conf))
+		if(!p_sleep(&conf->sleep_conf))
 		{
 
 			TRACE_INFO("POS  > Transmit GPS position");
 
 			radioMSG_t msg;
-			msg.freq = getFrequency(&config->frequency);
-			msg.power = config->power;
+			msg.freq = getFrequency(&conf->frequency);
+			msg.power = conf->power;
 
-			switch(config->protocol) {
+			switch(conf->protocol) {
 
 				case PROT_APRS_2GFSK: // Encode APRS
 				case PROT_APRS_AFSK:
 					// Position transmission
-					msg.mod = config->protocol == PROT_APRS_AFSK ? MOD_AFSK : MOD_2GFSK;
-					msg.gfsk_conf = &(config->gfsk_conf);
-					msg.afsk_conf = &(config->afsk_conf);
+					msg.mod = conf->protocol == PROT_APRS_AFSK ? MOD_AFSK : MOD_2GFSK;
+					msg.gfsk_conf = &(conf->gfsk_conf);
+					msg.afsk_conf = &(conf->afsk_conf);
 
-					msg.bin_len = aprs_encode_position(msg.msg, msg.mod, &(config->aprs_conf), trackPoint); // Encode packet
+					msg.bin_len = aprs_encode_position(msg.msg, msg.mod, &(conf->aprs_conf), trackPoint); // Encode packet
 					transmitOnRadio(&msg, true);
 
 					// Telemetry encoding parameter transmission
-					if(config->aprs_conf.tel_encoding)
+					if(conf->aprs_conf.tel_enc)
 					{
 						// Telemetry encoding parameter transmission trigger
-						if(last_conf_transmission + S2ST(config->aprs_conf.tel_encoding_cycle) < chVTGetSystemTimeX() && current_conf_count >= 4)
+						if(last_conf_transmission + S2ST(conf->aprs_conf.tel_enc_cycle) < chVTGetSystemTimeX() && current_conf_count >= 4)
 						{
-							last_conf_transmission += S2ST(config->aprs_conf.tel_encoding_cycle);
+							last_conf_transmission += S2ST(conf->aprs_conf.tel_enc_cycle);
 							current_conf_count = 0;
 						}
 
 						// Actual transmission (each cycle a different config type will be sent)
-						if(config->aprs_conf.tel_encoding && current_conf_count < 4)
+						if(conf->aprs_conf.tel_enc && current_conf_count < 4)
 						{
 							chThdSleepMilliseconds(5000); // Take a litte break between the package transmissions
 
 							const telemetry_conf_t tel_conf[] = {CONF_PARM, CONF_UNIT, CONF_EQNS, CONF_BITS};
-							msg.bin_len = aprs_encode_telemetry_configuration(msg.msg, msg.mod, &(config->aprs_conf), tel_conf[current_conf_count]); // Encode packet
+							msg.bin_len = aprs_encode_telemetry_configuration(msg.msg, msg.mod, &(conf->aprs_conf), tel_conf[current_conf_count]); // Encode packet
 							transmitOnRadio(&msg, true);
 
 							current_conf_count++;
@@ -170,13 +170,13 @@ THD_FUNCTION(posThread, arg) {
 
 				case PROT_UKHAS_2FSK: // Encode UKHAS
 					msg.mod = MOD_2FSK;
-					msg.fsk_conf = &(config->fsk_conf);
+					msg.fsk_conf = &(conf->fsk_conf);
 
 					// Encode packet
 					char fskmsg[256];
-					memcpy(fskmsg, config->ukhas_conf.format, sizeof(config->ukhas_conf.format));
+					memcpy(fskmsg, conf->ukhas_conf.format, sizeof(conf->ukhas_conf.format));
 					replace_placeholders(fskmsg, sizeof(fskmsg), trackPoint);
-					str_replace(fskmsg, sizeof(fskmsg), "<CALL>", config->ukhas_conf.callsign);
+					str_replace(fskmsg, sizeof(fskmsg), "<CALL>", conf->ukhas_conf.callsign);
 					msg.bin_len = 8*chsnprintf((char*)msg.msg, sizeof(fskmsg), "$$$$$%s*%04X\n", fskmsg, crc16(fskmsg));
 
 					// Transmit message
@@ -185,13 +185,13 @@ THD_FUNCTION(posThread, arg) {
 
 				case PROT_MORSE: // Encode Morse
 					msg.mod = MOD_OOK;
-					msg.ook_conf = &(config->ook_conf);
+					msg.ook_conf = &(conf->ook_conf);
 
 					// Encode morse message
 					char morse[128];
-					memcpy(morse, config->morse_conf.format, sizeof(config->morse_conf.format));
+					memcpy(morse, conf->morse_conf.format, sizeof(conf->morse_conf.format));
 					replace_placeholders(morse, sizeof(morse), trackPoint);
-					str_replace(morse, sizeof(morse), "<CALL>", config->morse_conf.callsign);
+					str_replace(morse, sizeof(morse), "<CALL>", conf->morse_conf.callsign);
 
 					// Transmit message
 					msg.bin_len = morse_encode(msg.msg, morse); // Convert message to binary stream
@@ -203,13 +203,13 @@ THD_FUNCTION(posThread, arg) {
 			}
 		}
 
-		time = waitForTrigger(time, &config->trigger);
+		time = waitForTrigger(time, &conf->trigger);
 	}
 }
 
 void start_position_thread(module_conf_t *conf)
 {
-	if(config->init_delay) chThdSleepMilliseconds(config->init_delay);
+	if(conf->init_delay) chThdSleepMilliseconds(conf->init_delay);
 	TRACE_INFO("POS  > Startup position thread");
 	chsnprintf(conf->name, sizeof(conf->name), "POS");
 	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(2*1024), "POS", NORMALPRIO, posThread, conf);

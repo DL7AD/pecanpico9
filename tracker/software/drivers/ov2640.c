@@ -312,7 +312,7 @@ static const struct regval_list ov2640_init_regs[] = {
 	{ 0x2e,   0xdf },
 	{ BANK_SEL, BANK_SEL_SENS },
 	{ 0x3c,   0x32 },
-	{ CLKRC, CLKRC_DIV_SET(1) },
+	{ CLKRC, CLKRC_DIV_SET(2) },
 	{ COM2, COM2_OCAP_Nx_SET(3) },
 	{ REG04, REG04_DEF | REG04_HREF_EN },
 	{ COM8,  COM8_DEF | COM8_AGC_EN | COM8_AEC_EN | COM8_BNDF_EN },
@@ -666,7 +666,6 @@ uint32_t OV2640_getBuffer(uint8_t** buffer) {
 void OV2640_Capture(void)
 {
 	TRACE_INFO("CAM  > Start capture");
-
 	while(1)
 	{
 		while(palReadLine(LINE_CAM_VSYNC));
@@ -794,13 +793,29 @@ void OV2640_init(ssdv_conf_t *config) {
 	TRACE_INFO("CAM  > Transmit config to camera");
 	OV2640_TransmitConfig();
 
-	chThdSleepMilliseconds(300);
+	chThdSleepMilliseconds(3000);
 }
 
 void OV2640_deinit(void) {
 	// Power off OV2640
 	TRACE_INFO("CAM  > Switch off");
-	palClearLine(LINE_CAM_EN); // Switch off camera
+
+	palSetLineMode(LINE_CAM_HREF, PAL_MODE_INPUT);
+	palSetLineMode(LINE_CAM_PCLK, PAL_MODE_INPUT);
+	palSetLineMode(LINE_CAM_VSYNC, PAL_MODE_INPUT);
+
+	palSetLineMode(LINE_CAM_XCLK, PAL_MODE_INPUT);
+	palSetLineMode(LINE_CAM_D2, PAL_MODE_INPUT);
+	palSetLineMode(LINE_CAM_D3, PAL_MODE_INPUT);
+	palSetLineMode(LINE_CAM_D4, PAL_MODE_INPUT);
+	palSetLineMode(LINE_CAM_D5, PAL_MODE_INPUT);
+	palSetLineMode(LINE_CAM_D6, PAL_MODE_INPUT);
+	palSetLineMode(LINE_CAM_D7, PAL_MODE_INPUT);
+	palSetLineMode(LINE_CAM_D8, PAL_MODE_INPUT);
+	palSetLineMode(LINE_CAM_D9, PAL_MODE_INPUT);
+
+	palSetLineMode(LINE_CAM_EN, PAL_MODE_INPUT);
+	palSetLineMode(LINE_CAM_RESET, PAL_MODE_INPUT);
 
 	// Release I2C (due to silicon bug of OV2640, it interferes if byte 0x30 transmitted on I2C bus)
 	I2C_unlock();

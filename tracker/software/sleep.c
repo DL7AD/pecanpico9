@@ -43,16 +43,9 @@ systime_t waitForTrigger(systime_t prev, trigger_conf_t *config)
 {
 	switch(config->type)
 	{
-		case TRIG_EVENT: // Wait for new tracking point
-			switch(config->event)
-			{
-				case EVENT_NEW_POINT:
-					waitForNewTrackPoint();
-					return chVTGetSystemTimeX();
-
-				case NO_EVENT: // No event defined
-					while(1); // Assert
-			}
+		case TRIG_NEW_POINT: // Wait for new tracking point
+			waitForNewTrackPoint();
+			return chVTGetSystemTimeX();
 		
 		case TRIG_TIMEOUT: // Wait for specified timeout
 			return chThdSleepUntilWindowed(prev, prev + S2ST(config->timeout));
@@ -61,7 +54,7 @@ systime_t waitForTrigger(systime_t prev, trigger_conf_t *config)
 			return chVTGetSystemTimeX();
 
 		case TRIG_ONCE: // No trigger defined
-			while(1); // Assert
+			chThdSleepMilliseconds(10000);
 	}
 
 	return chVTGetSystemTimeX();

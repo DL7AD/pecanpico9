@@ -7,7 +7,7 @@
 #include "debug.h"
 
 #define ADC_NUM_CHANNELS	4		/* Amount of channels (solar, battery, temperature) */
-#define VCC_REF_LOW			1860	/* mV */
+#define VCC_REF_LOW			1850	/* mV */
 #define VCC_REF_HIGH		3070	/* mV */
 
 #define DIVIDER_VSOL		205/64	/* VSol -- 22kOhm -- ADC -- 10kOhm -- GND */
@@ -74,7 +74,7 @@ uint16_t getBatteryVoltageMV(void)
 	uint16_t vbat = samples[2] * vcc_ref * DIVIDER_VBAT / 4096;
 
 	// Get voltage from PAC1720 (PAC1720 returns false redings below 2.35V)
-	if(vbat >= 2400)
+	if(vbat >= 2500)
 	{
 		uint16_t vbat_pac = pac1720_getBatteryVoltage(); // Get value from PAC1720
 		if(vbat_pac) // Apply it if valid
@@ -87,7 +87,7 @@ uint16_t getBatteryVoltageMV(void)
 uint16_t getSolarVoltageMV(void)
 {
 	// Get voltage from PAC1720 (PAC1720 returns false redings below 2.35V)
-	if(getBatteryVoltageMV() >= 2400)
+	if(getBatteryVoltageMV() >= 2500)
 	{
 		uint16_t vsol_pac = pac1720_getSolarVoltage(); // Get value from PAC1720
 		if(vsol_pac)

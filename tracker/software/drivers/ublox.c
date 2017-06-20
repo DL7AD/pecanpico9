@@ -26,7 +26,21 @@ const SerialConfig gps_config =
  */
 void gps_transmit_string(uint8_t *cmd, uint8_t length)
 {
-	sdWrite(&SD6, cmd, length);
+	I2C_writeN(UBLOX_MAX_ADDRESS, cmd, length);
+}
+
+uint8_t gps_receive_byte(void)
+{
+	uint8_t val;
+	I2C_read8(UBLOX_MAX_ADDRESS, 0xFF, &val);
+	return val;
+}
+
+uint16_t gps_bytes_avail(void)
+{
+	uint16_t val;
+	I2C_read16(UBLOX_MAX_ADDRESS, 0xFD, &val);
+	return val;
 }
 
 /* 
@@ -50,10 +64,15 @@ uint8_t gps_receive_ack(uint8_t class_id, uint8_t msg_id, uint16_t timeout) {
 
 	// runs until ACK/NAK packet is received
 	systime_t sTimeout = chVTGetSystemTimeX() + MS2ST(timeout);
-	while(chVTGetSystemTimeX() <= sTimeout) {
+	while(sTimeout >= chVTGetSystemTimeX()) {
 
 		// Receive one byte
-		rx_byte = sdGetTimeout(&SD6, sTimeout - chVTGetSystemTimeX());
+		if(gps_bytes_avail()) {
+			rx_byte = gps_receive_byte();
+		} else {
+			chThdSleepMilliseconds(10);
+			continue;
+		}
 
 		// Process one byte
 		if (rx_byte == ack[match_count] || rx_byte == nak[match_count]) {
@@ -93,14 +112,15 @@ uint16_t gps_receive_payload(uint8_t class_id, uint8_t msg_id, unsigned char *pa
 	uint16_t payload_len = 0;
 
 	systime_t sTimeout = chVTGetSystemTimeX() + MS2ST(timeout);
-	while(true) {
+	while(sTimeout >= chVTGetSystemTimeX()) {
 
 		// Receive one byte
-		systime_t uartTimeout = sTimeout - chVTGetSystemTimeX();
-		if(!uartTimeout)
-			break;
-
-		rx_byte = sdGetTimeout(&SD6, uartTimeout);
+		if(gps_bytes_avail()) {
+			rx_byte = gps_receive_byte();
+		} else {
+			chThdSleepMilliseconds(10);
+			continue;
+		}
 
 		// Process one byte
 		switch (state) {
@@ -326,8 +346,8 @@ bool GPS_Init(void) {
 	palSetLineMode(LINE_GPS_TXD, PAL_MODE_ALTERNATE(8));		// UART TXD
 
 	// Init UART
-	TRACE_INFO("GPS  > Init GPS UART");
-	sdStart(&SD6, &gps_config);
+	//TRACE_INFO("GPS  > Init GPS UART");
+	//sdStart(&SD6, &gps_config);
 
 	// Switch MOSFET
 	TRACE_INFO("GPS  > Switch on");
