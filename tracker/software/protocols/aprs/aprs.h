@@ -45,6 +45,8 @@
 #define SYM_BALLOON						0x2F4F
 #define SYM_SMALLAIRCRAFT				0x2F27
 #define SYM_SATELLITE					0x5C53
+#define SYM_CAR                         0x2F2E
+#define SYM_SHIP                        0x2F73
 
 uint32_t aprs_encode_position(uint8_t* message, mod_t mod, const aprs_conf_t *config, trackPoint_t *trackPoint);
 uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const aprs_conf_t *config, const telemetry_conf_t type);
