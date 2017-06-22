@@ -276,7 +276,7 @@ static bool getLastLog(trackPoint_t* last)
 	}
 
 	if(last_address) {
-		flashRead(last_address, (char*)&last, sizeof(trackPoint_t));
+		flashRead(last_address, (char*)last, sizeof(trackPoint_t));
 		return true;
 	} else {
 		return false;
@@ -321,11 +321,11 @@ static void writeLogTrackPoint(trackPoint_t* tp)
 	// Write data into flash
 	TRACE_INFO("TRAC > Flash write (ADDR=%08x)", address);
 	flashSectorBegin(flashSectorAt(address));
-	flashWrite(address, (char*)&tp, sizeof(trackPoint_t));
+	flashWrite(address, (char*)tp, sizeof(trackPoint_t));
 	flashSectorEnd(flashSectorAt(address));
 
 	// Verify
-	if(flashCompare(address, (char*)&tp, sizeof(trackPoint_t)))
+	if(flashCompare(address, (char*)tp, sizeof(trackPoint_t)))
 		TRACE_INFO("TRAC > Flash write OK")
 	else
 		TRACE_ERROR("TRAC > Flash write failed");

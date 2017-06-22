@@ -312,7 +312,7 @@ static const struct regval_list ov2640_init_regs[] = {
 	{ 0x2e,   0xdf },
 	{ BANK_SEL, BANK_SEL_SENS },
 	{ 0x3c,   0x32 },
-	{ CLKRC, CLKRC_DIV_SET(2) },
+	{ CLKRC, CLKRC_DIV_SET(3) },
 	{ COM2, COM2_OCAP_Nx_SET(3) },
 	{ REG04, REG04_DEF | REG04_HREF_EN },
 	{ COM8,  COM8_DEF | COM8_AGC_EN | COM8_AEC_EN | COM8_BNDF_EN },
@@ -631,9 +631,8 @@ static const struct regval_list ov2640_jpeg_regs[] = {
 	ENDMARKER,
 };
 
-
-bool ov2640_samplingFinished;
 ssdv_conf_t *ov2640_conf;
+uint32_t size;
 
 /**
   * Captures an image from the camera.
@@ -649,18 +648,12 @@ bool OV2640_Snapshot2RAM(void)
 
 bool OV2640_BufferOverflow(void)
 {
-	return OV2640_getBuffer(NULL) > ov2640_conf->ram_size-3;
+	return ov2640_conf->ram_buffer[0] != 0xFF || ov2640_conf->ram_buffer[1] != 0xD8; // Check for JPEG SOI header
 }
 
 uint32_t OV2640_getBuffer(uint8_t** buffer) {
 	*buffer = ov2640_conf->ram_buffer;
-
-	// Detect size
-	uint32_t size = ov2640_conf->ram_size;
-	while(!ov2640_conf->ram_buffer[size-1])
-		size--;
-
-	return size;
+	return ov2640_conf->size_sampled;
 }
 
 void OV2640_Capture(void)
@@ -671,23 +664,29 @@ void OV2640_Capture(void)
 		while(palReadLine(LINE_CAM_VSYNC));
 		while(!palReadLine(LINE_CAM_VSYNC));
 
-		uint32_t i=0;
-		while(palReadLine(LINE_CAM_VSYNC))
+		uint8_t gpioc;
+		uint8_t gpioa;
+		ov2640_conf->size_sampled = 0;
+		while(true)
 		{
-			if(!palReadLine(LINE_CAM_HREF))
-				continue;
+			do {
+				gpioc = GPIOC->IDR & 0x7;
+			} while((gpioc & 0x1) != 0x1); // Wait for PCLK to rise
 
-			while(!palReadLine(LINE_CAM_PCLK));
-			// We've got a rising edge
+			gpioa = GPIOA->IDR;
 
-			ov2640_conf->ram_buffer[i++] = (uint8_t)GPIOA->IDR;
+			switch(gpioc) {
+				case 0x3:
+					break;
+				case 0x7:
+					ov2640_conf->ram_buffer[ov2640_conf->size_sampled++] = gpioa;
+					break;
+				default:
+					return;
+			}
 
 			// Wait for falling edge
-			while(palReadLine(LINE_CAM_PCLK));
-		}
-		if(i > 1000)
-		{
-			return;
+			while(GPIOC->IDR & 0x1);
 		}
 	}
 }
