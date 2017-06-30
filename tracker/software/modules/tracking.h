@@ -5,10 +5,6 @@
 #include "hal.h"
 #include "ptime.h"
 
-#define LOG_FLASH_ADDR1		0x080C0000	/* Log flash memory address 1 */
-#define LOG_FLASH_ADDR2		0x080E0000	/* Log flash memory address 2 */
-#define LOG_SECTOR_SIZE		(128*1024)	/* Log flash memory size */
-
 typedef struct {
 	uint32_t id;			// Serial ID
 	ptime_t time;			// GPS time

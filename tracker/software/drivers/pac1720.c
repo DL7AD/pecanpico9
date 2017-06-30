@@ -17,9 +17,7 @@
 #define FSV (40 - 40 / (DENO))
 #define FSC ((FSR) / (PAC1720_RSENSE))
 
-static int32_t pac1720_isol;
 static int32_t pac1720_pbat;
-static int32_t pac1720_isol_counter;
 static int32_t pac1720_pbat_counter;
 
 int16_t pac1720_getPbat(void) {
@@ -29,7 +27,7 @@ int16_t pac1720_getPbat(void) {
 
 	if(I2C_read16(PAC1720_ADDRESS, PAC1720_CH2_PWR_RAT_HIGH, (uint16_t*)&val)) {
 		I2C_read8(PAC1720_ADDRESS, PAC1720_CH2_VSENSE_HIGH, &sign);
-		return (sign >> 7 ? 1 : -1) * (val * fsp / 65535);
+		return (sign >> 7 ? -1 : 1) * (val * fsp / 65535);
 	} else {
 		return 0; // PAC1720 not available (maybe Vcc too low)
 	}
@@ -39,14 +37,14 @@ int16_t pac1720_getIsol(void) {
 	if(getUSBVoltageMV() < 300) // USB not connected
 	{
 		// Short solar cells
-		//palClearLine(LINE_SOL_SHORT_EN);
+		palClearLine(LINE_SOL_SHORT_EN);
 		chThdSleepMilliseconds(300); // Wait a little bit to measure a correct value
 
 		int16_t val;
 		uint8_t ret = I2C_read16(PAC1720_ADDRESS, PAC1720_CH1_VSENSE_HIGH, (uint16_t*)&val);
 
 		// Unshort solar cells
-		//palSetLine(LINE_SOL_SHORT_EN);
+		palSetLine(LINE_SOL_SHORT_EN);
 
 		// Calculate solar current
 		if(ret) {
@@ -57,21 +55,6 @@ int16_t pac1720_getIsol(void) {
 		}
 	}
 	return 0; // USB connected (we dont want to short USB)
-}
-
-int16_t pac1720_getAvgIsol(void) {
-	// Return current value if time interval too short
-	if(!pac1720_isol_counter)
-		pac1720_getIsol();
-
-	// Calculate average power
-	int16_t ret = pac1720_isol / pac1720_isol_counter;
-
-	// Reset current measurement
-	pac1720_isol = 0;
-	pac1720_isol_counter = 0;
-
-	return ret;
 }
 
 int16_t pac1720_getAvgPbat(void) {
@@ -118,17 +101,10 @@ THD_FUNCTION(pac1720_thd, arg)
 {
 	(void)arg;
 
-	uint8_t cntr = 0;
 	while(true)
 	{
-		// Measure solar short current (if USB not connected)
-		if(!cntr++) {
-			pac1720_isol += pac1720_getIsol();
-			pac1720_isol_counter++;
-		}
-
 		// Measure battery power
-		pac1720_pbat -= pac1720_getPbat();
+		pac1720_pbat += pac1720_getPbat();
 		pac1720_pbat_counter++;
 
 		chThdSleepMilliseconds(50);

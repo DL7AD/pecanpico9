@@ -8,14 +8,16 @@
 #include "radio.h"
 #include "sleep.h"
 
-//extern module_conf_t config[9];
 
-#define TRACK_CYCLE_TIME		180			/* Tracking cycle (all peripheral data [airpressure, GPS, temperature, ...] is collected each x seconds */
+#define TRACK_CYCLE_TIME		30			/* Tracking cycle (all peripheral data [airpressure, GPS, temperature, ...] is collected each x seconds */
 
-#define LOG_CYCLE_TIME			1800		/* Log cycle time in seconds */
+#define LOG_CYCLE_TIME			30			/* Log cycle time in seconds */
+#define LOG_FLASH_ADDR1			0x080C0000	/* Log flash memory address 1 */
+#define LOG_FLASH_ADDR2			0x080E0000	/* Log flash memory address 2 */
+#define LOG_SECTOR_SIZE			0x20000		/* Log flash memory size */
 
-#define GPS_ON_VBAT				2500		/* Battery voltage threshold at which GPS is switched on */
-#define GPS_OFF_VBAT			3000		/* Battery voltage threshold at which GPS is switched off */
+#define GPS_ON_VBAT				1000		/* Battery voltage threshold at which GPS is switched on */
+#define GPS_OFF_VBAT			1000		/* Battery voltage threshold at which GPS is switched off */
 
 #define TRACE_TIME				TRUE		/* Enables time tracing on debugging port */
 #define TRACE_FILE				TRUE		/* Enables file and line tracing on debugging port */

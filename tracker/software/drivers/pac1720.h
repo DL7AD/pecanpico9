@@ -52,7 +52,6 @@
 void pac1720_init(void);
 int16_t pac1720_getIsol(void);
 int16_t pac1720_getPbat(void);
-int16_t pac1720_getAvgIsol(void);
 int16_t pac1720_getAvgPbat(void);
 uint16_t pac1720_getBatteryVoltage(void);
 uint16_t pac1720_getSolarVoltage(void);

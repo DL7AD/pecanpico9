@@ -52,20 +52,17 @@ typedef struct {
 typedef enum {
 	SLEEP_DISABLED,
 	SLEEP_WHEN_VBAT_BELOW_THRES,
-	SLEEP_WHEN_VSOL_BELOW_THRES,
+	SLEEP_WHEN_ISOL_BELOW_THRES,
 	SLEEP_WHEN_VBAT_ABOVE_THRES,
-	SLEEP_WHEN_VSOL_ABOVE_THRES,
+	SLEEP_WHEN_ISOL_ABOVE_THRES,
 	SLEEP_WHEN_DISCHARGING,
-	SLEEP_WHEN_CHARGING,
-	SLEEP_WHEN_INSIDE_ITU1,
-	SLEEP_WHEN_INSIDE_ITU2,
-	SLEEP_WHEN_INSIDE_ITU3
+	SLEEP_WHEN_CHARGING
 } sleep_type_t;
 
 typedef struct {
 	sleep_type_t type;
 	uint16_t vbat_thres;
-	uint16_t vsol_thres;
+	uint16_t isol_thres;
 } sleep_conf_t;
 
 typedef struct {

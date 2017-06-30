@@ -312,7 +312,7 @@ static const struct regval_list ov2640_init_regs[] = {
 	{ 0x2e,   0xdf },
 	{ BANK_SEL, BANK_SEL_SENS },
 	{ 0x3c,   0x32 },
-	{ CLKRC, CLKRC_DIV_SET(3) },
+	{ CLKRC, CLKRC_DIV_SET(2) },
 	{ COM2, COM2_OCAP_Nx_SET(3) },
 	{ REG04, REG04_DEF | REG04_HREF_EN },
 	{ COM8,  COM8_DEF | COM8_AGC_EN | COM8_AEC_EN | COM8_BNDF_EN },

@@ -5,6 +5,7 @@
 #include "tracking.h"
 #include "debug.h"
 #include "padc.h"
+#include "pac1720.h"
 
 /**
   * Sleeping method. Returns true if sleeping condition are given.
@@ -16,20 +17,17 @@ bool p_sleep(const sleep_conf_t *config)
 		case SLEEP_WHEN_VBAT_BELOW_THRES:
 			return getBatteryVoltageMV() < config->vbat_thres;
 
-		case SLEEP_WHEN_VSOL_BELOW_THRES:
-			return getSolarVoltageMV() < config->vsol_thres;
+		case SLEEP_WHEN_ISOL_BELOW_THRES:
+			return pac1720_getIsol() < config->isol_thres;
 
 		case SLEEP_WHEN_VBAT_ABOVE_THRES:
 			return getBatteryVoltageMV() > config->vbat_thres;
 
-		case SLEEP_WHEN_VSOL_ABOVE_THRES:
-			return getSolarVoltageMV() > config->vsol_thres;
+		case SLEEP_WHEN_ISOL_ABOVE_THRES:
+			return pac1720_getIsol() > config->isol_thres;
 
 		case SLEEP_WHEN_DISCHARGING:
 		case SLEEP_WHEN_CHARGING:
-		case SLEEP_WHEN_INSIDE_ITU1:
-		case SLEEP_WHEN_INSIDE_ITU2:
-		case SLEEP_WHEN_INSIDE_ITU3:
 			TRACE_WARN("Sleeping method not implemented");
 			return false;
 
