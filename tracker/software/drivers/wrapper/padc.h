@@ -4,6 +4,8 @@
 #include "ch.h"
 #include "hal.h"
 
+#define isUsbConnected()	(getUSBVoltageMV() < 300)
+
 void initADC(void);
 void deinitADC(void);
 uint16_t getBatteryVoltageMV(void);

@@ -17,13 +17,9 @@
 #ifndef USBCFG_H
 #define USBCFG_H
 
-#if BUILD_USB
-
 extern const USBConfig usbcfg;
 extern SerialUSBConfig serusbcfg;
 extern SerialUSBDriver SDU1;
-
-#endif
 
 #endif  /* USBCFG_H */
 

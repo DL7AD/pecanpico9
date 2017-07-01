@@ -7,10 +7,7 @@
 #include "ptime.h"
 #include "config.h"
 #include <string.h>
-
-#if BUILD_USB
 #include "usbcfg.h"
-#endif
 
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 

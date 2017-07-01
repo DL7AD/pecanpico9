@@ -25,9 +25,6 @@
 #define RUN_3V					TRUE		/* Lets the tracker run a 3V otherwise 1.8V. 3V is needed to do 20dBm radio output power.
 											 * With 1.8V only 15dBm can be done. Some serial-USB adapters also need a 3V IO level in
 											 * order to work. However 3V takes a lot of power in idle. You can save energy using 1.8V. */
-#define BUILD_USB				FALSE		/* This enables USB data output to be used for debugging. It switches the tracker to an
-											 * operation voltage of 3V even when RUN_3V is set to false, because USB requires 3V. I
-											 * recommend not to use USB on a real flight while it takes around 2mA. */
 
 void start_user_modules(void);
 

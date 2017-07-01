@@ -34,7 +34,7 @@ int16_t pac1720_getPbat(void) {
 }
 
 int16_t pac1720_getIsol(void) {
-	if(getUSBVoltageMV() < 300) // USB not connected
+	if(isUsbConnected()) // USB not connected
 	{
 		// Short solar cells
 		palClearLine(LINE_SOL_SHORT_EN);

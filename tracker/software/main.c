@@ -4,10 +4,7 @@
 #include "debug.h"
 #include "modules.h"
 #include "padc.h"
-
-#if BUILD_USB
 #include "usbcfg.h"
-#endif
 
 /**
   * Main routine is starting up system, runs the software watchdog (module monitoring), controls LEDs
@@ -16,26 +13,33 @@ int main(void) {
 	halInit();					// Startup HAL
 	chSysInit();				// Startup RTOS
 
-	#if BUILD_USB || RUN_3V
-	boost_voltage(true);		// Ramp up voltage to 3V
-	chThdSleepMilliseconds(100);
-	#endif
-
-	// Start USB
-	#if BUILD_USB
-	sduObjectInit(&SDU1);
-	sduStart(&SDU1, &serusbcfg);
-
-	usbDisconnectBus(serusbcfg.usbp);
-	chThdSleepMilliseconds(100);
-	usbStart(serusbcfg.usbp, &usbcfg);
-	usbConnectBus(serusbcfg.usbp);
-	#endif
+	// Voltage switching (1.8V <=> 3.0V)
+	bool usbConnected = isUsbConnected();
+	if(usbConnected || RUN_3V)
+	{
+		boost_voltage(true); // Ramp up voltage to 3V
+		chThdSleepMilliseconds(100);
+	}
 
 	// Init debugging (Serial debug port, LEDs)
 	DEBUG_INIT();
 	TRACE_INFO("MAIN > Startup");
 
+	// Start USB (if connected)
+	if(usbConnected)
+	{
+		TRACE_DEBUG("USB detected");
+
+		sduObjectInit(&SDU1);
+		sduStart(&SDU1, &serusbcfg);
+
+		usbDisconnectBus(serusbcfg.usbp);
+		chThdSleepMilliseconds(100);
+		usbStart(serusbcfg.usbp, &usbcfg);
+		usbConnectBus(serusbcfg.usbp);
+	}
+
+	// Startup threads
 	start_essential_threads();	// Startup required modules (tracking managemer, watchdog)
 	start_user_modules();		// Startup optional modules (eg. POSITION, LOG, ...)
 

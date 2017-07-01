@@ -17,8 +17,6 @@
 #include "hal.h"
 #include "config.h"
 
-#if BUILD_USB
-
 /* Virtual serial port over USB.*/
 SerialUSBDriver SDU1;
 
@@ -344,4 +342,3 @@ const SerialUSBConfig serusbcfg = {
   USBD1_INTERRUPT_REQUEST_EP
 };
 
-#endif
