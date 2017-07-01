@@ -393,7 +393,7 @@ bool GPS_Init(void) {
 void GPS_Deinit(void)
 {
 	// Switch MOSFET
-	//TRACE_INFO("GPS  > Switch off");
-	//palClearLine(LINE_GPS_EN);
+	TRACE_INFO("GPS  > Switch off");
+	palClearLine(LINE_GPS_EN);
 }
 

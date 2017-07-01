@@ -250,8 +250,10 @@ THD_FUNCTION(trackingThread, arg) {
 
 		if(isGPSLocked(&gpsFix)) { // GPS locked
 
-			// Switch off GPS
+			// Switch off GPS (if cycle time is more than 60 seconds)
+			#if TRACK_CYCLE_TIME > 60
 			GPS_Deinit();
+			#endif
 
 			// Debug
 			TRACE_INFO("TRAC > GPS sampling finished GPS LOCK");
