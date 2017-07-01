@@ -57,7 +57,9 @@ static uint32_t getNextFreeLogAddress(void)
   */
 static bool getLastLog(trackPoint_t* last)
 {
-	uint32_t last_id = 0;
+	TRACE_INFO("TRAC > Read last track point from flash memory");
+
+	uint64_t last_time = 0;
 	uint32_t last_address = 0;
 
 	// Search in flash sector 10
@@ -65,10 +67,10 @@ static bool getLastLog(trackPoint_t* last)
 	{
 		trackPoint_t pt;
 		flashRead(address, (char*)&pt, sizeof(trackPoint_t));
-		if(pt.id != 0xFFFFFFFF && pt.id >= last_id) {
+		if(pt.id != 0xFFFFFFFF && date2UnixTimestamp(pt.time) >= last_time) {
 			last_address = address;
-			last_id = pt.id;
-		} else TRACE_DEBUG("id=%d", pt.id);
+			last_time = date2UnixTimestamp(pt.time);
+		}
 	}
 
 	// Search in flash sector 11
@@ -76,16 +78,18 @@ static bool getLastLog(trackPoint_t* last)
 	{
 		trackPoint_t pt;
 		flashRead(address, (char*)&pt, sizeof(trackPoint_t));
-		if(pt.id != 0xFFFFFFFF && pt.id >= last_id) {
+		if(pt.id != 0xFFFFFFFF && date2UnixTimestamp(pt.time) >= last_time) {
 			last_address = address;
-			last_id = pt.id;
-		} else TRACE_DEBUG("id=%d", pt.id);
+			last_time = date2UnixTimestamp(pt.time);
+		}
 	}
 
 	if(last_address) {
 		flashRead(last_address, (char*)last, sizeof(trackPoint_t));
+		TRACE_INFO("TRAC > Found track point in flash memory ID=%d", last->id);
 		return true;
 	} else {
+		TRACE_INFO("TRAC > No track point found in flash memory");
 		return false;
 	}
 }
