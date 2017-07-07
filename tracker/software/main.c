@@ -28,7 +28,7 @@ int main(void) {
 	// Start USB (if connected)
 	if(usbConnected)
 	{
-		TRACE_DEBUG("USB detected");
+		TRACE_INFO("MAIN > USB detected");
 
 		sduObjectInit(&SDU1);
 		sduStart(&SDU1, &serusbcfg);
@@ -37,6 +37,8 @@ int main(void) {
 		chThdSleepMilliseconds(100);
 		usbStart(serusbcfg.usbp, &usbcfg);
 		usbConnectBus(serusbcfg.usbp);
+	} else {
+		TRACE_INFO("MAIN > USB not detected");
 	}
 
 	// Startup threads

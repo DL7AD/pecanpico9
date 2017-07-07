@@ -4,7 +4,7 @@
 #include "ch.h"
 #include "hal.h"
 
-#define isUsbConnected()	(getUSBVoltageMV() < 300)
+#define isUsbConnected()	(getUSBVoltageMV() > 300)
 
 void initADC(void);
 void deinitADC(void);
@@ -15,3 +15,4 @@ uint16_t getSTM32Temperature(void);
 void boost_voltage(bool boost);
 
 #endif
+
