@@ -153,6 +153,8 @@ CH_FAST_IRQ_HANDLER(STM32_TIM7_HANDLER)
 
 		RADIO_MOD_GPIO(current_byte & 0x1);
 		gfsk_bit++;
+
+		palToggleLine(LINE_IO_LED1);
 	}
 
 	TIM7->SR &= ~STM32_TIM_SR_UIF; // Reset interrupt flag

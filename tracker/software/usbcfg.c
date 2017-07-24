@@ -19,6 +19,7 @@
 
 /* Virtual serial port over USB.*/
 SerialUSBDriver SDU1;
+bool usb_initialized = false;
 
 /*
  * Endpoints to be used for USBD1.

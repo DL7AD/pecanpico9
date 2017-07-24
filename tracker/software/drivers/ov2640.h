@@ -10,7 +10,7 @@
 #include "types.h"
 
 bool OV2640_Snapshot2RAM(void);
-void OV2640_Capture(void);
+bool OV2640_Capture(void);
 void OV2640_InitGPIO(void);
 uint32_t OV2640_getBuffer(uint8_t** buffer);
 bool OV2640_BufferOverflow(void);

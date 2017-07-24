@@ -209,7 +209,13 @@ THD_FUNCTION(posThread, arg) {
 
 void start_position_thread(module_conf_t *conf)
 {
+	// Wait
 	if(conf->init_delay) chThdSleepMilliseconds(conf->init_delay);
+
+	// Start tracking manager (if not running yet)
+	setTrackingManagerRunning();
+
+	// Start position thread
 	TRACE_INFO("POS  > Startup position thread");
 	chsnprintf(conf->name, sizeof(conf->name), "POS");
 	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(2*1024), "POS", NORMALPRIO, posThread, conf);

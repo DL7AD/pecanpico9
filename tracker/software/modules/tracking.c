@@ -16,6 +16,7 @@ static trackPoint_t trackPoints[2];
 static trackPoint_t* lastTrackPoint;
 static systime_t nextLogEntryTimer;
 static module_conf_t trac_conf = {.name = "TRAC"}; // Fake config needed for watchdog tracking
+static bool blockThread = true;
 
 /**
   * Returns most recent track point witch is complete.
@@ -157,6 +158,13 @@ THD_FUNCTION(trackingThread, arg) {
 
 	uint32_t id = 1;
 	lastTrackPoint = &trackPoints[0]; // FIXME: That might not work
+
+	// Block thread while no position thread is started
+	while(blockThread)
+	{
+		trac_conf.wdg_timeout = chVTGetSystemTimeX() + S2ST(5);
+		chThdSleepMilliseconds(1000);
+	}
 
 	// Fill initial values by PAC1720 and BME280 and RTC
 
@@ -371,3 +379,14 @@ void init_tracking_manager(void)
 	}
 }
 
+/**
+  * Without position module, GPS sampling would be a waste a energy, so it
+  * should be kept switched off. Due to this reason the tracking manager thread
+  * is blocked by the blockThread variable. This prevents the tracking manager
+  * to run when no position module is enabled. This function should be called
+  * as one position thread is active. This function may be called multiple times.
+  */
+void setTrackingManagerRunning(void)
+{
+	blockThread = false;
+}

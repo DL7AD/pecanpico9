@@ -42,12 +42,12 @@
  * Board voltages
  * Required for performance limits calculation
  */
-#define STM32_VDD                   181U
+#define STM32_VDD                   180U
 
 /*
  * MCU type as defined in the ST header
  */
-#define STM32F413Rx
+#define STM32F413xx
 
 /*
  * Radio specifications
@@ -272,7 +272,7 @@
 
 // Camera pins
 #define LINE_CAM_XCLK               PAL_LINE(GPIOA, 8U)
-#define LINE_CAM_PCLK               PAL_LINE(GPIOC, 0U)
+#define LINE_CAM_PCLK               PAL_LINE(GPIOC, 6U)
 #define LINE_CAM_HREF               PAL_LINE(GPIOC, 2U)
 #define LINE_CAM_VSYNC              PAL_LINE(GPIOC, 1U)
 #define LINE_CAM_D2                 PAL_LINE(GPIOA, 0U)

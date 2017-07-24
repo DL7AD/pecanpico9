@@ -37,6 +37,7 @@ int main(void) {
 		chThdSleepMilliseconds(100);
 		usbStart(serusbcfg.usbp, &usbcfg);
 		usbConnectBus(serusbcfg.usbp);
+		usb_initialized = true;
 	} else {
 		TRACE_INFO("MAIN > USB not detected");
 	}

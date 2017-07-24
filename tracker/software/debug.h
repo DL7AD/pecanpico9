@@ -29,6 +29,7 @@ extern const SerialConfig uart_config;
 
 #define TRACE_BASE(format, type, args...) { \
 	chMtxLock(&trace_mtx); \
+	\
 	if(TRACE_TIME) { \
 		chprintf((BaseSequentialStream*)&SD3, "[%8d.%03d]", chVTGetSystemTimeX()/CH_CFG_ST_FREQUENCY, (chVTGetSystemTimeX()*1000/CH_CFG_ST_FREQUENCY)%1000); \
 	} \
@@ -39,6 +40,20 @@ extern const SerialConfig uart_config;
 	chprintf((BaseSequentialStream*)&SD3, " "); \
 	chprintf((BaseSequentialStream*)&SD3, (format), ##args); \
 	chprintf((BaseSequentialStream*)&SD3, "\r\n"); \
+	\
+	if(usb_initialized) { \
+		if(TRACE_TIME) { \
+			chprintf((BaseSequentialStream*)&SDU1, "[%8d.%03d]", chVTGetSystemTimeX()/CH_CFG_ST_FREQUENCY, (chVTGetSystemTimeX()*1000/CH_CFG_ST_FREQUENCY)%1000); \
+		} \
+		chprintf((BaseSequentialStream*)&SDU1, "[%s]", type); \
+		if(TRACE_FILE) { \
+			chprintf((BaseSequentialStream*)&SDU1, "[%10s %04d]", __FILENAME__, __LINE__); \
+		} \
+		chprintf((BaseSequentialStream*)&SDU1, " "); \
+		chprintf((BaseSequentialStream*)&SDU1, (format), ##args); \
+		chprintf((BaseSequentialStream*)&SDU1, "\r\n"); \
+	} \
+	\
 	chMtxUnlock(&trace_mtx); \
 }
 
