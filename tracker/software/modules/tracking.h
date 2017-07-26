@@ -34,7 +34,6 @@ void waitForNewTrackPoint(void);
 trackPoint_t* getLastTrackPoint(void);
 void getNextLogTrackPoint(trackPoint_t* log);
 void init_tracking_manager(void);
-void setTrackingManagerRunning(void);
 
 #endif
 

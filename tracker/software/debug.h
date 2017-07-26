@@ -13,6 +13,7 @@
 
 extern mutex_t trace_mtx;
 extern const SerialConfig uart_config;
+extern bool debug_on_usb;
 
 // Initializer for serial debug and LEDs
 #define DEBUG_INIT() { \
@@ -41,7 +42,7 @@ extern const SerialConfig uart_config;
 	chprintf((BaseSequentialStream*)&SD3, (format), ##args); \
 	chprintf((BaseSequentialStream*)&SD3, "\r\n"); \
 	\
-	if(usb_initialized) { \
+	if(usb_initialized && debug_on_usb) { \
 		if(TRACE_TIME) { \
 			chprintf((BaseSequentialStream*)&SDU1, "[%8d.%03d]", chVTGetSystemTimeX()/CH_CFG_ST_FREQUENCY, (chVTGetSystemTimeX()*1000/CH_CFG_ST_FREQUENCY)%1000); \
 		} \
@@ -112,6 +113,10 @@ extern const SerialConfig uart_config;
 	getTime(&dbgtime); \
 	TRACE_INFO("%-4s > Current time: %02d-%02d-%02d %02d:%02d:%02d:%03d", thd, dbgtime.year, dbgtime.month, dbgtime.day, dbgtime.hour, dbgtime.minute, dbgtime.second, dbgtime.millisecond); \
 }
+
+void debugOnUSB_Off(BaseSequentialStream *chp, int argc, char *argv[]);
+void debugOnUSB_On(BaseSequentialStream *chp, int argc, char *argv[]);
+void printConfig(BaseSequentialStream *chp, int argc, char *argv[]);
 
 #endif
 

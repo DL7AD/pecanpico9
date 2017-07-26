@@ -5,6 +5,19 @@
 #include "modules.h"
 #include "padc.h"
 #include "usbcfg.h"
+#include "shell.h"
+
+static const ShellCommand commands[] = {
+	{"dbgon", debugOnUSB_On},
+	{"dbgoff", debugOnUSB_Off},
+//	{"printconfig", printConfig}, FIXME: This feature is faulty at the moment
+	{NULL, NULL}
+};
+
+static const ShellConfig shell_cfg = {
+	(BaseSequentialStream *)&SDU1,
+	commands
+};
 
 /**
   * Main routine is starting up system, runs the software watchdog (module monitoring), controls LEDs
@@ -48,8 +61,11 @@ int main(void) {
 
 	// Print time every 10 sec
 	while(true) {
-		PRINT_TIME("MAIN");
-		chThdSleepMilliseconds(10000);
+		if (SDU1.config->usbp->state == USB_ACTIVE) {
+			thread_t *shelltp = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(2048), "shell", NORMALPRIO+1, shellThread, (void*)&shell_cfg);
+			chThdWait(shelltp);
+		}
+		chThdSleepMilliseconds(1000);
 	}
 }
 

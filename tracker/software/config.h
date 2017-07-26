@@ -8,7 +8,6 @@
 #include "radio.h"
 #include "sleep.h"
 
-
 #define TRACK_CYCLE_TIME		30			/* Tracking cycle (all peripheral data [airpressure, GPS, temperature, ...] is collected each x seconds */
 
 #define LOG_CYCLE_TIME			30			/* Log cycle time in seconds */
@@ -27,6 +26,7 @@
 											 * order to work. However 3V takes a lot of power in idle. You can save energy using 1.8V. */
 
 void start_user_modules(void);
+extern module_conf_t config[9];
 
 #endif
 

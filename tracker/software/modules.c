@@ -22,9 +22,5 @@ void start_essential_threads(void) {
 
 	pi2cInit();					// Initialize I2C
 	pac1720_init();				// Initialize current measurement
-
-	// Start tracking manager
-	init_tracking_manager();
-	chThdSleepMilliseconds(1000);	// Give Tracking manager some time to fill first track point
 }
 

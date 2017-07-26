@@ -100,6 +100,7 @@ include $(CHIBIOS)/os/common/ports/ARMCMx/compilers/GCC/mk/port_v7m.mk
 # Other files (optional).
 include $(CHIBIOS)/test/rt/test.mk
 include $(CHIBIOS)/os/hal/lib/streams/streams.mk
+include $(CHIBIOS)/os/various/shell/shell.mk
 
 # Define linker script file here
 LDSCRIPT= board/STM32F413xH.ld
@@ -113,6 +114,8 @@ CSRC = $(STARTUPSRC) \
        $(HALSRC) \
        $(PLATFORMSRC) \
        $(BOARDSRC) \
+       $(TESTSRC) \
+       $(SHELLSRC) \
        $(CHIBIOS)/os/hal/lib/streams/memstreams.c \
        $(CHIBIOS)/os/hal/lib/streams/chprintf.c \
        modules/tracking.c \
@@ -177,8 +180,9 @@ ASMXSRC = $(STARTUPASM) $(PORTASM) $(OSALASM)
 
 INCDIR = $(CHIBIOS)/os/license \
          $(STARTUPINC) $(KERNINC) $(PORTINC) $(OSALINC) \
-         $(HALINC) $(PLATFORMINC) $(BOARDINC) \
+         $(HALINC) $(PLATFORMINC) $(BOARDINC) $(TESTINC) \
          $(CHIBIOS)/os/hal/lib/streams $(CHIBIOS)/os/various \
+         $(SHELLINC)
 
 #
 # Project, sources and paths
