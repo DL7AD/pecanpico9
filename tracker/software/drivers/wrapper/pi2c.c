@@ -52,6 +52,12 @@ bool I2C_write8_locked(uint8_t address, uint8_t reg, uint8_t value)
 	return I2C_send(address, txbuf, 2, NULL, 0, MS2ST(100));
 }
 
+bool I2C_write8_16bitreg_locked(uint8_t address, uint16_t reg, uint8_t value) // 16bit register (for OV5640)
+{
+	uint8_t txbuf[] = {reg >> 8, reg & 0xFF, value};
+	return I2C_send(address, txbuf, 3, NULL, 0, MS2ST(100));
+}
+
 bool I2C_writeN_locked(uint8_t address, uint8_t *txbuf, uint32_t length)
 {
 	return I2C_send(address, txbuf, length, NULL, 0, MS2ST(100));
@@ -62,6 +68,15 @@ bool I2C_read8_locked(uint8_t address, uint8_t reg, uint8_t *val)
 	uint8_t txbuf[] = {reg};
 	uint8_t rxbuf[1];
 	bool ret = I2C_send(address, txbuf, 1, rxbuf, 1, MS2ST(100));
+	*val = rxbuf[0];
+	return ret;
+}
+
+bool I2C_read8_16bitreg_locked(uint8_t address, uint16_t reg, uint8_t *val) // 16bit register (for OV5640)
+{
+	uint8_t txbuf[] = {reg >> 8, reg & 0xFF};
+	uint8_t rxbuf[1];
+	bool ret = I2C_send(address, txbuf, 2, rxbuf, 1, MS2ST(100));
 	*val = rxbuf[0];
 	return ret;
 }

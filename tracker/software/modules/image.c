@@ -4,6 +4,7 @@
 #include "debug.h"
 #include "modules.h"
 #include "ov2640.h"
+#include "ov5640.h"
 #include "pi2c.h"
 #include "ssdv.h"
 #include "aprs.h"
@@ -15,7 +16,7 @@
 #include "watchdog.h"
 #include "flash.h"
 
-static uint8_t gimage_id; // Global image ID (for all image threads)
+static uint8_t gimage_id = 2; // Global image ID (for all image threads)
 mutex_t camera_mtx;
 
 void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_t image_id, bool redudantTx)
@@ -146,49 +147,29 @@ THD_FUNCTION(imgThread, arg) {
 			uint32_t image_len = 0;
 			uint8_t *image;
 
-			// Take photo if camera activated (if camera disabled, camera buffer is probably shared in config file)
-			if(!conf->ssdv_conf.no_camera)
+			// Lock camera
+			TRACE_INFO("IMG  > Lock camera");
+			chMtxLock(&camera_mtx);
+			TRACE_INFO("IMG  > Locked camera");
+
+			// Lock RADIO from producing interferences
+			TRACE_INFO("IMG  > Lock radio");
+			chMtxLock(&interference_mtx);
+			TRACE_INFO("IMG  > Locked radio");
+
+			uint8_t tries;
+			bool status = false;
+
+			// Detect camera
+			if(OV2640_isAvailable()) // OV2640 available
 			{
-				// Lock camera
-				TRACE_INFO("IMG  > Lock camera");
-				chMtxLock(&camera_mtx);
-				TRACE_INFO("IMG  > Locked camera");
+				TRACE_INFO("IMG  > OV2640 found");
 
-				// Lock RADIO from producing interferences
-				TRACE_INFO("IMG  > Lock radio");
-				chMtxLock(&interference_mtx);
-				TRACE_INFO("IMG  > Locked radio");
-
-				uint8_t tries;
-				bool status = false;
-
-				// Detect camera
-				if(OV2640_isAvailable()) // OV2640 available
+				if(conf->ssdv_conf.res == RES_MAX) // Attempt maximum resolution (limited by memory)
 				{
-					TRACE_INFO("IMG  > OV2640 found");
+					conf->ssdv_conf.res = RES_UXGA; // Try maximum resolution
 
-					if(conf->ssdv_conf.res == RES_MAX) // Attempt maximum resolution (limited by memory)
-					{
-						conf->ssdv_conf.res = RES_UXGA; // Try maximum resolution
-
-						do {
-
-							// Init camera
-							OV2640_init(&conf->ssdv_conf);
-
-							// Sample data from DCMI through DMA into RAM
-							tries = 5; // Try 5 times at maximum
-							do { // Try capturing image until capture successful
-								status = OV2640_Snapshot2RAM();
-							} while(!status && --tries);
-
-							conf->ssdv_conf.res--; // Decrement resolution in next attempt (if status==false)
-
-						} while(OV2640_BufferOverflow() && conf->ssdv_conf.res >= RES_QVGA);
-
-						conf->ssdv_conf.res = RES_MAX; // Revert register
-
-					} else { // Static resolution
+					do {
 
 						// Init camera
 						OV2640_init(&conf->ssdv_conf);
@@ -199,49 +180,101 @@ THD_FUNCTION(imgThread, arg) {
 							status = OV2640_Snapshot2RAM();
 						} while(!status && --tries);
 
-					}
+						conf->ssdv_conf.res--; // Decrement resolution in next attempt (if status==false)
 
-					// Switch off camera
-					OV2640_deinit();
+					} while(OV2640_BufferOverflow() && conf->ssdv_conf.res >= RES_QVGA);
 
-					// Get image
-					image_len = OV2640_getBuffer(&image);
-					TRACE_INFO("IMG  > Image size: %d bytes", image_len);
+					conf->ssdv_conf.res = RES_MAX; // Revert register
 
-				} else { // Camera error
+				} else { // Static resolution
 
-					TRACE_ERROR("IMG  > No camera found");
+					// Init camera
+					OV2640_init(&conf->ssdv_conf);
+
+					// Sample data from DCMI through DMA into RAM
+					tries = 5; // Try 5 times at maximum
+					do { // Try capturing image until capture successful
+						status = OV2640_Snapshot2RAM();
+					} while(!status && --tries);
 
 				}
 
-				// Unlock radio
-				TRACE_INFO("IMG  > Unlock radio");
-				chMtxUnlock(&interference_mtx);
-				TRACE_INFO("IMG  > Unlocked radio");
+				// Switch off camera
+				OV2640_deinit();
 
-				// Unlock camera
-				TRACE_INFO("IMG  > Unlock camera");
-				chMtxUnlock(&camera_mtx);
-				TRACE_INFO("IMG  > Unlocked camera");
-
-				// Encode/Transmit SSDV if image sampled successfully
-				if(status)
-				{
-					gimage_id++;
-					TRACE_INFO("IMG  > Encode/Transmit SSDV ID=%d", gimage_id-1);
-					encode_ssdv(image, image_len, conf, gimage_id-1, conf->ssdv_conf.redundantTx);
-				}
-
-			} else {
-
+				// Get image
 				image_len = OV2640_getBuffer(&image);
 				TRACE_INFO("IMG  > Image size: %d bytes", image_len);
 
-				TRACE_INFO("IMG  > Camera disabled");
-				TRACE_INFO("IMG  > Encode/Transmit SSDV ID=%d", gimage_id);
-				encode_ssdv(image, image_len, conf, gimage_id, conf->ssdv_conf.redundantTx);
+			} else if(OV5640_isAvailable()) { // OV5640 available
+
+				TRACE_INFO("IMG  > OV5640 found");
+
+				if(conf->ssdv_conf.res == RES_MAX) // Attempt maximum resolution (limited by memory)
+				{
+					conf->ssdv_conf.res = RES_UXGA; // Try maximum resolution
+
+					do {
+
+						// Init camera
+						OV5640_init(&conf->ssdv_conf);
+
+						// Sample data from DCMI through DMA into RAM
+						tries = 5; // Try 5 times at maximum
+						do { // Try capturing image until capture successful
+							status = OV5640_Snapshot2RAM();
+						} while(!status && --tries);
+
+						conf->ssdv_conf.res--; // Decrement resolution in next attempt (if status==false)
+
+					} while(OV5640_BufferOverflow() && conf->ssdv_conf.res >= RES_QVGA);
+
+					conf->ssdv_conf.res = RES_MAX; // Revert register
+
+				} else { // Static resolution
+
+					// Init camera
+					OV5640_init(&conf->ssdv_conf);
+
+					// Sample data from DCMI through DMA into RAM
+					tries = 5; // Try 5 times at maximum
+					do { // Try capturing image until capture successful
+						status = OV5640_Snapshot2RAM();
+					} while(!status && --tries);
+
+				}
+
+				// Switch off camera
+				OV5640_deinit();
+
+				// Get image
+				image_len = OV5640_getBuffer(&image);
+				TRACE_INFO("IMG  > Image size: %d bytes", image_len);
+
+			} else { // Camera error
+
+				TRACE_ERROR("IMG  > No camera found");
 
 			}
+
+			// Unlock radio
+			TRACE_INFO("IMG  > Unlock radio");
+			chMtxUnlock(&interference_mtx);
+			TRACE_INFO("IMG  > Unlocked radio");
+
+			// Unlock camera
+			TRACE_INFO("IMG  > Unlock camera");
+			chMtxUnlock(&camera_mtx);
+			TRACE_INFO("IMG  > Unlocked camera");
+
+			// Encode/Transmit SSDV if image sampled successfully
+			if(status)
+			{
+				gimage_id++;
+				TRACE_INFO("IMG  > Encode/Transmit SSDV ID=%d", gimage_id-1);
+				encode_ssdv(image, image_len, conf, gimage_id-1, conf->ssdv_conf.redundantTx);
+			}
+
 		}
 
 		time = waitForTrigger(time, &conf->trigger);

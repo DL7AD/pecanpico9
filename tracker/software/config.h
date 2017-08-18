@@ -8,7 +8,7 @@
 #include "radio.h"
 #include "sleep.h"
 
-#define TRACK_CYCLE_TIME		30			/* Tracking cycle (all peripheral data [airpressure, GPS, temperature, ...] is collected each x seconds */
+#define TRACK_CYCLE_TIME		60			/* Tracking cycle (all peripheral data [airpressure, GPS, temperature, ...] is collected each x seconds */
 
 #define LOG_CYCLE_TIME			30			/* Log cycle time in seconds */
 #define LOG_FLASH_ADDR1			0x080C0000	/* Log flash memory address 1 */

@@ -114,7 +114,6 @@ typedef struct {
 	uint8_t *ram_buffer;	// Camera Buffer
 	uint16_t ram_size;		// Size of buffer
 	uint16_t size_sampled;	// Actual image data size (do not set in config)
-	bool no_camera;			// Camera disabled
 	bool redundantTx;		// Redundand packet transmission (APRS only)
 } ssdv_conf_t;
 

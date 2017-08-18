@@ -312,12 +312,13 @@ static const struct regval_list ov2640_init_regs[] = {
 	{ 0x2e,   0xdf },
 	{ BANK_SEL, BANK_SEL_SENS },
 	{ 0x3c,   0x32 },
-	{ CLKRC, CLKRC_DIV_SET(4) },
+	{ CLKRC, CLKRC_DIV_SET(8) },
 	{ COM2, COM2_OCAP_Nx_SET(3) },
 	{ REG04, REG04_DEF | REG04_HREF_EN },
-	{ COM8,  COM8_DEF | COM8_AGC_EN | COM8_AEC_EN },
+	{ COM8,  COM8_DEF | COM8_AGC_EN | COM8_AEC_EN | COM8_BNDF_EN },
 	//~ { AEC,    0x00 },
 	{ COM9, COM9_AGC_GAIN_8x | 0x08},
+	//{ COM10, COM10_PCLK_RISE },
 	{ 0x2c,   0x0c },
 	{ 0x33,   0x78 },
 	{ 0x3a,   0x33 },
@@ -648,313 +649,20 @@ bool OV2640_Snapshot2RAM(void)
 
 bool OV2640_BufferOverflow(void)
 {
-	return ov2640_conf->image_buffer[0] != 0xFF || ov2640_conf->image_buffer[1] != 0xD8; // Check for JPEG SOI header
+	return ov2640_conf->ram_buffer[0] != 0xFF || ov2640_conf->ram_buffer[1] != 0xD8; // Check for JPEG SOI header
 }
 
 uint32_t OV2640_getBuffer(uint8_t** buffer) {
-	*buffer = ov2640_conf->ram_buffer[0];
+	*buffer = ov2640_conf->ram_buffer;
 	return ov2640_conf->size_sampled;
 }
 
 
-#if 1
-
-const stm32_dma_stream_t *dmastp;
-static bool image_finished;
-uint8_t dma_index;
-
-inline int32_t dma_start(void) {
-  /* Clear any pending inerrupts. */
-  dmaStreamClearInterrupt(dmastp);
-	dmaStreamEnable(dmastp);
-	return 0;
-}
-
-inline int32_t dma_stop(void) {
-	dmaStreamDisable(dmastp);
-	dmaStreamRelease(dmastp);
-	return 0;
-}
-
-/**
- * @brief   Get DMA stream current target.
- * @note    This function can be invoked in both ISR or thread context.
- * @pre     The stream must have been allocated using @p dmaStreamAllocate().
- * @post    After use the stream can be released using @p dmaStreamRelease().
- *
- * @param[in] dmastp    pointer to a stm32_dma_stream_t structure
- * @return  Current target index
- *
- * @special
- */
-#define dmaStreamGetCurrentTarget(dmastp)                                              \
-    ((uint8_t)(((dmastp)->stream->CR >> DMA_SxCR_CT_Pos) & 1U))
-
-static void dma_interrupt(void *p, uint32_t flags) {
-    /* No parameter passed. */
-    (void)p;
-
-    if (flags & STM32_DMA_ISR_HTIF) {
-      /*
-       * Half transfer complete.
-       * Check if DMA is writing to the last buffer.
-       */
-      if (dma_index == (DMA_BUFFERS - 1)) {
-        /*
-         * This is the last buffer so we have to terminate DMA.
-         * Because the DBM switch is done in h/w.
-         * Stopping DMA in interrupt would be too late.
-         * DMA would write beyond buffer or overwrite prior buffer (if MxAR not updated).
-         *
-         * So stop DMA and TIM DMA trigger.
-         */
-        dmaStreamClearInterrupt(dmastp);
-        chSysLockFromISR();
-        dma_stop();
-        TIM1->DIER &= ~TIM_DIER_TDE;
-        image_finished = true;
-        /* Disable HSYNC and VYSNC edge interrupts. */
-        nvicDisableVector(EXTI1_IRQn);
-        nvicDisableVector(EXTI2_IRQn);
-        chSysUnlockFromISR();
-        return;
-      }
-      /*
-       * Else Safe to allow buffer to fill.
-       * DMA DBM will switch buffers in h/w this one is full.
-       * Just clear the interrupt and wait for TCIF.
-       */
-      dmaStreamClearInterrupt(dmastp);
-      return;
-    }
-    if (flags & STM32_DMA_ISR_TCIF) {
-      /*
-       * Full transfer complete.
-       * Update non-active memory address register.
-       * DMA will use new address at h/w DBM switch.
-       */
-      dmaStreamClearInterrupt(dmastp);
-
-      if (dmaStreamGetCurrentTarget(dmastp) == 1) {
-        dmaStreamSetMemory0(dmastp, ram_buffer[++dma_index]);
-      } else {
-        dmaStreamSetMemory1(dmastp, ram_buffer[++dma_index]);
-      }
-      return;
-    }
-}
-
-// This is the vector for HREF (EXTI2) (stolen from hal_ext_lld_isr.c)
-
-CH_FAST_IRQ_HANDLER(Vector60) {
-	//CH_IRQ_PROLOGUE();
-
-	//uint8_t gpioc = GPIOC->IDR;
-	// HREF handling
-	if(GPIOC->IDR & 0x4) {
-		// HREF rising edge, start capturing data on pixel clock
-		/*
-		 * Start or continuation of dma.
-		 * Set TIM8_CH1 capture input rising edge as DMA trigger.
-		 */
-		TIM8->DIER |= TIM_DIER_CC1DE;
-	} else {
-  /* On falling edge remove TIM8 trigger for DMA. */
-		TIM8->DIER &= ~TIM_DIER_CC1DE;
-    }
-
-	EXTI->PR |= EXTI_PR_PR2;
-	//CH_IRQ_EPILOGUE();
-}
-
-bool vsync = false;
-
-// This is the vector for EXTI1 (stolen from hal_ext_lld_isr.c)
-/*
- * Note: VSYNC is a pulse the full length of a frame.
- * This is contrary to the OV2640 datasheet which shows VSYNC as pulses.
-*/
-CH_FAST_IRQ_HANDLER(Vector5C) {
-	//CH_IRQ_PROLOGUE();
-
-	// VSYNC handling
-	if(!vsync && palReadLine(LINE_CAM_VSYNC)) {
-		/*
-		 * Rising edge of VSYNC .
-		 */
-
-		palClearLine(LINE_IO_LED1); // Indicate that picture will be captured
-		vsync = true;
-	} else if(vsync && !palReadLine(LINE_CAM_VSYNC)) {
-		/* VSYNC falling edge - end of JPEG frame.
-		 * Stop & release the DMA channel.
-		 * Disable TIM8 trigger of DMA
-		 * These should have already been disabled in DMA interrupt if was filled.
-		 */
-		dma_stop();
-		TIM8->DIER &= ~TIM_DIER_CC1DE;
-
-		/* Disable HSYNC & VYSNC edge interrupts. */
-		nvicDisableVector(EXTI1_IRQn);
-		nvicDisableVector(EXTI2_IRQn);
-		/* Turn on capture LED and signal the semaphore (data can be processed). */
-		palSetLine(LINE_IO_LED1);
-		image_finished = true;
-		vsync = false;
-	}
-
-	palToggleLine(LINE_IO_LED1);
-
-	EXTI->PR |= EXTI_PR_PR1;
-	//CH_IRQ_EPILOGUE();
-}
-
-uint8_t ram_buffer[DMA_BUFFERS][DMA_SIZE] __attribute__((aligned(DMA_ALIGNMENT)));
-
-bool OV2640_Capture(void)
-{
-	/*
-	 * Note:
-	 *  If there are no Chibios devices enabled that use DMA then...
-	 *  In makefile add entry to UDEFS:
-	 *   UDEFS = -DSTM32_DMA_REQUIRED
-	 */
-
-	/*
-	 * Setup DMA for transfer on TIM8_CH1 - DMA2 stream 2, channel 7.
-	 * Direction is peripheral (GPIO) to memory.
-     * Set highest priority (3).
-	 * Further down we set DMA FIFO to write to memory on FIFO full (4 words).
-	 * GPIO is 8 bit, memory is 32 bit, memory burst write using 4 beats.
-	 */
-	dmastp = STM32_DMA_STREAM(STM32_DMA_STREAM_ID(2, 2));
-	uint32_t dmamode =   STM32_DMA_CR_CHSEL(7) |
-	STM32_DMA_CR_PL(3) |
-	STM32_DMA_CR_DIR_P2M |
-	STM32_DMA_CR_MSIZE_WORD |
-	STM32_DMA_CR_PSIZE_BYTE |
-	STM32_DMA_CR_MINC |
-	STM32_DMA_CR_DMEIE |
-	STM32_DMA_CR_TEIE |
-	STM32_DMA_CR_HTIE |
-	STM32_DMA_CR_TCIE |
-	STM32_DMA_CR_DBM  |
-	STM32_DMA_CR_MBURST_INCR4;
-
-  chSysLock();
-  
-	dmaStreamAllocate(dmastp, 2, (stm32_dmaisr_t)dma_interrupt, NULL);
-
-	dmaStreamSetPeripheral(dmastp, &GPIOA->IDR); // We want to read the data from here
-	/*
-	 * Buffer address must be word aligned.
-	 * Also note requirement for burst transfers.
-	 * Bursts must not cross a 1K address boundary.
-	 * See RM0430 9.3.12
-	 * DMA buffers for ov2640_conf should be defined like this...
-	 * #define DMA_ALIGNMENT 1024
-	 * #define DMA_SIZE DMA_ALIGNMENT
-	 * #define DMA_BUFFERS 6
-	 * uint8_t ram_buffer[DMA_BUFFERS][DMA_SIZE] __attribute__((aligned(DMA_ALIGNMENT)));
-	 *
-	 */
-	dmaStreamSetMemory0(dmastp, ov2640_conf->ram_buffer[0]);
-	dmaStreamSetMemory1(dmastp, ov2640_conf->ram_buffer[1]);
-	/*
-	 * Transfer size (NDT) must be a multiple of 4 bytes.
-	 * See RM0430 9.3.11
-	 */
-	dmaStreamSetTransactionSize(dmastp, DMA_SIZE);
-	//dmaStreamSetTransactionSize(dmastp, (ov2640_conf->ram_size));
-
-	/* Setup DMA...
-	 * Disable direct mode (enable FIFO).
-	 * Set FIFO to transfer at full.
-     * Clear any outstanding interrupt.
-	 */
-	dmaStreamSetMode(dmastp, dmamode);
-	dmaStreamSetFIFO(dmastp, STM32_DMA_FCR_DMDIS | STM32_DMA_FCR_FTH_FULL);
-	dmaStreamClearInterrupt(dmastp);
-	/*
-	 * Setup timer to trigger DMA.
-	 * We have to use TIM8 because...
-	 * - TIM8_CH1 is in DMA2 and we need DMA2 for peripheral -> memory transfer
-	 */
-	rccResetTIM8();
-	rccEnableTIM8(FALSE);
-
-	TIM8->CCMR1 = TIM_CCMR1_CC1S_0; // Select channel 1 as input
-	TIM8->CCER |= TIM_CCER_CC1E; // Enable capture channel
-	TIM8->CCER |= TIM_CCER_CC1P; // Select trailing edge
-
-
-
-	// Setup EXTI: EXTI1 PC for PC1 (VSYNC) and EXIT2 PC for PC2 (HREF)
-	SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI1_PC | SYSCFG_EXTICR1_EXTI2_PC;
-
-	EXTI->IMR = EXTI_IMR_MR1 | EXTI_IMR_MR2; // Activate interrupt for chan1 (=>PC1) and chan2 (=>PC2)
-	EXTI->RTSR = EXTI_RTSR_TR1 | EXTI_RTSR_TR2; // Listen on rising edge
-	EXTI->FTSR = EXTI_FTSR_TR1 | EXTI_FTSR_TR2; // Listen on falling edge too
-  /* Reset any pending interrupt. */
-	EXTI->PR |= EXTI_PR_PR1;
-  EXTI->PR |= EXTI_PR_PR2;
-  /* Enable interrupt vectors. */
-	nvicEnableVector(EXTI1_IRQn, 2);
-	nvicEnableVector(EXTI2_IRQn, 1);
-  /* Start DMA and timer DMA. */
-  dma_start();
-	TIM8->DIER |= TIM_DIER_CC1DE;
-  
-	image_finished = false;
-  dma_index = 0;
-	chSysUnlock();
-	
-  do {
-    osalThdSleepMilliseconds(100);
-  } while(!image_finished);
-  
-  unit8_t *image_buffer = ov2640_conf->ram_buffer[0];
-	int32_t size=65535;
-	while(ov2640_conf->image_buffer[size] == 0 && size >= 0)
-		size--;
-	TRACE_DEBUG("CAM  > Image %d %02x %02x %02x %02x", size, ov2640_conf->image_buffer[0], ov2640_conf->image_buffer[1], ov2640_conf->image_buffer[2], ov2640_conf->image_buffer[3]);
-
-	TRACE_DEBUG("CAM  > Have a look for SOI");
-	uint32_t soi; // Start of Image
-	for(soi=0; soi<65533; soi++)
-	{
-		if(ov2640_conf->image_buffer[soi] == 0xFF && ov2640_conf->image_buffer[soi+1] == 0xD8)
-			break;
-	}
-
-	if(soi == 65533) {
-		TRACE_ERROR("CAM  > Could not find SOI flag");
-		return false; // We failed to sample the picture correctly because we didn't find the JPEG SOI flag
-	}
-
-	TRACE_DEBUG("SOI=%d", soi)
-
-	// Found SOI, move bytes
-	for(uint32_t i=0; i<65535; i++)
-		ov2640_conf->image_buffer[i] = ov2640_conf->image_buffer[i+soi];
-
-	TRACE_DEBUG("CAM  > Image %02x %02x %02x %02x", ov2640_conf->image_buffer[0], ov2640_conf->image_buffer[1], ov2640_conf->image_buffer[2], ov2640_conf->image_buffer[3]);
-	TRACE_INFO("CAM  > Capture finished");
-
-	return true;
-}
-#else
-
-bool image_finished;
-bool sample_byte;
-
 bool OV2640_Capture(void)
 {
 	TRACE_INFO("CAM  > Start capture");
-
 	while(palReadLine(LINE_CAM_VSYNC));
 	while(!palReadLine(LINE_CAM_VSYNC));
-
 	uint8_t gpioc;
 	uint8_t gpioa;
 	ov2640_conf->size_sampled = 0;
@@ -963,9 +671,7 @@ bool OV2640_Capture(void)
 		do {
 			gpioc = GPIOC->IDR & 0x7;
 		} while((gpioc & 0x1) != 0x1); // Wait for PCLK to rise
-
 		gpioa = GPIOA->IDR;
-
 		switch(gpioc) {
 			case 0x3:
 				break;
@@ -975,41 +681,32 @@ bool OV2640_Capture(void)
 			default:
 				return true;
 		}
-
 		// Wait for falling edge
 		while(GPIOC->IDR & 0x1);
 	}
 }
 
-
-
-#endif
-
 /**
-  * Initializes GPIO (for pseudo DCMI)
+  * Initializes GPIO (for DCMI)
   * The high speed clock supports communication by I2C (XCLK = 16MHz)
   */
 void OV2640_InitGPIO(void)
 {
-	palSetLineMode(LINE_CAM_HREF, PAL_MODE_INPUT_PULLUP | PAL_STM32_OSPEED_HIGHEST);
-	/* PC6 AF3 = TIM8_CH1. */
-	palSetLineMode(LINE_CAM_PCLK, PAL_MODE_ALTERNATE(3));
-	palSetLineMode(LINE_CAM_VSYNC, PAL_MODE_INPUT_PULLUP | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_HREF, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_PCLK, PAL_MODE_ALTERNATE(1));
+	palSetLineMode(LINE_CAM_VSYNC, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
 	palSetLineMode(LINE_CAM_XCLK, PAL_MODE_ALTERNATE(0));
-	palSetLineMode(LINE_CAM_D2, PAL_MODE_INPUT_PULLUP | PAL_STM32_OSPEED_HIGHEST);
-	palSetLineMode(LINE_CAM_D3, PAL_MODE_INPUT_PULLUP | PAL_STM32_OSPEED_HIGHEST);
-	palSetLineMode(LINE_CAM_D4, PAL_MODE_INPUT_PULLUP | PAL_STM32_OSPEED_HIGHEST);
-	palSetLineMode(LINE_CAM_D5, PAL_MODE_INPUT_PULLUP | PAL_STM32_OSPEED_HIGHEST);
-	palSetLineMode(LINE_CAM_D6, PAL_MODE_INPUT_PULLUP | PAL_STM32_OSPEED_HIGHEST);
-	palSetLineMode(LINE_CAM_D7, PAL_MODE_INPUT_PULLUP | PAL_STM32_OSPEED_HIGHEST);
-	palSetLineMode(LINE_CAM_D8, PAL_MODE_INPUT_PULLUP | PAL_STM32_OSPEED_HIGHEST);
-	palSetLineMode(LINE_CAM_D9, PAL_MODE_INPUT_PULLUP | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_D2, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_D3, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_D4, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_D5, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_D6, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_D7, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_D8, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
+	palSetLineMode(LINE_CAM_D9, PAL_MODE_INPUT | PAL_STM32_OSPEED_HIGHEST);
 
 	palSetLineMode(LINE_CAM_EN, PAL_MODE_OUTPUT_PUSHPULL);
 	palSetLineMode(LINE_CAM_RESET, PAL_MODE_OUTPUT_PUSHPULL);
-
-	palSetPadMode(GPIOC, 0, PAL_MODE_INPUT);
-	palSetPadMode(GPIOB, 15, PAL_MODE_INPUT);
 }
 
 void OV2640_TransmitConfig(void)
@@ -1076,7 +773,7 @@ void OV2640_init(ssdv_conf_t *config) {
 	// Clearing buffer
 	uint32_t i;
 	for(i=0; i<ov2640_conf->ram_size; i++)
-		ov2640_conf->ram_buffer[0][i] = 0;
+		ov2640_conf->ram_buffer[i] = 0;
 
 	TRACE_INFO("CAM  > Init pins");
 	OV2640_InitGPIO();
@@ -1144,4 +841,5 @@ bool OV2640_isAvailable(void)
 
 	return ret;
 }
+
 
