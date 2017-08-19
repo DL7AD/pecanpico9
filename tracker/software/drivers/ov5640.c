@@ -944,7 +944,7 @@ bool OV5640_Capture(void)
 	dmaStreamClearInterrupt(dmastp);
 
 	dma_overrun = false;
-	dma_error = false;
+	dma_fault = false;
 
 	// Setup timer for PCLK
 	rccResetLPTIM1();
