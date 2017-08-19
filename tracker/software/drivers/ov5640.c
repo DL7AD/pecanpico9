@@ -1042,19 +1042,6 @@ bool OV5640_Capture(void)
 	  TRACE_ERROR("CAM > Error capturing image");
 	  return false;
 	}
-	uint32_t soi; // Start of Image
-	for(soi=0; soi<65533; soi++)
-		if(ov5640_conf->ram_buffer[soi] == 0xFF && ov5640_conf->ram_buffer[soi+1] == 0xE0)
-			break;
-
-	if(soi == 65533) {
-		TRACE_ERROR("CAM  > Could not find SOI flag");
-		return false; // We failed to sample the picture correctly because we didn't find the JPEG SOI flag
-	}
-
-	// Found SOI, move bytes
-	for(uint32_t i=0; i<65535; i++)
-		ov5640_conf->ram_buffer[i] = ov5640_conf->ram_buffer[i+soi];
 
 	TRACE_INFO("CAM  > Capture finished");
 
