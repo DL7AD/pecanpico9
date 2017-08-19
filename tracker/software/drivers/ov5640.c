@@ -1,3 +1,8 @@
+/*
+ * Registers by Arducam https://github.com/ArduCAM/Arduino/blob/master/ArduCAM/ov5640_regs.h
+ * https://github.com/ArduCAM/Arduino/blob/master/ArduCAM/ArduCAM.cpp
+ */
+
 #include "ch.h"
 #include "hal.h"
 #include "ov5640.h"
@@ -9,13 +14,10 @@
 
 #define OV5640_I2C_ADR			0x3C
 
-
-
 struct regval_list {
 	uint16_t reg;
 	uint8_t val;
 };
-
 
 static const struct regval_list OV5640YUV_Sensor_Dvp_Init[] =
 {
@@ -1025,109 +1027,106 @@ void OV5640_InitGPIO(void)
 void OV5640_TransmitConfig(void)
 {
 	chThdSleepMilliseconds(1000);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3103, 0x11);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3008, 0x82);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3103, 0x11);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3008, 0x82);
 	chThdSleepMilliseconds(100);
 
 	for(uint32_t i=0; (OV5640YUV_Sensor_Dvp_Init[i].reg != 0xffff) || (OV5640YUV_Sensor_Dvp_Init[i].val != 0xff); i++)
-		I2C_write8_16bitreg_locked(OV5640_I2C_ADR, OV5640YUV_Sensor_Dvp_Init[i].reg, OV5640YUV_Sensor_Dvp_Init[i].val);
+		I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640YUV_Sensor_Dvp_Init[i].reg, OV5640YUV_Sensor_Dvp_Init[i].val);
 
 	chThdSleepMilliseconds(500);
 
 	for(uint32_t i=0; (OV5640_JPEG_QSXGA[i].reg != 0xffff) || (OV5640_JPEG_QSXGA[i].val != 0xff); i++)
-		I2C_write8_16bitreg_locked(OV5640_I2C_ADR, OV5640_JPEG_QSXGA[i].reg, OV5640_JPEG_QSXGA[i].val);
+		I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_JPEG_QSXGA[i].reg, OV5640_JPEG_QSXGA[i].val);
 
 
 	switch(ov5640_conf->res) {
 		case RES_QVGA:
 			for(uint32_t i=0; (OV5640_QSXGA2QVGA[i].reg != 0xffff) || (OV5640_QSXGA2QVGA[i].val != 0xff); i++)
-				I2C_write8_16bitreg_locked(OV5640_I2C_ADR, OV5640_QSXGA2QVGA[i].reg, OV5640_QSXGA2QVGA[i].val);
+				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2QVGA[i].reg, OV5640_QSXGA2QVGA[i].val);
 			break;
 
 		case RES_VGA:
 			for(uint32_t i=0; (OV5640_QSXGA2VGA[i].reg != 0xffff) || (OV5640_QSXGA2VGA[i].val != 0xff); i++)
-				I2C_write8_16bitreg_locked(OV5640_I2C_ADR, OV5640_QSXGA2VGA[i].reg, OV5640_QSXGA2VGA[i].val);
+				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2VGA[i].reg, OV5640_QSXGA2VGA[i].val);
 			break;
 
 		case RES_XGA:
 			for(uint32_t i=0; (OV5640_QSXGA2XGA[i].reg != 0xffff) || (OV5640_QSXGA2XGA[i].val != 0xff); i++)
-				I2C_write8_16bitreg_locked(OV5640_I2C_ADR, OV5640_QSXGA2XGA[i].reg, OV5640_QSXGA2XGA[i].val);
+				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2XGA[i].reg, OV5640_QSXGA2XGA[i].val);
 			break;
 
 		case RES_UXGA:
 			for(uint32_t i=0; (OV5640_QSXGA2UXGA[i].reg != 0xffff) || (OV5640_QSXGA2UXGA[i].val != 0xff); i++)
-				I2C_write8_16bitreg_locked(OV5640_I2C_ADR, OV5640_QSXGA2UXGA[i].reg, OV5640_QSXGA2UXGA[i].val);
+				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2UXGA[i].reg, OV5640_QSXGA2UXGA[i].val);
 			break;
 
 		default: // Default QVGA
 			for(uint32_t i=0; (OV5640_QSXGA2QVGA[i].reg != 0xffff) || (OV5640_QSXGA2QVGA[i].val != 0xff); i++)
-				I2C_write8_16bitreg_locked(OV5640_I2C_ADR, OV5640_QSXGA2QVGA[i].reg, OV5640_QSXGA2QVGA[i].val);
+				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2QVGA[i].reg, OV5640_QSXGA2QVGA[i].val);
 	}
 
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x4407, 0x04); // Quantization scale
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x4407, 0x04); // Quantization scale
 
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3406, 0x00);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3400, 0x04);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3401, 0x00);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3402, 0x04);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3403, 0x00);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3404, 0x04);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3405, 0x00);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3212, 0x13); // end group 3
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3212, 0xa3); // lanuch group 3
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5183 ,0x0 ); 
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3406, 0x00);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3400, 0x04);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3401, 0x00);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3402, 0x04);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3403, 0x00);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3404, 0x04);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3405, 0x00);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x13); // end group 3
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0xa3); // lanuch group 3
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5183 ,0x0 ); 
 
 
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5381, 0x1c);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5382, 0x5a);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5383, 0x06);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5384, 0x1a);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5385, 0x66);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5386, 0x80);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5387, 0x82);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5388, 0x80);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5389, 0x02);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x538b, 0x98);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x538a, 0x01);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3212, 0x13); // end group 3
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3212, 0xa3); // launch group 3
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5381, 0x1c);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5382, 0x5a);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5383, 0x06);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5384, 0x1a);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5385, 0x66);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5386, 0x80);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5387, 0x82);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5388, 0x80);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5389, 0x02);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x538b, 0x98);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x538a, 0x01);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x13); // end group 3
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0xa3); // launch group 3
 
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5587, 0x00);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5588, 0x01);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3212, 0x13); // end group 3
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3212, 0xa3); // launch group 3
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5587, 0x00);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5588, 0x01);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x13); // end group 3
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0xa3); // launch group 3
 
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5586, 0x20);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5585, 0x00);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3212, 0x13); // end group 3
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3212, 0xa3); // launch group 3	
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5586, 0x20);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5585, 0x00);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x13); // end group 3
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0xa3); // launch group 3	
 
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5580, 0x06);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5583, 0x40); // sat U
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5584, 0x10); // sat V
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x5003, 0x08);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3212, 0x13); // end group 3
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3212, 0xa3); // launch group 
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5580, 0x06);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5583, 0x40); // sat U
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5584, 0x10); // sat V
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5003, 0x08);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x13); // end group 3
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0xa3); // launch group 
 
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3a0f, 0x38);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3a10, 0x30);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3a11, 0x61);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3a1b, 0x38);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3a1e, 0x30);
-	I2C_write8_16bitreg_locked(OV5640_I2C_ADR, 0x3a1f, 0x10);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3a0f, 0x38);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3a10, 0x30);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3a11, 0x61);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3a1b, 0x38);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3a1e, 0x30);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3a1f, 0x10);
 }
 
 void OV5640_init(ssdv_conf_t *config) {
 	ov5640_conf = config;
-
-	// Take I2C (due to silicon bug of OV5640, it interferes if byte 0x30 transmitted on I2C bus)
-	I2C_lock();
 
 	// Clearing buffer
 	uint32_t i;
@@ -1169,15 +1168,10 @@ void OV5640_deinit(void) {
 
 	palSetLineMode(LINE_CAM_EN, PAL_MODE_INPUT);
 	palSetLineMode(LINE_CAM_RESET, PAL_MODE_INPUT);
-
-	// Release I2C (due to silicon bug of OV5640, it interferes if byte 0x30 transmitted on I2C bus)
-	I2C_unlock();
 }
 
 bool OV5640_isAvailable(void)
 {
-	I2C_lock();
-
 	// Configure pins
 	OV5640_InitGPIO();
 
@@ -1190,7 +1184,7 @@ bool OV5640_isAvailable(void)
 	uint8_t val, val2;
 	bool ret;
 
-	if(I2C_read8_16bitreg_locked(OV5640_I2C_ADR, 0x300A, &val) && I2C_read8_16bitreg_locked(OV5640_I2C_ADR, 0x300B, &val2)) {
+	if(I2C_read8_16bitreg(OV5640_I2C_ADR, 0x300A, &val) && I2C_read8_16bitreg(OV5640_I2C_ADR, 0x300B, &val2)) {
 		ret = val == 0x56 && val2 == 0x40;
 	} else {
 		ret = false;
@@ -1198,7 +1192,6 @@ bool OV5640_isAvailable(void)
 
 	palClearLine(LINE_CAM_EN); // Switch off camera
 	palSetLineMode(LINE_CAM_RESET, PAL_MODE_INPUT);	// CAM_RESET
-	I2C_unlock();
 
 	return ret;
 }

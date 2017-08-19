@@ -13,27 +13,15 @@
 
 void pi2cInit(void);
 
-// I2C Mutex locked access functions (Access only if I2C has been locked with I2C_lock())
-bool I2C_write8_locked(uint8_t address, uint8_t reg, uint8_t value);
-bool I2C_writeN_locked(uint8_t address, uint8_t *txbuf, uint32_t length);
-bool I2C_read8_locked(uint8_t address, uint8_t reg, uint8_t *val);
-bool I2C_read16_locked(uint8_t address, uint8_t reg, uint16_t *val);
-
-bool I2C_write8_16bitreg_locked(uint8_t address, uint16_t reg, uint8_t value); // 16bit register (for OV5640)
-bool I2C_read8_16bitreg_locked(uint8_t address, uint16_t reg, uint8_t *val); // 16bit register (for OV5640)
-
-// I2C Mutex unlocked access functions
 bool I2C_write8(uint8_t address, uint8_t reg, uint8_t value);
 bool I2C_writeN(uint8_t address, uint8_t *txbuf, uint32_t length);
 bool I2C_read8(uint8_t address, uint8_t reg, uint8_t *val);
 bool I2C_read16(uint8_t address, uint8_t reg, uint16_t *val);
-bool I2C_read16_LE(uint8_t address, uint8_t reg, uint16_t *val);
-bool I2C_readS16(uint8_t address, uint8_t reg, int16_t *val);
-bool I2C_readS16_LE(uint8_t address, uint8_t reg, int16_t* val);
 
-// I2C locking and unlocking
-void I2C_lock(void);
-void I2C_unlock(void);
+bool I2C_write8_16bitreg(uint8_t address, uint16_t reg, uint8_t value); // 16bit register (for OV5640)
+bool I2C_read8_16bitreg(uint8_t address, uint16_t reg, uint8_t *val); // 16bit register (for OV5640)
+
+bool I2C_read16_LE(uint8_t address, uint8_t reg, uint16_t *val);
 
 #endif
 

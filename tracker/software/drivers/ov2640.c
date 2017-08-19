@@ -712,63 +712,60 @@ void OV2640_InitGPIO(void)
 void OV2640_TransmitConfig(void)
 {
 	// Set to page 1
-	I2C_write8_locked(OV2640_I2C_ADR, 0xff, 0x01);
-	I2C_write8_locked(OV2640_I2C_ADR, 0x12, 0x80);
+	I2C_write8(OV2640_I2C_ADR, 0xff, 0x01);
+	I2C_write8(OV2640_I2C_ADR, 0x12, 0x80);
 	chThdSleepMilliseconds(50);
 
 	/* Write selected arrays to the camera to initialize it and set the
 	 * desired output format. */
 	for(uint32_t i=0; (ov2640_init_regs[i].reg != 0xff) || (ov2640_init_regs[i].val != 0xff); i++)
-		I2C_write8_locked(OV2640_I2C_ADR, ov2640_init_regs[i].reg, ov2640_init_regs[i].val);
+		I2C_write8(OV2640_I2C_ADR, ov2640_init_regs[i].reg, ov2640_init_regs[i].val);
 
 	for(uint32_t i=0; (ov2640_size_change_preamble_regs[i].reg != 0xff) || (ov2640_size_change_preamble_regs[i].val != 0xff); i++)
-		I2C_write8_locked(OV2640_I2C_ADR, ov2640_size_change_preamble_regs[i].reg, ov2640_size_change_preamble_regs[i].val);
+		I2C_write8(OV2640_I2C_ADR, ov2640_size_change_preamble_regs[i].reg, ov2640_size_change_preamble_regs[i].val);
 
 	switch(ov2640_conf->res) {
 		case RES_QCIF:
 			for(uint32_t i=0; (ov2640_qcif_regs[i].reg != 0xff) || (ov2640_qcif_regs[i].val != 0xff); i++)
-				I2C_write8_locked(OV2640_I2C_ADR, ov2640_qcif_regs[i].reg, ov2640_qcif_regs[i].val);
+				I2C_write8(OV2640_I2C_ADR, ov2640_qcif_regs[i].reg, ov2640_qcif_regs[i].val);
 			break;
 
 		case RES_QVGA:
 			for(uint32_t i=0; (ov2640_qvga_regs[i].reg != 0xff) || (ov2640_qvga_regs[i].val != 0xff); i++)
-				I2C_write8_locked(OV2640_I2C_ADR, ov2640_qvga_regs[i].reg, ov2640_qvga_regs[i].val);
+				I2C_write8(OV2640_I2C_ADR, ov2640_qvga_regs[i].reg, ov2640_qvga_regs[i].val);
 			break;
 
 		case RES_VGA:
 			for(uint32_t i=0; (ov2640_vga_regs[i].reg != 0xff) || (ov2640_vga_regs[i].val != 0xff); i++)
-				I2C_write8_locked(OV2640_I2C_ADR, ov2640_vga_regs[i].reg, ov2640_vga_regs[i].val);
+				I2C_write8(OV2640_I2C_ADR, ov2640_vga_regs[i].reg, ov2640_vga_regs[i].val);
 			break;
 
 		case RES_XGA:
 			for(uint32_t i=0; (ov2640_xga_regs[i].reg != 0xff) || (ov2640_xga_regs[i].val != 0xff); i++)
-				I2C_write8_locked(OV2640_I2C_ADR, ov2640_xga_regs[i].reg, ov2640_xga_regs[i].val);
+				I2C_write8(OV2640_I2C_ADR, ov2640_xga_regs[i].reg, ov2640_xga_regs[i].val);
 			break;
 
 		case RES_UXGA:
 			for(uint32_t i=0; (ov2640_uxga_regs[i].reg != 0xff) || (ov2640_uxga_regs[i].val != 0xff); i++)
-				I2C_write8_locked(OV2640_I2C_ADR, ov2640_uxga_regs[i].reg, ov2640_uxga_regs[i].val);
+				I2C_write8(OV2640_I2C_ADR, ov2640_uxga_regs[i].reg, ov2640_uxga_regs[i].val);
 			break;
 
 		default: // Default QVGA
 			for(uint32_t i=0; (ov2640_qvga_regs[i].reg != 0xff) || (ov2640_qvga_regs[i].val != 0xff); i++)
-				I2C_write8_locked(OV2640_I2C_ADR, ov2640_qvga_regs[i].reg, ov2640_qvga_regs[i].val);
+				I2C_write8(OV2640_I2C_ADR, ov2640_qvga_regs[i].reg, ov2640_qvga_regs[i].val);
 	}
 
 	for(uint32_t i=0; (ov2640_format_change_preamble_regs[i].reg != 0xff) || (ov2640_format_change_preamble_regs[i].val != 0xff); i++)
-		I2C_write8_locked(OV2640_I2C_ADR, ov2640_format_change_preamble_regs[i].reg, ov2640_format_change_preamble_regs[i].val);
+		I2C_write8(OV2640_I2C_ADR, ov2640_format_change_preamble_regs[i].reg, ov2640_format_change_preamble_regs[i].val);
 	for(uint32_t i=0; (ov2640_yuyv_regs[i].reg != 0xff) || (ov2640_yuyv_regs[i].val != 0xff); i++)
-		I2C_write8_locked(OV2640_I2C_ADR, ov2640_yuyv_regs[i].reg, ov2640_yuyv_regs[i].val);
+		I2C_write8(OV2640_I2C_ADR, ov2640_yuyv_regs[i].reg, ov2640_yuyv_regs[i].val);
 
 	for(uint32_t i=0; (ov2640_jpeg_regs[i].reg != 0xff) || (ov2640_jpeg_regs[i].val != 0xff); i++)
-		I2C_write8_locked(OV2640_I2C_ADR, ov2640_jpeg_regs[i].reg, ov2640_jpeg_regs[i].val);
+		I2C_write8(OV2640_I2C_ADR, ov2640_jpeg_regs[i].reg, ov2640_jpeg_regs[i].val);
 }
 
 void OV2640_init(ssdv_conf_t *config) {
 	ov2640_conf = config;
-
-	// Take I2C (due to silicon bug of OV2640, it interferes if byte 0x30 transmitted on I2C bus)
-	I2C_lock();
 
 	// Clearing buffer
 	uint32_t i;
@@ -810,15 +807,10 @@ void OV2640_deinit(void) {
 
 	palSetLineMode(LINE_CAM_EN, PAL_MODE_INPUT);
 	palSetLineMode(LINE_CAM_RESET, PAL_MODE_INPUT);
-
-	// Release I2C (due to silicon bug of OV2640, it interferes if byte 0x30 transmitted on I2C bus)
-	I2C_unlock();
 }
 
 bool OV2640_isAvailable(void)
 {
-	I2C_lock();
-
 	// Configure pins
 	OV2640_InitGPIO();
 
@@ -830,14 +822,13 @@ bool OV2640_isAvailable(void)
 
 	uint16_t val;
 	bool ret;
-	if(I2C_read16_locked(OV2640_I2C_ADR, 0x0A, &val))
+	if(I2C_read16(OV2640_I2C_ADR, 0x0A, &val))
 		ret = val == PID_OV2640;
 	else
 		ret = false;
 
 	palClearLine(LINE_CAM_EN); // Switch off camera
 	palSetLineMode(LINE_CAM_RESET, PAL_MODE_INPUT);	// CAM_RESET
-	I2C_unlock();
 
 	return ret;
 }

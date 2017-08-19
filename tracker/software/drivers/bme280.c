@@ -36,22 +36,22 @@ void BME280_Init(bme280_t *handle, uint8_t address)
 
 	handle->address = address;
 
-	I2C_read16_LE(address, BME280_REGISTER_DIG_T1, &handle->calib.dig_T1);
-	I2C_readS16_LE(address, BME280_REGISTER_DIG_T2, &handle->calib.dig_T2);
-	I2C_readS16_LE(address, BME280_REGISTER_DIG_T3, &handle->calib.dig_T3);
+	I2C_read16_LE(address, BME280_REGISTER_DIG_T1, (uint16_t*)&handle->calib.dig_T1);
+	I2C_read16_LE(address, BME280_REGISTER_DIG_T2, (uint16_t*)&handle->calib.dig_T2);
+	I2C_read16_LE(address, BME280_REGISTER_DIG_T3, (uint16_t*)&handle->calib.dig_T3);
 
-	I2C_read16_LE(address, BME280_REGISTER_DIG_P1, &handle->calib.dig_P1);
-	I2C_readS16_LE(address, BME280_REGISTER_DIG_P2, &handle->calib.dig_P2);
-	I2C_readS16_LE(address, BME280_REGISTER_DIG_P3, &handle->calib.dig_P3);
-	I2C_readS16_LE(address, BME280_REGISTER_DIG_P4, &handle->calib.dig_P4);
-	I2C_readS16_LE(address, BME280_REGISTER_DIG_P5, &handle->calib.dig_P5);
-	I2C_readS16_LE(address, BME280_REGISTER_DIG_P6, &handle->calib.dig_P6);
-	I2C_readS16_LE(address, BME280_REGISTER_DIG_P7, &handle->calib.dig_P7);
-	I2C_readS16_LE(address, BME280_REGISTER_DIG_P8, &handle->calib.dig_P8);
-	I2C_readS16_LE(address, BME280_REGISTER_DIG_P9, &handle->calib.dig_P9);
+	I2C_read16_LE(address, BME280_REGISTER_DIG_P1, (uint16_t*)&handle->calib.dig_P1);
+	I2C_read16_LE(address, BME280_REGISTER_DIG_P2, (uint16_t*)&handle->calib.dig_P2);
+	I2C_read16_LE(address, BME280_REGISTER_DIG_P3, (uint16_t*)&handle->calib.dig_P3);
+	I2C_read16_LE(address, BME280_REGISTER_DIG_P4, (uint16_t*)&handle->calib.dig_P4);
+	I2C_read16_LE(address, BME280_REGISTER_DIG_P5, (uint16_t*)&handle->calib.dig_P5);
+	I2C_read16_LE(address, BME280_REGISTER_DIG_P6, (uint16_t*)&handle->calib.dig_P6);
+	I2C_read16_LE(address, BME280_REGISTER_DIG_P7, (uint16_t*)&handle->calib.dig_P7);
+	I2C_read16_LE(address, BME280_REGISTER_DIG_P8, (uint16_t*)&handle->calib.dig_P8);
+	I2C_read16_LE(address, BME280_REGISTER_DIG_P9, (uint16_t*)&handle->calib.dig_P9);
 
 	I2C_read8(address, BME280_REGISTER_DIG_H1, &handle->calib.dig_H1);
-	I2C_readS16_LE(address, BME280_REGISTER_DIG_H2, &handle->calib.dig_H2);
+	I2C_read16_LE(address, BME280_REGISTER_DIG_H2, (uint16_t*)&handle->calib.dig_H2);
 	I2C_read8(address, BME280_REGISTER_DIG_H3, &handle->calib.dig_H3);
 
 	I2C_read8(address, BME280_REGISTER_DIG_H4, &tmp1);
