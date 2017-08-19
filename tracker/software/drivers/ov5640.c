@@ -723,11 +723,15 @@ static const struct regval_list OV5640_QSXGA2XGA[]  =
 };
 
 
-
 static ssdv_conf_t *ov5640_conf;
+
+/* TODO: Implement a state machine instead of multiple flags. */
 static bool LptimRdy;
-static bool image_finished;
+static bool capture_finished;
+static bool capture_error;
 static bool vsync;
+static bool dma_fault;
+static bool dma_overrun;
 
 /**
   * Captures an image from the camera.
@@ -754,38 +758,51 @@ uint32_t OV5640_getBuffer(uint8_t** buffer) {
 const stm32_dma_stream_t *dmastp;
 
 inline int32_t dma_start(void) {
-  /* Clear any pending inerrupts. */
+  /* Clear any pending interrupts. */
   dmaStreamClearInterrupt(dmastp);
-	dmaStreamEnable(dmastp);
-	return 0;
+  dmaStreamEnable(dmastp);
+  return 0;
 }
 
-inline int32_t dma_stop(void) {
+/*
+ * Stop DMA release stream and return count remaining.
+ * Note that any DMA FIFO transfer will complete.
+ * The Chibios DMAV2 driver waits for EN to clear before proceeding.
+ */
+inline uint16_t dma_stop(void) {
 	dmaStreamDisable(dmastp);
+	uint16_t transfer = dmaStreamGetTransactionSize(dmastp);
 	dmaStreamRelease(dmastp);
-	return 0;
+	return transfer;
 }
 
 static void dma_interrupt(void *p, uint32_t flags) {
 	(void)p;
 
 	if ((flags & STM32_DMA_ISR_HTIF) != 0) {
-		/* Deprecate - Nothing really to do at half way point. */
+		/*
+		 * Nothing really to do at half way point for now.
+		 * Implementing DBM will use HTIF.
+		 */
 		return;
 	}
 	if ((flags & STM32_DMA_ISR_TCIF) != 0) {
 		/* Disable VYSNC edge interrupts. */
-		nvicDisableVector(EXTI1_IRQn);
-		image_finished = true;
+		//nvicDisableVector(EXTI1_IRQn);
+		//capture_finished = true;
 
 		/*
+		 * If DMA has run to end within a frame then this is an error.
+		 * In single buffer mode DMA should always be terminated by VSYNC.
+		 *
 		 * Stop PCLK from LPTIM1 and disable TIM1 DMA trigger.
-		 * Stop and release DMA channel.
-		 * Either DMA count full or VSNC traling edge can terminate frame capture
+         * Wait for next VSYNC leading edge to tear down DMA stream.
 		 */
 		TIM1->DIER &= ~TIM_DIER_TDE;
 		LPTIM1->CR &= ~LPTIM_CR_CNTSTRT;
-		dma_stop();
+		dma_overrun = true;
+		capture_error = true;
+		//dma_stop();
 		return;
 	}
 	/*
@@ -845,8 +862,8 @@ OSAL_IRQ_HANDLER(STM32_LPTIM1_HANDLER) {
 }
 
 /*
- * Note: VSYNC is a pulse the full length of a frame.
- * This is contrary to the OV5640 datasheet which shows VSYNC as pulses.
+ * Note: VSYNC is a pulse at the start of each frame.
+ * This is unlike the OV2640 where VSYNC is active for the entire frame.
 */
 CH_IRQ_HANDLER(Vector5C) {
 	CH_IRQ_PROLOGUE();
@@ -855,7 +872,7 @@ CH_IRQ_HANDLER(Vector5C) {
 		// VSYNC handling
 		if(!vsync) {
 			/*
-			 * Rising edge of VSYNC after LPTIM1 has been initiualized.
+			 * Rising edge of VSYNC after LPTIM1 has been initialised.
 			 * Start DMA channel.
 			 * Enable TIM1 trigger of DMA.
 			 */
@@ -863,28 +880,29 @@ CH_IRQ_HANDLER(Vector5C) {
 			TIM1->DIER |= TIM_DIER_TDE;
 			vsync = true;
 		} else {
-			/* VSYNC falling edge - end of JPEG frame.
+			/* VSYNC leading with vsync true.
+			 * This means end of capture for the frame.
 			 * Stop & release the DMA channel.
-			 * Disable TIM1 trigger of DMA and stop PCLK via LPTIM1
-			 * These should have already been disabled in DMA interrupt if was filled.
+			 * Disable TIM1 trigger of DMA and stop PCLK counting on LPTIM1.
+			 * If buffer was filled in DMA then that is an error.
+			 * We check that here.
 			 */
 			dma_stop();
 			TIM1->DIER &= ~TIM_DIER_TDE;
 			LPTIM1->CR &= ~LPTIM_CR_CNTSTRT;
 
-			/* Disable VYSNC edge interrupts. */
+			/*
+			 * Disable VSYNC edge interrupts.
+			 * Flag image capture complete.
+			 */
 			nvicDisableVector(EXTI1_IRQn);
-			image_finished = true;
-			vsync = false;
+			capture_finished = true;
+			//vsync = false;
 		}
 	} else {
 		/*
 		 * LPTIM1 is not yet initialised.
 		 * So we enable LPTIM1 to start counting.
-		 * The PCLK should be low at the leading edge of VSYNC.
-		 * Thus we get a clean start of LPTIM1 clocking on next leading edge of PCLK.
-		 * After the LPTIM core is initialised PCLK and LPTIM_OUT >should< be synchronous.
-		 * This needs to be verified as the ST RM document is not precise on this matter.
 		 */
 		LPTIM1->CR |= LPTIM_CR_CNTSTRT;
 	}
@@ -925,19 +943,58 @@ bool OV5640_Capture(void)
 	dmaStreamSetFIFO(dmastp, STM32_DMA_FCR_DMDIS | STM32_DMA_FCR_FTH_FULL);
 	dmaStreamClearInterrupt(dmastp);
 
-	// Setup timer for PCLCK
+	dma_overrun = false;
+	dma_error = false;
+
+	// Setup timer for PCLK
 	rccResetLPTIM1();
 	rccEnableLPTIM1(FALSE);
 
 	/* 
-	 * The setting of CKSEL & COUNTMODE are not completely clear.
-	 * The change below switches to using internal clock sampling the external clock.
+	 * LPTIM1 is run in external count mode (CKSEL = 0, COUNTMODE = 1).
+	 * CKPOL is set so leading and trailing edge of PCLK increment the counter.
+	 * The internal clocking (checking edges of LPTIM1_IN) is set to use APB.
+	 * The internal clock must be >4 times the frequency of the input (PCLK).
+	 * NOTE: This does not guarantee that LPTIM1_OUT is coincident with PCLK.
+	 * Depending on PCLK state when LPTIM1 is enabled, LPMTIM1_OUT be inverted.
+	 *
+	 * Possible fix...
+     * Using CKSEL = 1 where PCLK is the actual clock may still be possible.
+     * This would ensure coincidence between LPTIM1_OUT and PCLK.
+     * If using CKSEL = 1 LPTIM1 needs 5 external clocks to reach kernel ready.
+     * Using CKSEL = 1 only allows for leading or trailing edge counting.
+     * Thus we would be sure which edge of PCLK incremented the LPTIM1 counter.
+     * Have to test to see if CMP and ARR interrupts work when CKSEL = 1.
+     *
+     * Continuing...
+     * LPTIM1 is enabled on the leading edge of VSYNC.
+	 * After enabling LPTIM1 wait for the first interrupt (ARRIF).
+	 * Waiting for ARRIF indicates that LPTIM1 kernel is ready.
+	 * Note that waiting for interrupt when using COUNTMODE is redundant.
+	 * The ST RM says a delay of only 2 counter (APB) clocks are required.
+	 * But leave the interrupt check in place for now as it does no harm.
+	 *
+	 * The interrupt must be disabled on the first interrupt (else flood).
+	 *
+	 * LPTIM1_OUT is gated to TIM1 internal trigger input 2.
 	 */
 	LPTIM1->CFGR = (LPTIM_CFGR_COUNTMODE | LPTIM_CFGR_CKPOL_1);
 	LPTIM1->OR |= LPTIM_OR_TIM1_ITR2_RMP;
 	LPTIM1->CR |= LPTIM_CR_ENABLE;
-	LPTIM1->IER |= LPTIM_IER_ARRMIE; // We need this interrupt to fire only once when the LPTIM kernel is ready
+	LPTIM1->IER |= LPTIM_IER_ARRMIE;
 
+	/*
+	 * TODO: When using COUNTMODE CMP and ARR should be 1 & 2?
+	 * It is intended that after counter start CNT = 0.
+	 * Then CNT reaches 1 on first PCLK edge and 2 on the second edge.
+	 * Using 0 and 1 means LPTIM1_OUT gets CMP match as soon as LPMTIM1 is ready.
+	 * This means LPTIM1_OUT will be set and TIM1 will be triggered immediately.
+	 * A DMA transfer will then occur.
+	 * The next edge of PCLK will make CNT = 2 and ARR will match.
+	 * LPTIM1 will then be reset (synchronous with APB presumably).
+	 * LPTIM1_OUT will clear briefly prior to setting again on reset CMP match.
+	 * This will allow TIM1 to be re-triggered.
+	 */
 	LPTIM1->CMP = 0;
 	LPTIM1->ARR = 1;
 
@@ -954,18 +1011,20 @@ bool OV5640_Capture(void)
 	rccResetTIM1();
 	rccEnableTIM1(FALSE);
 
-	TIM1->SMCR = TIM_SMCR_TS_1; // Select ITR2 as trigger
-	TIM1->SMCR |= TIM_SMCR_SMS_2; // Set timer in reset mode
-	/*
-	 * IC1 is mapped to TRC which means we are in Input mode.
-	 * The timer will reset and trigger DMA on the leading edge of LPTIM1_OUT.
-	 * The counter will count up while LPTIM1_OUT is high.
-	 * We don't care what the count is.
-	 * We just use the DMA initiated by the trigger which is independant of counting.
-	 */
+    /*
+     * TIM1_IC1 is mapped to TRC which means we are in trigger input mode.
+     * TIM1 is set in slave reset mode with input from ITR2.
+     * The timer will reset and trigger DMA on the leading edge of LPTIM1_OUT.
+     * The counter will count up while LPTIM1_OUT is high.
+     * We don't care about the count.
+     * We simply use the DMA initiated by the trigger input.
+     */
+	TIM1->SMCR = TIM_SMCR_TS_1;
+	TIM1->SMCR |= TIM_SMCR_SMS_2;
 	TIM1->CCMR1 |= (TIM_CCMR1_CC1S_0 | TIM_CCMR1_CC1S_1);
 
-	image_finished = false;
+	capture_finished = false;
+	capture_error = false;
 	vsync = false;
 
 	// Setup EXTI: EXTI1 PC for PC1 (VSYNC) and EXIT2 PC for PC2 (HREF)
@@ -977,8 +1036,12 @@ bool OV5640_Capture(void)
 	do { // Have a look for some bytes in memory for testing if capturing works
 		TRACE_INFO("CAM  > Capturing");
 		chThdSleepMilliseconds(100);
-	} while(!image_finished);
+	} while(!capture_finished && !capture_error);
 
+	if (capture_error) {
+	  TRACE_ERROR("CAM > Error capturing image");
+	  return false;
+	}
 	uint32_t soi; // Start of Image
 	for(soi=0; soi<65533; soi++)
 		if(ov5640_conf->ram_buffer[soi] == 0xFF && ov5640_conf->ram_buffer[soi+1] == 0xE0)
