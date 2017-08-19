@@ -723,6 +723,9 @@ static const struct regval_list OV5640_QSXGA2XGA[]  =
 
 
 static ssdv_conf_t *ov5640_conf;
+static bool LptimRdy;
+static bool image_finished;
+static bool vsync;
 
 /**
   * Captures an image from the camera.
@@ -769,8 +772,9 @@ static void dma_interrupt(void *p, uint32_t flags) {
 		return;
 	}
 	if ((flags & STM32_DMA_ISR_TCIF) != 0) {
-		/* End of transfer. */
-		palClearLine(LINE_IO_LED1);
+		/* Disable VYSNC edge interrupts. */
+		nvicDisableVector(EXTI1_IRQn);
+		image_finished = true;
 
 		/*
 		 * Stop PCLK from LPTIM1 and disable TIM1 DMA trigger.
@@ -805,10 +809,6 @@ OSAL_IRQ_HANDLER(STM32_TIM1_TRG_HANDLER) {
   OSAL_IRQ_EPILOGUE();
 
 }
-
-static bool LptimRdy;
-static bool image_finished;
-static bool vsync;
 
 /*
  * The LPTIM interrupt handler.
