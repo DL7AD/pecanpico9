@@ -31,7 +31,7 @@ static const struct regval_list OV5640YUV_Sensor_Dvp_Init[] =
 	{ 0x3017, 0x7f }, 
 	{ 0x3018, 0xff }, 		
 	{ 0x302c, 0x02 }, 		
-	{ 0x3108, 0x01 }, 	
+	{ 0x3108, 0x31 }, 	
 	{ 0x3630, 0x2e },//2e
 	{ 0x3632, 0xe2 }, 
 	{ 0x3633, 0x23 },//23 
@@ -396,7 +396,7 @@ static const struct regval_list OV5640_RGB_QVGA[]  =
 //2592x1944 QSXGA
 static const struct regval_list OV5640_JPEG_QSXGA[]  =
 {
-	{0x3820 ,0x40}, 
+	{0x3820 ,0x41}, 
 	{0x3821 ,0x26}, 
 	{0x3814 ,0x11}, 
 	{0x3815 ,0x11}, 
@@ -796,37 +796,18 @@ static void dma_interrupt(void *p, uint32_t flags) {
 		 * In single buffer mode DMA should always be terminated by VSYNC.
 		 *
 		 * Stop PCLK from LPTIM1 and disable TIM1 DMA trigger.
-         * Wait for next VSYNC leading edge to tear down DMA stream.
+         * Dont stop the DMA here. Its going to be stopped by the  leading edge of VSYNC.
 		 */
 		TIM1->DIER &= ~TIM_DIER_TDE;
 		LPTIM1->CR &= ~LPTIM_CR_CNTSTRT;
 		dma_overrun = true;
 		capture_error = true;
-		//dma_stop();
 		return;
 	}
 	/*
 	 * TODO: Anything else is an error.
 	 * Maybe set an error flag?
 	 */
-}
-
-/*
- * The TIM1 interrupt handler (to be deprecated - not used).
- */
- 
- /* Not defined by Chibios. */
-#define STM32_TIM1_TRG_HANDLER      VectorA8
-#define STM32_TIM1_UP_NUMBER        25
-
-OSAL_IRQ_HANDLER(STM32_TIM1_TRG_HANDLER) {
-
-  OSAL_IRQ_PROLOGUE();
-
-  TIM1->SR &= ~TIM_SR_TIF;
-  
-  OSAL_IRQ_EPILOGUE();
-
 }
 
 /*
@@ -897,7 +878,6 @@ CH_IRQ_HANDLER(Vector5C) {
 			 */
 			nvicDisableVector(EXTI1_IRQn);
 			capture_finished = true;
-			//vsync = false;
 		}
 	} else {
 		/*
@@ -921,8 +901,8 @@ bool OV5640_Capture(void)
 	 */
 
 	/* Setup DMA for transfer on TIM1_TRIG - DMA2 stream 0, channel 6 */
-	dmastp  =   STM32_DMA_STREAM(STM32_DMA_STREAM_ID(2, 0));
-	uint32_t dmamode =   STM32_DMA_CR_CHSEL(6) |
+	dmastp  = STM32_DMA_STREAM(STM32_DMA_STREAM_ID(2, 0));
+	uint32_t dmamode = STM32_DMA_CR_CHSEL(6) |
 	STM32_DMA_CR_PL(3) |
 	STM32_DMA_CR_DIR_P2M |
 	STM32_DMA_CR_MSIZE_WORD |
@@ -978,7 +958,7 @@ bool OV5640_Capture(void)
 	 *
 	 * LPTIM1_OUT is gated to TIM1 internal trigger input 2.
 	 */
-	LPTIM1->CFGR = (LPTIM_CFGR_COUNTMODE | LPTIM_CFGR_CKPOL_1);
+	LPTIM1->CFGR = (LPTIM_CFGR_COUNTMODE | LPTIM_CFGR_CKPOL_1 | LPTIM_CFGR_WAVPOL);
 	LPTIM1->OR |= LPTIM_OR_TIM1_ITR2_RMP;
 	LPTIM1->CR |= LPTIM_CR_ENABLE;
 	LPTIM1->IER |= LPTIM_IER_ARRMIE;
