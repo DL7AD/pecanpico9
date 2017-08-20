@@ -85,6 +85,7 @@ void Si4464_write(uint8_t* txData, uint32_t len) {
 	spiSelect(&SPID1);
 	spiExchange(&SPID1, len, txData, rxData);
 	spiUnselect(&SPID1);
+	spiStop(&SPID1);
 	spiReleaseBus(&SPID1);
 
 	// Reqest ACK by Si4464
@@ -101,6 +102,7 @@ void Si4464_write(uint8_t* txData, uint32_t len) {
 		spiSelect(&SPID1);
 		spiExchange(&SPID1, 3, rx_ready, rxData);
 		spiUnselect(&SPID1);
+		spiStop(&SPID1);
 		spiReleaseBus(&SPID1);
 	}
 }
@@ -117,6 +119,7 @@ void Si4464_read(uint8_t* txData, uint32_t txlen, uint8_t* rxData, uint32_t rxle
 	spiSelect(&SPID1);
 	spiExchange(&SPID1, txlen, txData, null_spi);
 	spiUnselect(&SPID1);
+	spiStop(&SPID1);
 	spiReleaseBus(&SPID1);
 
 	// Reqest ACK by Si4464
@@ -134,6 +137,7 @@ void Si4464_read(uint8_t* txData, uint32_t txlen, uint8_t* rxData, uint32_t rxle
 		spiSelect(&SPID1);
 		spiExchange(&SPID1, rxlen, rx_ready, rxData);
 		spiUnselect(&SPID1);
+		spiStop(&SPID1);
 		spiReleaseBus(&SPID1);
 	}
 }
