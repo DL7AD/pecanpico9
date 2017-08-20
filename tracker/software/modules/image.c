@@ -16,7 +16,7 @@
 #include "watchdog.h"
 #include "flash.h"
 
-static uint8_t gimage_id; // Global image ID (for all image threads)
+static uint8_t gimage_id = 10; // Global image ID (for all image threads)
 mutex_t camera_mtx;
 
 void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_t image_id, bool redudantTx)

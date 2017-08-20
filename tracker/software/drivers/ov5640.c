@@ -93,7 +93,7 @@ static const struct regval_list OV5640YUV_Sensor_Dvp_Init[] =
 	{ 0x3815, 0x31 },		
 
 	{ 0x3034, 0x1a }, 
-	{ 0x3035, 0x41 }, //15fps
+	{ 0x3035, 0x11 }, //15fps
 	{ 0x3036, 0x46 }, 
 	{ 0x3037, 0x13 }, 
 	{ 0x3038, 0x00 }, 
@@ -327,7 +327,7 @@ static const struct regval_list ov5640_vga_preview[] =
 {
 	// YUV VGA 30fps, night mode 5fps
 	// Input Clock = 24Mhz, PCLK = 56MHz
-	{ 0x3035, 0x41 }, // PLL
+	{ 0x3035, 0x11 }, // PLL
 	{ 0x3036, 0x46 }, // PLL
 	{ 0x3c07, 0x08 }, // light meter 1 threshold [7:0]
 	{ 0x3820, 0x41 }, // Sensor flip off, ISP flip on
@@ -382,7 +382,7 @@ static const struct regval_list ov5640_vga_preview[] =
 static const struct regval_list OV5640_RGB_QVGA[]  =
 {
 	{0x3008, 0x02},
-	{0x3035, 0x41},
+	{0x3035, 0x11},
 	{0x4740, 0x21},
 	{0x4300, 0x61},
 	{0x3808, 0x01},
@@ -429,7 +429,7 @@ static const struct regval_list OV5640_JPEG_QSXGA[]  =
 	{0x3824 ,0x04}, 
 	{0x5001 ,0x83}, 
 	{0x3036 ,0x69}, 
-	{0x3035 ,0x41}, 
+	{0x3035 ,0x11}, 
 	{0x4005 ,0x1A},
 	{0xffff, 0xff},	
 };
