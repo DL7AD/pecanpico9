@@ -726,7 +726,7 @@ static const struct regval_list OV5640_QSXGA2XGA[]  =
 static ssdv_conf_t *ov5640_conf;
 
 /* TODO: Implement a state machine instead of multiple flags. */
-static bool LptimRdy;
+//static bool LptimRdy;
 static bool capture_finished;
 static bool capture_error;
 static bool vsync;
@@ -798,8 +798,9 @@ static void dma_interrupt(void *p, uint32_t flags) {
 		 * Stop PCLK from LPTIM1 and disable TIM1 DMA trigger.
          * Dont stop the DMA here. Its going to be stopped by the  leading edge of VSYNC.
 		 */
-		TIM1->DIER &= ~TIM_DIER_TDE;
-		LPTIM1->CR &= ~LPTIM_CR_CNTSTRT;
+		TIM8->DIER &= ~TIM_DIER_CC1DE;
+		TIM8->CCER &= ~TIM_CCER_CC1E;
+		//LPTIM8->CR &= ~LPTIM_CR_CNTSTRT;
 		dma_overrun = true;
 		capture_error = true;
 		return;
@@ -813,7 +814,7 @@ static void dma_interrupt(void *p, uint32_t flags) {
 /*
  * The LPTIM interrupt handler.
  */
-OSAL_IRQ_HANDLER(STM32_LPTIM1_HANDLER) {
+//OSAL_IRQ_HANDLER(STM32_LPTIM1_HANDLER) {
 
   /* Note:
    * STM32F4 vectors defined by Chibios currently stop at 98.
@@ -821,14 +822,14 @@ OSAL_IRQ_HANDLER(STM32_LPTIM1_HANDLER) {
    * LPTIM1 is vector 97. Vector table is expanded in increments of 8.
    * Change CORTEX_NUM_PARAMS in cmparams.h to 106.
    */
-  OSAL_IRQ_PROLOGUE();
+  //OSAL_IRQ_PROLOGUE();
   /* Reset interrupt flag for ARR. */
-  LPTIM1->ICR = LPTIM_ICR_ARRMCF;
+  //LPTIM1->ICR = LPTIM_ICR_ARRMCF;
    /*
    * LPTIM interrupts can be disabled at this stage.
    * We don't need this interrupt again until a new capture is started.
    */
-  LPTIM1->IER &= ~LPTIM_IER_ARRMIE;
+  //LPTIM1->IER &= ~LPTIM_IER_ARRMIE;
 
   /* 
    * The first interrupt indicates LPTIM core has been initialized by PCLK.
@@ -837,10 +838,10 @@ OSAL_IRQ_HANDLER(STM32_LPTIM1_HANDLER) {
    * If not wait for the next VSYNC.
    * This is needed because of LPTIM core setup requirement when clocked externally.
    */
-  LptimRdy = true;
+  //LptimRdy = true;
 
-  OSAL_IRQ_EPILOGUE();
-}
+  //OSAL_IRQ_EPILOGUE();
+//}
 
 /*
  * Note: VSYNC is a pulse at the start of each frame.
@@ -849,7 +850,7 @@ OSAL_IRQ_HANDLER(STM32_LPTIM1_HANDLER) {
 CH_IRQ_HANDLER(Vector5C) {
 	CH_IRQ_PROLOGUE();
 
-	if (LptimRdy) {
+	//if (LptimRdy) {
 		// VSYNC handling
 		if(!vsync) {
 			/*
@@ -858,7 +859,7 @@ CH_IRQ_HANDLER(Vector5C) {
 			 * Enable TIM1 trigger of DMA.
 			 */
 			dma_start();
-			TIM1->DIER |= TIM_DIER_TDE;
+			TIM8->DIER |= TIM_DIER_CC1DE;
 			vsync = true;
 		} else {
 			/* VSYNC leading with vsync true.
@@ -869,8 +870,9 @@ CH_IRQ_HANDLER(Vector5C) {
 			 * We check that here.
 			 */
 			dma_stop();
-			TIM1->DIER &= ~TIM_DIER_TDE;
-			LPTIM1->CR &= ~LPTIM_CR_CNTSTRT;
+			TIM8->DIER &= ~TIM_DIER_CC1DE;
+			TIM8->CCER &= ~TIM_CCER_CC1E;
+			//LPTIM8->CR &= ~LPTIM_CR_CNTSTRT;
 
 			/*
 			 * Disable VSYNC edge interrupts.
@@ -879,13 +881,13 @@ CH_IRQ_HANDLER(Vector5C) {
 			nvicDisableVector(EXTI1_IRQn);
 			capture_finished = true;
 		}
-	} else {
+	//} else {
 		/*
 		 * LPTIM1 is not yet initialised.
 		 * So we enable LPTIM1 to start counting.
 		 */
-		LPTIM1->CR |= LPTIM_CR_CNTSTRT;
-	}
+		//LPTIM1->CR |= LPTIM_CR_CNTSTRT;
+	//}
 
 	EXTI->PR |= EXTI_PR_PR1;
 	CH_IRQ_EPILOGUE();
@@ -901,8 +903,8 @@ bool OV5640_Capture(void)
 	 */
 
 	/* Setup DMA for transfer on TIM1_TRIG - DMA2 stream 0, channel 6 */
-	dmastp  = STM32_DMA_STREAM(STM32_DMA_STREAM_ID(2, 0));
-	uint32_t dmamode = STM32_DMA_CR_CHSEL(6) |
+	dmastp  = STM32_DMA_STREAM(STM32_DMA_STREAM_ID(2, 2));
+	uint32_t dmamode = STM32_DMA_CR_CHSEL(7) |
 	STM32_DMA_CR_PL(3) |
 	STM32_DMA_CR_DIR_P2M |
 	STM32_DMA_CR_MSIZE_WORD |
@@ -927,8 +929,8 @@ bool OV5640_Capture(void)
 	dma_fault = false;
 
 	// Setup timer for PCLK
-	rccResetLPTIM1();
-	rccEnableLPTIM1(FALSE);
+	//rccResetLPTIM1();
+	//rccEnableLPTIM1(FALSE);
 
 	/* 
 	 * LPTIM1 is run in external count mode (CKSEL = 0, COUNTMODE = 1).
@@ -958,10 +960,10 @@ bool OV5640_Capture(void)
 	 *
 	 * LPTIM1_OUT is gated to TIM1 internal trigger input 2.
 	 */
-	LPTIM1->CFGR = (LPTIM_CFGR_COUNTMODE | LPTIM_CFGR_CKPOL_1 | LPTIM_CFGR_WAVPOL);
-	LPTIM1->OR |= LPTIM_OR_TIM1_ITR2_RMP;
-	LPTIM1->CR |= LPTIM_CR_ENABLE;
-	LPTIM1->IER |= LPTIM_IER_ARRMIE;
+	//LPTIM1->CFGR = (LPTIM_CFGR_COUNTMODE | LPTIM_CFGR_CKPOL_1 | LPTIM_CFGR_WAVPOL);
+	//LPTIM1->OR |= LPTIM_OR_TIM1_ITR2_RMP;
+	//LPTIM1->CR |= LPTIM_CR_ENABLE;
+	//LPTIM1->IER |= LPTIM_IER_ARRMIE;
 
 	/*
 	 * TODO: When using COUNTMODE CMP and ARR should be 1 & 2?
@@ -975,12 +977,12 @@ bool OV5640_Capture(void)
 	 * LPTIM1_OUT will clear briefly prior to setting again on reset CMP match.
 	 * This will allow TIM1 to be re-triggered.
 	 */
-	LPTIM1->CMP = 0;
-	LPTIM1->ARR = 1;
+	//LPTIM1->CMP = 0;
+	//LPTIM1->ARR = 1;
 
 	/* Set vector and clear flag. */
-	nvicEnableVector(LPTIM1_IRQn, 7); // Enable interrupt
-	LptimRdy = false;
+	//nvicEnableVector(LPTIM1_IRQn, 7); // Enable interrupt
+	//LptimRdy = false;
 
 	/*
 	 * Setup slave timer to trigger DMA.
@@ -988,8 +990,8 @@ bool OV5640_Capture(void)
 	 * > it can be triggered from LPTIM1
 	 * > and TIM1_TRIG is in DMA2 and we need DMA2 for peripheral -> memory transfer
 	 */
-	rccResetTIM1();
-	rccEnableTIM1(FALSE);
+	rccEnableTIM8(FALSE);
+	rccResetTIM8();
 
     /*
      * TIM1_IC1 is mapped to TRC which means we are in trigger input mode.
@@ -999,9 +1001,10 @@ bool OV5640_Capture(void)
      * We don't care about the count.
      * We simply use the DMA initiated by the trigger input.
      */
-	TIM1->SMCR = TIM_SMCR_TS_1;
-	TIM1->SMCR |= TIM_SMCR_SMS_2;
-	TIM1->CCMR1 |= (TIM_CCMR1_CC1S_0 | TIM_CCMR1_CC1S_1);
+	//TIM8->SMCR = TIM_SMCR_TS_1;
+	//TIM8->SMCR |= TIM_SMCR_SMS_2;
+	TIM8->CCMR1 |= (TIM_CCMR1_CC1S_0/* | TIM_CCMR1_CC1S_1*/);
+	TIM8->CCER = TIM_CCER_CC1E;
 
 	capture_finished = false;
 	capture_error = false;
@@ -1014,8 +1017,8 @@ bool OV5640_Capture(void)
 	nvicEnableVector(EXTI1_IRQn, 1); // Enable interrupt
 
 	do { // Have a look for some bytes in memory for testing if capturing works
-		TRACE_INFO("CAM  > Capturing");
-		chThdSleepMilliseconds(100);
+		TRACE_INFO("CAM  > Capturing...");
+		chThdSleepMilliseconds(1000);
 	} while(!capture_finished && !capture_error);
 
 	if (capture_error) {
@@ -1038,7 +1041,7 @@ void OV5640_InitGPIO(void)
 {
 	palSetLineMode(LINE_CAM_HREF, PAL_MODE_INPUT_PULLUP | PAL_STM32_OSPEED_HIGHEST);
 	/* PC6 AF3 = TIM8_CH1. */
-	palSetLineMode(LINE_CAM_PCLK, PAL_MODE_ALTERNATE(1));
+	palSetLineMode(LINE_CAM_PCLK, PAL_MODE_INPUT);
 	palSetLineMode(LINE_CAM_VSYNC, PAL_MODE_INPUT_PULLUP | PAL_STM32_OSPEED_HIGHEST);
 	palSetLineMode(LINE_CAM_XCLK, PAL_MODE_ALTERNATE(0));
 	palSetLineMode(LINE_CAM_D2, PAL_MODE_INPUT_PULLUP | PAL_STM32_OSPEED_HIGHEST);
@@ -1052,6 +1055,9 @@ void OV5640_InitGPIO(void)
 
 	palSetLineMode(LINE_CAM_EN, PAL_MODE_OUTPUT_PUSHPULL);
 	palSetLineMode(LINE_CAM_RESET, PAL_MODE_OUTPUT_PUSHPULL);
+
+	palSetPadMode(GPIOB, 15, PAL_MODE_INPUT_PULLUP);
+	palSetPadMode(GPIOC, 6, PAL_MODE_ALTERNATE(3));
 }
 
 void OV5640_TransmitConfig(void)
