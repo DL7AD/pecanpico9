@@ -27,32 +27,7 @@ void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_
 	uint8_t *b;
 	uint32_t bi = 0;
 	uint8_t c = SSDV_OK;
-	uint16_t packet_count = 0;
 	uint16_t i = 0;
-
-	// Count packets
-	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, conf->ssdv_conf.callsign, image_id);
-	ssdv_enc_set_buffer(&ssdv, pkt);
-
-	while(true)
-	{
-		while((c = ssdv_enc_get_packet(&ssdv)) == SSDV_FEED_ME)
-		{
-			b = &image[bi];
-			uint8_t r = bi < image_len-128 ? 128 : image_len - bi;
-			bi += r;
-			if(r <= 0)
-				break;
-			ssdv_enc_feed(&ssdv, b, r);
-		}
-
-		if(c == SSDV_EOI || c != SSDV_OK)
-			break;
-
-		packet_count++;
-	}
-
-	TRACE_INFO("SSDV > %i packets", packet_count);
 
 	// Init SSDV (FEC at 2FSK, non FEC at APRS)
 	bi = 0;
@@ -106,8 +81,8 @@ void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_
 				msg.bin_len = aprs_encode_experimental('I', msg.msg, msg.mod, &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91));
 
 				// Transmit on radio (keep transmitter switched on if packet spacing=0ms and it isnt the last packet being sent)
-				if(redudantTx) transmitOnRadio(&msg, false);
-				transmitOnRadio(&msg, conf->packet_spacing != 0 || i == packet_count-1);
+				if(redudantTx) transmitOnRadio(&msg, false); // Redundant transmission
+				transmitOnRadio(&msg, conf->packet_spacing != 0 || c == SSDV_EOI || c != SSDV_OK);
 				break;
 
 			case PROT_SSDV_2FSK:
@@ -117,8 +92,8 @@ void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_
 				memcpy(msg.msg, pkt, sizeof(pkt));
 				msg.bin_len = 8*sizeof(pkt);
 
-				if(redudantTx) transmitOnRadio(&msg, false);
-				transmitOnRadio(&msg, conf->packet_spacing != 0 || i == packet_count-1);
+				if(redudantTx) transmitOnRadio(&msg, false); // Redundant transmission
+				transmitOnRadio(&msg, conf->packet_spacing != 0 || c == SSDV_EOI || c != SSDV_OK);
 				break;
 
 			default:

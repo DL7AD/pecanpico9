@@ -10,6 +10,7 @@
 #include "board.h"
 #include "defines.h"
 #include "debug.h"
+#include "ssdv.h"
 #include <string.h>
 
 #define OV5640_I2C_ADR			0x3C
@@ -734,13 +735,54 @@ static bool dma_fault;
 static bool dma_overrun;
 
 /**
+  * Analyzes the image for JPEG errors. Returns true if the image is error free.
+  */
+static bool analyze_image(uint8_t *image, uint32_t image_len)
+{
+	ssdv_t ssdv;
+	uint8_t pkt[SSDV_PKT_SIZE];
+	uint8_t *b;
+	uint32_t bi = 0;
+	uint8_t c = SSDV_OK;
+	uint16_t packet_count = 0;
+
+	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, "", 0);
+	ssdv_enc_set_buffer(&ssdv, pkt);
+
+	while(true)
+	{
+		while((c = ssdv_enc_get_packet(&ssdv)) == SSDV_FEED_ME)
+		{
+			b = &image[bi];
+			uint8_t r = bi < image_len-128 ? 128 : image_len - bi;
+			bi += r;
+			if(r <= 0)
+				break;
+			ssdv_enc_feed(&ssdv, b, r);
+		}
+
+		if(c == SSDV_EOI) // End of image
+			return true;
+		if(c != SSDV_OK) // Error in JPEG image
+			return false;
+
+		packet_count++;
+	}
+
+	TRACE_INFO("SSDV > %i packets", packet_count);
+}
+
+/**
   * Captures an image from the camera.
   */
 bool OV5640_Snapshot2RAM(void)
 {
-	// Capture enable
-	TRACE_INFO("CAM  > Capture image");
-	OV5640_Capture();
+	// Capture image until we get a good image (max 5 tries)
+	uint8_t cntr = 5;
+	do {
+		TRACE_INFO("CAM  > Capture image");
+		OV5640_Capture();
+	} while(!analyze_image(ov5640_conf->ram_buffer, ov5640_conf->ram_size) && cntr--);
 
 	return true;
 }
