@@ -9,6 +9,8 @@
 #include "hal.h"
 #include "types.h"
 
+#define OV5640_USE_DMA_DBM  TRUE
+
 bool OV5640_Snapshot2RAM(void);
 bool OV5640_Capture(void);
 void OV5640_InitGPIO(void);

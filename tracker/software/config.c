@@ -3,7 +3,7 @@
 #include "debug.h"
 
 module_conf_t config[9];
-uint8_t ssdv_buffer[65535] __attribute__((aligned(1024)));
+uint8_t ssdv_buffer[65535] __attribute__((aligned(32)));
 
 /* 
  * Position module configuration description

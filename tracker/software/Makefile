@@ -10,7 +10,7 @@ endif
 
 # C specific options here (added to USE_OPT).
 ifeq ($(USE_COPT),)
-  USE_COPT = 
+  USE_COPT = -std=c11
 endif
 
 # C++ specific options here (added to USE_OPT).
@@ -87,6 +87,7 @@ PROJECT = ch
 
 # Imported source files and paths
 CHIBIOS = ChibiOS
+#CHIBIOS = C:\ChibiStudio\chibios_trunk
 # Startup files.
 include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32f4xx.mk
 # HAL-OSAL files (optional).

@@ -799,6 +799,31 @@ uint32_t OV5640_getBuffer(uint8_t** buffer) {
 
 const stm32_dma_stream_t *dmastp;
 
+#if OV5640_USE_DMA_DBM == TRUE
+uint16_t dma_index;
+uint16_t dma_buffers;
+#define DMA_SEGMENT_SIZE 1024
+#define DMA_FIFO_BURST_ALIGN 32
+
+
+#if !defined(dmaStreamGetCurrentTarget)
+/**
+ * @brief   Get DMA stream current target.
+ * @note    This function can be invoked in both ISR or thread context.
+ * @pre     The stream must have been allocated using @p dmaStreamAllocate().
+ * @post    After use the stream can be released using @p dmaStreamRelease().
+ *
+ * @param[in] dmastp    pointer to a stm32_dma_stream_t structure
+ * @return  Current target index
+ *
+ * @special
+ */
+#define dmaStreamGetCurrentTarget(dmastp)                                     \
+    ((uint8_t)(((dmastp)->stream->CR >> DMA_SxCR_CT_Pos) & 1U))
+
+#endif /* !defined(dmaStreamGetCurrentTarget) */
+#endif /* OV5640_USE_DMA_DBM == TRUE */
+
 inline int32_t dma_start(void) {
   /* Clear any pending interrupts. */
   dmaStreamClearInterrupt(dmastp);
@@ -818,50 +843,126 @@ inline uint16_t dma_stop(void) {
 	return transfer;
 }
 
+#if OV5640_USE_DMA_DBM == TRUE
+
 static void dma_interrupt(void *p, uint32_t flags) {
-	(void)p;
+    /* No parameter passed. */
+    (void)p;
 
-	if ((flags & STM32_DMA_ISR_HTIF) != 0) {
-		/*
-		 * Nothing really to do at half way point for now.
-		 * Implementing DBM will use HTIF.
-		 */
-		return;
-	}
-	if ((flags & STM32_DMA_ISR_TCIF) != 0) {
-		/* Disable VYSNC edge interrupts. */
-		//nvicDisableVector(EXTI1_IRQn);
-		//capture_finished = true;
+    if (flags & (STM32_DMA_ISR_FEIF | STM32_DMA_ISR_TEIF)) {
+      /*
+       * DMA transfer error or FIFO error.
+       * See 9.34.19 of RM0430.
+       */
+      dmaStreamClearInterrupt(dmastp);
+      TIM1->DIER &= ~TIM_DIER_TDE;
+      dma_fault = true;
+      capture_error = true;
+      return;
+    }
 
-		/*
-		 * If DMA has run to end within a frame then this is an error.
-		 * In single buffer mode DMA should always be terminated by VSYNC.
-		 *
-		 * Stop PCLK from LPTIM1 and disable TIM1 DMA trigger.
-         * Dont stop the DMA here. Its going to be stopped by the  leading edge of VSYNC.
-		 */
-		TIM1->DIER &= ~TIM_DIER_TDE;
-		LPTIM1->CR &= ~LPTIM_CR_CNTSTRT;
-		dma_overrun = true;
-		capture_error = true;
-		return;
-	}
-	/*
-	 * TODO: Anything else is an error.
-	 * Maybe set an error flag?
-	 */
+    if (flags & STM32_DMA_ISR_HTIF) {
+      /*
+       * Half transfer complete.
+       * Check if DMA is writing to the last buffer.
+       */
+      if (dma_index == (dma_buffers - 1)) {
+        /*
+         * This is the last buffer so we have to terminate DMA.
+         * The DBM switch is done in h/w.
+         * DMA could write beyond total buffer if not stopped.
+         *
+         * Because we have run to last DMA buffer this is treated as an error.
+         * The DMA should normally be terminated by VSYNC before last buffer.
+         * Stop DMA and TIM DMA trigger and flag error.
+         */
+
+        dmaStreamClearInterrupt(dmastp);
+        TIM1->DIER &= ~TIM_DIER_TDE;
+        dma_overrun = true;
+        capture_error = true;
+        return;
+      }
+      /*
+       * Else Safe to allow buffer to fill.
+       * DMA DBM will switch buffers in h/w when this one is full.
+       * Just clear the interrupt and wait for TCIF.
+       */
+      dmaStreamClearInterrupt(dmastp);
+      return;
+    }
+    if (flags & STM32_DMA_ISR_TCIF) {
+      /*
+       * Full buffer transfer complete.
+       * Update non-active memory address register.
+       * DMA will use new address at h/w DBM switch.
+       */
+      dmaStreamClearInterrupt(dmastp);
+
+      if (dmaStreamGetCurrentTarget(dmastp) == 1) {
+        dmaStreamSetMemory0(dmastp, &ov5640_conf->ram_buffer[++dma_index * DMA_SEGMENT_SIZE]);
+      } else {
+        dmaStreamSetMemory1(dmastp, &ov5640_conf->ram_buffer[++dma_index * DMA_SEGMENT_SIZE]);
+      }
+      return;
+    }
 }
 
+#else
+
+static void dma_interrupt(void *p, uint32_t flags) {
+    (void)p;
+
+    if (flags & (STM32_DMA_ISR_FEIF | STM32_DMA_ISR_TEIF)) {
+      /*
+       * DMA transfer error or FIFO error.
+       * See 9.34.19 of RM0430.
+       */
+      dmaStreamClearInterrupt(dmastp);
+      TIM1->DIER &= ~TIM_DIER_TDE;
+      dma_fault = true;
+      capture_error = true;
+      return;
+    }
+
+    if ((flags & STM32_DMA_ISR_HTIF) != 0) {
+        /*
+         * Nothing really to do at half way point for now.
+         * Implementing DBM will use HTIF.
+         */
+        return;
+    }
+    if ((flags & STM32_DMA_ISR_TCIF) != 0) {
+        /* Disable VYSNC edge interrupts. */
+        //nvicDisableVector(EXTI1_IRQn);
+        //capture_finished = true;
+
+        /*
+         * If DMA has run to end within a frame then this is an error.
+         * In single buffer mode DMA should always be terminated by VSYNC.
+         *
+         * Stop PCLK from LPTIM1 and disable TIM1 DMA trigger.
+         * Dont stop the DMA here. Its going to be stopped by the  leading edge of VSYNC.
+         */
+        TIM1->DIER &= ~TIM_DIER_TDE;
+        LPTIM1->CR &= ~LPTIM_CR_CNTSTRT;
+        dma_overrun = true;
+        capture_error = true;
+        return;
+    }
+
+}
+
+#endif /* USE_OV5640_DMA_DBM */
 /*
  * The LPTIM interrupt handler.
  */
 OSAL_IRQ_HANDLER(STM32_LPTIM1_HANDLER) {
 
   /* Note:
-   * STM32F4 vectors defined by Chibios currently stop at 98.
-   * Need to allocate more space in vector table for LPTIM1.
-   * LPTIM1 is vector 97. Vector table is expanded in increments of 8.
-   * Change CORTEX_NUM_PARAMS in cmparams.h to 106.
+   * LPTIM1 is vector 97.
+   * Check CORTEX_NUM_PARAMS in cmparams.h >= 106.
+   * Vector table is expanded in increments of 8.
    */
   OSAL_IRQ_PROLOGUE();
   /* Reset interrupt flag for ARR. */
@@ -885,9 +986,9 @@ OSAL_IRQ_HANDLER(STM32_LPTIM1_HANDLER) {
 }
 
 /*
- * Note: VSYNC is a pulse at the start of each frame.
- * This is unlike the OV2640 where VSYNC is active for the entire frame.
-*/
+ * VSYNC is asserted during a frame.
+ * See OV5640 datasheet for details.
+ */
 CH_IRQ_HANDLER(Vector5C) {
 	CH_IRQ_PROLOGUE();
 
@@ -953,70 +1054,92 @@ bool OV5640_Capture(void)
 	STM32_DMA_CR_MINC |
 	STM32_DMA_CR_DMEIE |
 	STM32_DMA_CR_TEIE |
+#if OV5640_USE_DMA_DBM == TRUE
+    STM32_DMA_CR_DBM |
+#endif
 	STM32_DMA_CR_TCIE;
 
 	dmaStreamAllocate(dmastp, 2, (stm32_dmaisr_t)dma_interrupt, NULL);
 
 	dmaStreamSetPeripheral(dmastp, &GPIOA->IDR); // We want to read the data from here
-	dmaStreamSetMemory0(dmastp, ov5640_conf->ram_buffer); // Thats the buffer address
-	dmaStreamSetTransactionSize(dmastp, ov5640_conf->ram_size); // Thats the buffer size
+#if OV5640_USE_DMA_DBM == TRUE
+    /*
+     * Buffer address must be word aligned.
+     * Also note requirement for burst transfers from FIFO.
+     * Bursts from FIFO to memory must not cross a 1K address boundary.
+     * See RM0430 9.3.12
+     *
+     * TODO: To use DMA_FIFO_BURST_ALIGN in setting of ssdv buffer alignment.
+     * Currently this is set to 32 manually in config.c.
+     */
 
-	dmaStreamSetMode(dmastp, dmamode); // Setup DMA
-	dmaStreamSetFIFO(dmastp, STM32_DMA_FCR_DMDIS | STM32_DMA_FCR_FTH_FULL);
-	dmaStreamClearInterrupt(dmastp);
+    if (((uint32_t)ov5640_conf->ram_buffer % DMA_FIFO_BURST_ALIGN) != 0)
+      return false;
 
-	dma_overrun = false;
-	dma_fault = false;
+    /*
+     * Set the initial buffer addresses.
+     * The updating of DMA:MxAR is done in the the DMA interrupt function.
+     */
+    dmaStreamSetMemory0(dmastp, &ov5640_conf->ram_buffer[0]);
+    dmaStreamSetMemory1(dmastp, &ov5640_conf->ram_buffer[DMA_SEGMENT_SIZE]);
+
+    /*
+     * Calculate the number of whole buffers.
+     * TODO: Make this include remainder memory as partial buffer?
+     */
+    dma_buffers = (ov5640_conf->ram_size / DMA_SEGMENT_SIZE);
+    if (dma_buffers == 0)
+      return false;
+
+    /* Start with buffer index 0. */
+    dma_index = 0;
+#else
+    dmaStreamSetMemory0(dmastp, ov5640_conf->ram_buffer); // Thats the buffer address
+    dmaStreamSetTransactionSize(dmastp, ov5640_conf->ram_size); // Thats the buffer size
+
+#endif
+    dmaStreamSetMode(dmastp, dmamode); // Setup DMA
+    dmaStreamSetFIFO(dmastp, STM32_DMA_FCR_DMDIS | STM32_DMA_FCR_FTH_FULL     \
+                     | STM32_DMA_FCR_FEIE);
+    dmaStreamClearInterrupt(dmastp);
+
+    dma_overrun = false;
+    dma_fault = false;
 
 	// Setup timer for PCLK
 	rccResetLPTIM1();
 	rccEnableLPTIM1(FALSE);
 
-	/* 
-	 * LPTIM1 is run in external count mode (CKSEL = 0, COUNTMODE = 1).
-	 * CKPOL is set so leading and trailing edge of PCLK increment the counter.
-	 * The internal clocking (checking edges of LPTIM1_IN) is set to use APB.
-	 * The internal clock must be >4 times the frequency of the input (PCLK).
-	 * NOTE: This does not guarantee that LPTIM1_OUT is coincident with PCLK.
-	 * Depending on PCLK state when LPTIM1 is enabled, LPMTIM1_OUT be inverted.
-	 *
-	 * Possible fix...
-     * Using CKSEL = 1 where PCLK is the actual clock may still be possible.
-     * This would ensure coincidence between LPTIM1_OUT and PCLK.
-     * If using CKSEL = 1 LPTIM1 needs 5 external clocks to reach kernel ready.
-     * Using CKSEL = 1 only allows for leading or trailing edge counting.
-     * Thus we would be sure which edge of PCLK incremented the LPTIM1 counter.
-     * Have to test to see if CMP and ARR interrupts work when CKSEL = 1.
+    /*
+     * LPTIM1 is run in external count mode (CKSEL = 0, COUNTMODE = 1).
+     * CKPOL is set so leading and trailing edge of PCLK increment the counter.
+     * The internal clocking (checking edges of LPTIM1_IN) is set to use APB.
+     * The internal clock must be >4 times the frequency of the input (PCLK).
+     * NOTE: This does not guarantee that LPTIM1_OUT is coincident with PCLK.
+     * Depending on PCLK state when LPTIM1 is enabled OUT may get inverted.
      *
-     * Continuing...
-     * LPTIM1 is enabled on the leading edge of VSYNC.
-	 * After enabling LPTIM1 wait for the first interrupt (ARRIF).
-	 * Waiting for ARRIF indicates that LPTIM1 kernel is ready.
-	 * Note that waiting for interrupt when using COUNTMODE is redundant.
-	 * The ST RM says a delay of only 2 counter (APB) clocks are required.
-	 * But leave the interrupt check in place for now as it does no harm.
-	 *
-	 * The interrupt must be disabled on the first interrupt (else flood).
-	 *
-	 * LPTIM1_OUT is gated to TIM1 internal trigger input 2.
-	 */
+     * LPTIM1 is enabled on the VSYNC edge interrupt.
+     * After enabling LPTIM1 wait for the first interrupt (ARRIF).
+     * The interrupt must be disabled on the first interrupt (else flood).
+     *
+     * LPTIM1_OUT is gated to TIM1 internal trigger input 2.
+     */
 	LPTIM1->CFGR = (LPTIM_CFGR_COUNTMODE | LPTIM_CFGR_CKPOL_1 | LPTIM_CFGR_WAVPOL);
 	LPTIM1->OR |= LPTIM_OR_TIM1_ITR2_RMP;
 	LPTIM1->CR |= LPTIM_CR_ENABLE;
 	LPTIM1->IER |= LPTIM_IER_ARRMIE;
 
-	/*
-	 * TODO: When using COUNTMODE CMP and ARR should be 1 & 2?
-	 * It is intended that after counter start CNT = 0.
-	 * Then CNT reaches 1 on first PCLK edge and 2 on the second edge.
-	 * Using 0 and 1 means LPTIM1_OUT gets CMP match as soon as LPMTIM1 is ready.
-	 * This means LPTIM1_OUT will be set and TIM1 will be triggered immediately.
-	 * A DMA transfer will then occur.
-	 * The next edge of PCLK will make CNT = 2 and ARR will match.
-	 * LPTIM1 will then be reset (synchronous with APB presumably).
-	 * LPTIM1_OUT will clear briefly prior to setting again on reset CMP match.
-	 * This will allow TIM1 to be re-triggered.
-	 */
+    /*
+     * When LPTIM1 is enabled and ready LPTIM1_OUT will be not set.
+     * WAVPOL inverts LPTIM1_OUT so it is not set.
+     * On the next PCLK edge LPTIM1 will count and match ARR.
+     * LPTIM1_OUT will set briefly and then clear again due ARR match.
+     * This triggers TIM1 with the short pulse from LPTIM1_OUT.
+     * TODO:
+     * This use of LPTIM1 works probably by good luck for now.
+     * Switch to direct triggering of TIM using Capture input is better.
+     * Requires a PCB change.
+     */
 	LPTIM1->CMP = 0;
 	LPTIM1->ARR = 1;
 
