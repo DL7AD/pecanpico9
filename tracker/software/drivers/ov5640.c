@@ -744,12 +744,11 @@ static bool analyze_image(uint8_t *image, uint32_t image_len)
 	uint8_t *b;
 	uint32_t bi = 0;
 	uint8_t c = SSDV_OK;
-	uint16_t packet_count = 0;
 
 	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, "", 0);
 	ssdv_enc_set_buffer(&ssdv, pkt);
 
-	while(true)
+	while(true) // FIXME: I get caught in these loops occasionally and never return
 	{
 		while((c = ssdv_enc_get_packet(&ssdv)) == SSDV_FEED_ME)
 		{
@@ -765,11 +764,12 @@ static bool analyze_image(uint8_t *image, uint32_t image_len)
 			return true;
 		if(c != SSDV_OK) // Error in JPEG image
 			return false;
-
-		packet_count++;
 	}
+}
 
-	TRACE_INFO("SSDV > %i packets", packet_count);
+bool OV5640_BufferOverflow(void)
+{
+	return ov5640_conf->size_sampled == ov5640_conf->ram_size - 1; // If SRAM was used completly its most likley that and overflow has occured (TODO: This is not 100% accurate)
 }
 
 /**
@@ -780,16 +780,20 @@ bool OV5640_Snapshot2RAM(void)
 	// Capture image until we get a good image (max 5 tries)
 	uint8_t cntr = 5;
 	do {
+
 		TRACE_INFO("CAM  > Capture image");
 		OV5640_Capture();
+		TRACE_INFO("CAM  > Capture finished");
+
+		ov5640_conf->size_sampled = ov5640_conf->ram_size - 1;
+		while(!ov5640_conf->ram_buffer[ov5640_conf->size_sampled] && ov5640_conf->size_sampled > 0)
+			ov5640_conf->size_sampled--;
+
+		TRACE_INFO("CAM  > Image size: %d bytes", ov5640_conf->size_sampled);
+
 	} while(!analyze_image(ov5640_conf->ram_buffer, ov5640_conf->ram_size) && cntr--);
 
 	return true;
-}
-
-bool OV5640_BufferOverflow(void)
-{
-	return ov5640_conf->ram_buffer[0] != 0xFF || ov5640_conf->ram_buffer[1] != 0xD8; // Check for JPEG SOI header
 }
 
 uint32_t OV5640_getBuffer(uint8_t** buffer) {
@@ -1056,6 +1060,8 @@ bool OV5640_Capture(void)
 	STM32_DMA_CR_TEIE |
 #if OV5640_USE_DMA_DBM == TRUE
     STM32_DMA_CR_DBM |
+    STM32_DMA_CR_HTIE |
+
 #endif
 	STM32_DMA_CR_TCIE;
 
@@ -1188,8 +1194,6 @@ bool OV5640_Capture(void)
 	  return false;
 	}
 
-	TRACE_INFO("CAM  > Capture finished");
-
 	return true;
 }
 
@@ -1261,6 +1265,7 @@ void OV5640_TransmitConfig(void)
 				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2QVGA[i].reg, OV5640_QSXGA2QVGA[i].val);
 	}
 
+	//I2C_write8_16bitreg(OV5640_I2C_ADR, 0x4404, 0x27);
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x4407, 0x04); // Quantization scale
 
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3

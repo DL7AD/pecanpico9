@@ -179,7 +179,6 @@ THD_FUNCTION(imgThread, arg) {
 
 				// Get image
 				image_len = OV2640_getBuffer(&image);
-				TRACE_INFO("IMG  > Image size: %d bytes", image_len);
 
 			} else if(OV5640_isAvailable()) { // OV5640 available
 
