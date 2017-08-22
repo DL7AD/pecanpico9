@@ -1226,20 +1226,22 @@ void OV5640_InitGPIO(void)
 
 void OV5640_TransmitConfig(void)
 {
-	chThdSleepMilliseconds(1000);
+	TRACE_INFO("CAM  > ... Software reset");
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3103, 0x11);
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3008, 0x82);
 	chThdSleepMilliseconds(100);
 
+	TRACE_INFO("CAM  > ... Initialization");
 	for(uint32_t i=0; (OV5640YUV_Sensor_Dvp_Init[i].reg != 0xffff) || (OV5640YUV_Sensor_Dvp_Init[i].val != 0xff); i++)
 		I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640YUV_Sensor_Dvp_Init[i].reg, OV5640YUV_Sensor_Dvp_Init[i].val);
 
 	chThdSleepMilliseconds(500);
 
+	TRACE_INFO("CAM  > ... Configure JPEG");
 	for(uint32_t i=0; (OV5640_JPEG_QSXGA[i].reg != 0xffff) || (OV5640_JPEG_QSXGA[i].val != 0xff); i++)
 		I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_JPEG_QSXGA[i].reg, OV5640_JPEG_QSXGA[i].val);
 
-
+	TRACE_INFO("CAM  > ... Configure Resolution");
 	switch(ov5640_conf->res) {
 		case RES_QVGA:
 			for(uint32_t i=0; (OV5640_QSXGA2QVGA[i].reg != 0xffff) || (OV5640_QSXGA2QVGA[i].val != 0xff); i++)
@@ -1267,8 +1269,9 @@ void OV5640_TransmitConfig(void)
 	}
 
 	//I2C_write8_16bitreg(OV5640_I2C_ADR, 0x4404, 0x27);
-	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x4407, 0x04); // Quantization scale
+	//I2C_write8_16bitreg(OV5640_I2C_ADR, 0x4407, 0x04); // Quantization scale
 
+	TRACE_INFO("CAM  > ... Light Mode: Auto");
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3406, 0x00);
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3400, 0x04);
@@ -1279,9 +1282,9 @@ void OV5640_TransmitConfig(void)
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3405, 0x00);
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x13); // end group 3
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0xa3); // lanuch group 3
-	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5183 ,0x0 ); 
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5183 ,0x0 );
 
-
+	TRACE_INFO("CAM  > ... Saturation: 0");
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5381, 0x1c);
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5382, 0x5a);
@@ -1297,33 +1300,20 @@ void OV5640_TransmitConfig(void)
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x13); // end group 3
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0xa3); // launch group 3
 
+	TRACE_INFO("CAM  > ... Brightness: 0");
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5587, 0x00);
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5588, 0x01);
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x13); // end group 3
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0xa3); // launch group 3
 
+	TRACE_INFO("CAM  > ... Contrast: 0");
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5586, 0x20);
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5585, 0x00);
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x13); // end group 3
-	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0xa3); // launch group 3	
-
-	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
-	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5580, 0x06);
-	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5583, 0x40); // sat U
-	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5584, 0x10); // sat V
-	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x5003, 0x08);
-	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x13); // end group 3
-	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0xa3); // launch group 
-
-	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3a0f, 0x38);
-	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3a10, 0x30);
-	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3a11, 0x61);
-	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3a1b, 0x38);
-	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3a1e, 0x30);
-	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3a1f, 0x10);
+	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0xa3); // launch group 3
 }
 
 void OV5640_init(ssdv_conf_t *config) {
@@ -1342,11 +1332,13 @@ void OV5640_init(ssdv_conf_t *config) {
 	palSetLine(LINE_CAM_EN); 		// Switch on camera
 	palSetLine(LINE_CAM_RESET); // Toggle reset
 
+	chThdSleepMilliseconds(1000);
+
 	// Send settings to OV5640
 	TRACE_INFO("CAM  > Transmit config to camera");
 	OV5640_TransmitConfig();
 
-	chThdSleepMilliseconds(3000);
+	chThdSleepMilliseconds(1000);
 }
 
 void OV5640_deinit(void) {
