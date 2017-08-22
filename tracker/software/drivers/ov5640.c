@@ -1088,6 +1088,7 @@ bool OV5640_Capture(void)
      */
     dmaStreamSetMemory0(dmastp, &ov5640_conf->ram_buffer[0]);
     dmaStreamSetMemory1(dmastp, &ov5640_conf->ram_buffer[DMA_SEGMENT_SIZE]);
+    dmaStreamSetTransactionSize(dmastp, DMA_SEGMENT_SIZE);
 
     /*
      * Calculate the number of whole buffers.
