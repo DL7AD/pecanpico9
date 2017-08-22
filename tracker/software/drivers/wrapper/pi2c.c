@@ -10,7 +10,7 @@
 
 const I2CConfig _i2cfg = {
 	OPMODE_I2C,
-	50000,
+	400000,
 	STD_DUTY_CYCLE,
 };
 
