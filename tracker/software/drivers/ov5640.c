@@ -729,10 +729,9 @@ static ssdv_conf_t *ov5640_conf;
 /* TODO: Implement a state machine instead of multiple flags. */
 static bool LptimRdy;
 static bool capture_finished;
-static bool capture_error;
 static bool vsync;
-static bool dma_fault;
-static bool dma_overrun;
+static bool dma_error;
+static uint32_t dma_flags;
 
 /**
   * Analyzes the image for JPEG errors. Returns true if the image is error free.
@@ -853,15 +852,17 @@ static void dma_interrupt(void *p, uint32_t flags) {
     /* No parameter passed. */
     (void)p;
 
+    dma_flags = flags;
     if (flags & (STM32_DMA_ISR_FEIF | STM32_DMA_ISR_TEIF)) {
       /*
        * DMA transfer error or FIFO error.
        * See 9.34.19 of RM0430.
+       *
+       * Disable timer DMA request and flag fault.
        */
-      dmaStreamClearInterrupt(dmastp);
       TIM1->DIER &= ~TIM_DIER_TDE;
-      dma_fault = true;
-      capture_error = true;
+      dma_error = true;
+      dmaStreamClearInterrupt(dmastp);
       return;
     }
 
@@ -876,15 +877,14 @@ static void dma_interrupt(void *p, uint32_t flags) {
          * The DBM switch is done in h/w.
          * DMA could write beyond total buffer if not stopped.
          *
-         * Because we have run to last DMA buffer this is treated as an error.
+         * Since this is the last DMA buffer this is treated as an error.
          * The DMA should normally be terminated by VSYNC before last buffer.
          * Stop DMA and TIM DMA trigger and flag error.
          */
 
-        dmaStreamClearInterrupt(dmastp);
         TIM1->DIER &= ~TIM_DIER_TDE;
-        dma_overrun = true;
-        capture_error = true;
+        dma_error = true;
+        dmaStreamClearInterrupt(dmastp);
         return;
       }
       /*
@@ -901,13 +901,14 @@ static void dma_interrupt(void *p, uint32_t flags) {
        * Update non-active memory address register.
        * DMA will use new address at h/w DBM switch.
        */
-      dmaStreamClearInterrupt(dmastp);
+
 
       if (dmaStreamGetCurrentTarget(dmastp) == 1) {
         dmaStreamSetMemory0(dmastp, &ov5640_conf->ram_buffer[++dma_index * DMA_SEGMENT_SIZE]);
       } else {
         dmaStreamSetMemory1(dmastp, &ov5640_conf->ram_buffer[++dma_index * DMA_SEGMENT_SIZE]);
       }
+      dmaStreamClearInterrupt(dmastp);
       return;
     }
 }
@@ -917,29 +918,20 @@ static void dma_interrupt(void *p, uint32_t flags) {
 static void dma_interrupt(void *p, uint32_t flags) {
     (void)p;
 
-    if (flags & (STM32_DMA_ISR_FEIF | STM32_DMA_ISR_TEIF)) {
+    dma_flags = flags;
+    dmaStreamClearInterrupt(dmastp);
+    if (flags & (STM32_DMA_ISR_FEIF | STM32_DMA_ISR_TEIF } STM32_DMA_ISR_DMEIF)) {
       /*
-       * DMA transfer error or FIFO error.
+       * DMA transfer error, FIFO error or Direct mode error.
        * See 9.34.19 of RM0430.
        */
       dmaStreamClearInterrupt(dmastp);
       TIM1->DIER &= ~TIM_DIER_TDE;
-      dma_fault = true;
-      capture_error = true;
+      dma_error = true;
       return;
     }
 
-    if ((flags & STM32_DMA_ISR_HTIF) != 0) {
-        /*
-         * Nothing really to do at half way point for now.
-         * Implementing DBM will use HTIF.
-         */
-        return;
-    }
     if ((flags & STM32_DMA_ISR_TCIF) != 0) {
-        /* Disable VYSNC edge interrupts. */
-        //nvicDisableVector(EXTI1_IRQn);
-        //capture_finished = true;
 
         /*
          * If DMA has run to end within a frame then this is an error.
@@ -950,16 +942,17 @@ static void dma_interrupt(void *p, uint32_t flags) {
          */
         TIM1->DIER &= ~TIM_DIER_TDE;
         LPTIM1->CR &= ~LPTIM_CR_CNTSTRT;
-        dma_overrun = true;
-        capture_error = true;
+        dma_error = true;
         return;
     }
-
 }
 
 #endif /* USE_OV5640_DMA_DBM */
 /*
  * The LPTIM interrupt handler.
+ * TODO: Remove LPTIM1 interrupt.
+ * Not needed in COUNTMODE.
+ * LPTIM clock kernel initialises in 2 internal clock cycles
  */
 OSAL_IRQ_HANDLER(STM32_LPTIM1_HANDLER) {
 
@@ -1040,12 +1033,12 @@ CH_IRQ_HANDLER(Vector5C) {
 
 bool OV5640_Capture(void)
 {
-	/*
-	 * Note:
-	 *  If there are no Chibios devices enabled that use DMA then...
-	 *  In makefile add entry to UDEFS:
-	 *   UDEFS = -DSTM32_DMA_REQUIRED
-	 */
+  /*
+   * Note:
+   *  If there are no Chibios devices enabled that use DMA then...
+   *  In makefile add entry to UDEFS:
+   *   UDEFS = -DSTM32_DMA_REQUIRED
+   */
 
 	/* Setup DMA for transfer on TIM1_TRIG - DMA2 stream 0, channel 6 */
 	dmastp  = STM32_DMA_STREAM(STM32_DMA_STREAM_ID(2, 0));
@@ -1079,9 +1072,10 @@ bool OV5640_Capture(void)
      * Currently this is set to 32 manually in config.c.
      */
 
-    if (((uint32_t)ov5640_conf->ram_buffer % DMA_FIFO_BURST_ALIGN) != 0)
+    if (((uint32_t)ov5640_conf->ram_buffer % DMA_FIFO_BURST_ALIGN) != 0) {
+      TRACE_ERROR("CAM > Buffer not allocated on DMA burst boundary");
       return false;
-
+    }
     /*
      * Set the initial buffer addresses.
      * The updating of DMA:MxAR is done in the the DMA interrupt function.
@@ -1095,14 +1089,15 @@ bool OV5640_Capture(void)
      * TODO: Make this include remainder memory as partial buffer?
      */
     dma_buffers = (ov5640_conf->ram_size / DMA_SEGMENT_SIZE);
-    if (dma_buffers == 0)
+    if (dma_buffers == 0) {
+      TRACE_ERROR("CAM > Capture buffer less than minimum DMA segment size");
       return false;
-
+    }
     /* Start with buffer index 0. */
     dma_index = 0;
 #else
-    dmaStreamSetMemory0(dmastp, ov5640_conf->ram_buffer); // Thats the buffer address
-    dmaStreamSetTransactionSize(dmastp, ov5640_conf->ram_size); // Thats the buffer size
+    dmaStreamSetMemory0(dmastp, ov5640_conf->ram_buffer);
+    dmaStreamSetTransactionSize(dmastp, ov5640_conf->ram_size);
 
 #endif
     dmaStreamSetMode(dmastp, dmamode); // Setup DMA
@@ -1110,8 +1105,8 @@ bool OV5640_Capture(void)
                      | STM32_DMA_FCR_FEIE);
     dmaStreamClearInterrupt(dmastp);
 
-    dma_overrun = false;
-    dma_fault = false;
+    dma_error = false;
+    dma_flags = 0;
 
 	// Setup timer for PCLK
 	rccResetLPTIM1();
@@ -1156,9 +1151,7 @@ bool OV5640_Capture(void)
 
 	/*
 	 * Setup slave timer to trigger DMA.
-	 * We have to use TIM1 because...
-	 * > it can be triggered from LPTIM1
-	 * > and TIM1_TRIG is in DMA2 and we need DMA2 for peripheral -> memory transfer
+	 * We use TIM1 because it can be triggered from LPTIM1.
 	 */
 	rccResetTIM1();
 	rccEnableTIM1(FALSE);
@@ -1176,7 +1169,6 @@ bool OV5640_Capture(void)
 	TIM1->CCMR1 |= (TIM_CCMR1_CC1S_0 | TIM_CCMR1_CC1S_1);
 
 	capture_finished = false;
-	capture_error = false;
 	vsync = false;
 
 	// Setup EXTI: EXTI1 PC for PC1 (VSYNC) and EXIT2 PC for PC2 (HREF)
@@ -1188,13 +1180,22 @@ bool OV5640_Capture(void)
 	do { // Have a look for some bytes in memory for testing if capturing works
 		TRACE_INFO("CAM  > Capturing");
 		chThdSleepMilliseconds(100);
-	} while(!capture_finished && !capture_error);
+	} while(!capture_finished && !dma_error);
 
-	if (capture_error) {
-	  TRACE_ERROR("CAM > Error capturing image");
-	  return false;
+	if (dma_error) {
+	  if (dma_flags & STM32_DMA_ISR_HTIF)
+	    TRACE_ERROR("CAM > DMA abort - last buffer segment")
+	  if (dma_flags & STM32_DMA_ISR_FEIF)
+	    TRACE_ERROR("CAM > DMA FIFO error")
+	  if (dma_flags & STM32_DMA_ISR_TEIF)
+	    TRACE_ERROR("CAM > DMA stream transfer error")
+      if (dma_flags & STM32_DMA_ISR_DMEIF)
+        TRACE_ERROR("CAM > DMA direct mode error")
+      TRACE_ERROR("CAM > Error capturing image");
+      return false;
 	}
 
+    TRACE_INFO("CAM  > Capture success");
 	return true;
 }
 
