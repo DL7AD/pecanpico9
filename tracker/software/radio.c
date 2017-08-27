@@ -260,6 +260,12 @@ void send2FSK(radioMSG_t *msg) {
 		chThdSleepMilliseconds(1);		// Wait for routine to finish
 }
 
+void shutdownRadio(void)
+{
+	Si4464_shutdown();
+	active_mod = MOD_NOT_SET;
+}
+
 /**
   * Returns APRS region specific frequency determined by GPS location. It will
   * use the APRS default frequency set in the config file if no GPS fix has
@@ -354,8 +360,7 @@ bool transmitOnRadio(radioMSG_t *msg, bool shutdown) {
 
 		if(shutdown)
 		{
-			radioShutdown(); // Shutdown radio for reinitialization
-			active_mod = MOD_NOT_SET;
+			shutdownRadio(); // Shutdown radio for reinitialization
 		} else {
 			active_mod = msg->mod;
 		}

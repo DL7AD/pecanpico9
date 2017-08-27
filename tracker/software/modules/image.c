@@ -54,9 +54,11 @@ void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_
 
 		if(c == SSDV_EOI)
 		{
+			shutdownRadio();
 			TRACE_INFO("SSDV > ssdv_enc_get_packet said EOI");
 			break;
 		} else if(c != SSDV_OK) {
+			shutdownRadio();
 			TRACE_ERROR("SSDV > ssdv_enc_get_packet failed: %i", c);
 			return;
 		}
@@ -82,7 +84,7 @@ void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_
 
 				// Transmit on radio (keep transmitter switched on if packet spacing=0ms and it isnt the last packet being sent)
 				if(redudantTx) transmitOnRadio(&msg, false); // Redundant transmission
-				transmitOnRadio(&msg, conf->packet_spacing != 0 || c == SSDV_EOI || c != SSDV_OK);
+				transmitOnRadio(&msg, conf->packet_spacing != 0); // Keep transmitter switched on if next packet will be sent right away
 				break;
 
 			case PROT_SSDV_2FSK:
@@ -93,7 +95,7 @@ void encode_ssdv(uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_
 				msg.bin_len = 8*sizeof(pkt);
 
 				if(redudantTx) transmitOnRadio(&msg, false); // Redundant transmission
-				transmitOnRadio(&msg, conf->packet_spacing != 0 || c == SSDV_EOI || c != SSDV_OK);
+				transmitOnRadio(&msg, conf->packet_spacing != 0); // Keep transmitter switched on if next packet will be sent right away
 				break;
 
 			default:

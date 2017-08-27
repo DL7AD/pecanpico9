@@ -29,7 +29,7 @@ bool initialized = false;
  */
 void Si4464_Init(void) {
 	// Reset radio)
-	radioShutdown();
+	Si4464_shutdown();
 	chThdSleepMilliseconds(10);
 
 	// Initialize SPI
@@ -295,7 +295,7 @@ void stopTx(void) {
 	Si4464_write(change_state_command, 2);
 }
 
-void radioShutdown(void) {
+void Si4464_shutdown(void) {
 	palSetLine(LINE_RADIO_SDN);	// Power down chip
 	palSetLine(LINE_IO_LED1);	// Set indication LED
 	RADIO_MOD_GPIO(false);		// Set GPIO1 low

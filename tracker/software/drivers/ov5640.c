@@ -1178,8 +1178,8 @@ bool OV5640_Capture(void)
 	nvicEnableVector(EXTI1_IRQn, 1); // Enable interrupt
 
 	do { // Have a look for some bytes in memory for testing if capturing works
-		TRACE_INFO("CAM  > Capturing");
-		chThdSleepMilliseconds(100);
+		TRACE_INFO("CAM  > ... capturing");
+		chThdSleepMilliseconds(200);
 	} while(!capture_finished && !dma_error);
 
 	if (dma_error) {
