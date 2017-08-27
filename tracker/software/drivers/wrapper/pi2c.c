@@ -10,8 +10,8 @@
 
 const I2CConfig _i2cfg = {
 	OPMODE_I2C,
-	400000,
-	STD_DUTY_CYCLE,
+	200000,
+	FAST_DUTY_CYCLE_2,
 };
 
 static bool I2C_transmit(I2CDriver *driver, uint8_t addr, uint8_t *txbuf, uint32_t txbytes, uint8_t *rxbuf, uint32_t rxbytes, systime_t timeout) {
