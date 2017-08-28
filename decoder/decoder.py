@@ -108,7 +108,11 @@ def received_data(data):
 					print 'Send to SSDV data server: OK'
 					error = False
 				except urllib2.URLError, error:
-					print 'Send to SSDV data server: failed (connection error :( trying again...)'
+					if error.code == 400:
+						print 'The SSDV server indicated a faulty packet: ' + error.read()
+						error = False
+					else:
+						print 'Send to SSDV data server: failed (connection error :( trying again...)'
 
 		except urllib2.HTTPError, error: # The server did not like our packets :(
 			print 'Send to SSDV data server: failed (the server did not like our packets :( )'
