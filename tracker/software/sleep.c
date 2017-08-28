@@ -48,7 +48,7 @@ systime_t waitForTrigger(systime_t prev, trigger_conf_t *config)
 		case TRIG_TIMEOUT: // Wait for specified timeout
 			return chThdSleepUntilWindowed(prev, prev + S2ST(config->timeout));
 
-		case TRIG_CONTINOUSLY: // Immediate trigger
+		case TRIG_CONTINUOUSLY: // Immediate trigger
 			return chVTGetSystemTimeX();
 
 		case TRIG_ONCE: // No trigger defined

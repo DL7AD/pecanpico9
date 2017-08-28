@@ -131,7 +131,7 @@ typedef enum {
 	TRIG_ONCE,				// Trigger once and never again (e.g. transmit specific position packet only at startup)
 	TRIG_NEW_POINT,			// Triggered when new track point available
 	TRIG_TIMEOUT,			// Triggered by timeout (e.g. trasmit position every 120sec)
-	TRIG_CONTINOUSLY		// Continue continously (e.g. send new image once old image sent completely)
+	TRIG_CONTINUOUSLY		// Continue continuously (e.g. send new image once old image sent completely)
 } trigger_type_t;
 
 typedef struct {

@@ -3,7 +3,7 @@
 #include "debug.h"
 
 module_conf_t config[9];
-uint8_t ssdv_buffer[65535] __attribute__((aligned(32)));
+uint8_t ssdv_buffer[256*1024] __attribute__((aligned(32)));
 
 /* 
  * Position module configuration description
@@ -50,7 +50,7 @@ uint8_t ssdv_buffer[65535] __attribute__((aligned(32)));
  *										- TRIG_NEW_POINT	Triggered when new track point available
  *										- TRIG_TIMEOUT		Triggered by timeout (e.g. trasmit position every 120sec)
  *										  this option requires trigger.timeout to be set
- *										- TRIG_CONTINOUSLY	Continue continously (e.g. send new image once old image sent completely)
+ *										- TRIG_CONTINUOUSLY	Continue continuously (e.g. send new image once old image sent completely)
  *
  * ============================== The following options are needed if protocol == PROT_APRS_AFSK or protocol == PROT_APRS_2GFSK ===============================
  *
@@ -173,12 +173,12 @@ void start_user_modules(void)
 	// Module POSITION, APRS 2m AFSK
 	config[0].power = 127;									// Power 20 dBm
 	config[0].protocol = PROT_APRS_AFSK;					// Protocol APRS, modulation AFSK
-	config[0].frequency.type = FREQ_STATIC;			// Dynamic frequency allocation
-	config[0].frequency.hz = 144390000;						// Default frequency 144.800 MHz
+	config[0].frequency.type = FREQ_APRS_REGION;			// Dynamic frequency allocation
+	config[0].frequency.hz = 144800000;						// Default frequency 144.800 MHz
 	config[0].init_delay = 0;								// Module startup delay in msec
 	config[0].trigger.type = TRIG_NEW_POINT;				// Trigger when new track point released
 	chsnprintf(config[0].aprs_conf.callsign, 7, "DL7AD");	// APRS Callsign
-	config[0].aprs_conf.ssid = 11;							// APRS SSID
+	config[0].aprs_conf.ssid = 12;							// APRS SSID
 	config[0].aprs_conf.symbol = SYM_BALLOON;				// APRS Symbol
 	chsnprintf(config[0].aprs_conf.path, 16, "WIDE1-1");	// APRS Path
 	config[0].aprs_conf.preamble = 300;						// APRS Preamble
@@ -190,7 +190,7 @@ void start_user_modules(void)
 	config[0].aprs_conf.tel_enc = TRUE;						// Transmit Telemetry encoding information activated
 	config[0].aprs_conf.tel_enc_cycle = 3600;				// Transmit Telemetry encoding information every 3600sec
 	chsnprintf(config[0].aprs_conf.tel_comment, 30, "http://ssdv.habhub.org/DL7AD");// Telemetry comment
-	//start_position_thread(&config[0]);
+	start_position_thread(&config[0]);
 
 	// Module POSITION, APRS 2m 2GFSK
 	/*config[1].power = 127;								// Power 10 dBm
@@ -234,23 +234,23 @@ void start_user_modules(void)
 	// Module IMAGE, APRS 2m AFSK low-duty cycle
 	config[3].power = 127;									// Power 20 dBm
 	config[3].protocol = PROT_APRS_AFSK;					// Protocol APRS SSDV, modulation AFSK
-	config[3].frequency.type = FREQ_STATIC;			// Dynamic frequency allocation
-	config[3].frequency.hz = 144390000;						// Transmission frequency 144.800 MHz
+	config[3].frequency.type = FREQ_APRS_REGION;			// Dynamic frequency allocation
+	config[3].frequency.hz = 144800000;						// Transmission frequency 144.800 MHz
 	config[3].init_delay = 0;								// Module startup delay in msec
-	//config[3].packet_spacing = 30000;						// Packet spacing in ms
+	config[3].packet_spacing = 30000;						// Packet spacing in ms
 	//config[3].sleep_conf.type = SLEEP_WHEN_ISOL_BELOW_THRES;
 	//config[3].sleep_conf.isol_thres = 3;
-	config[3].trigger.type = TRIG_TIMEOUT;					// Trigger transmission on timeout (Periodic cycling)
+	config[3].trigger.type = TRIG_CONTINUOUSLY;				// Continuous Trigger
 	config[3].trigger.timeout = 10;							// Timeout 10 sec
 	chsnprintf(config[3].aprs_conf.callsign, 7, "DL7AD");	// APRS Callsign
-	config[3].aprs_conf.ssid = 11;							// APRS SSID
+	config[3].aprs_conf.ssid = 12;							// APRS SSID
 	config[3].aprs_conf.preamble = 300;						// APRS Preamble
 	chsnprintf(config[3].ssdv_conf.callsign, 7, "DL7AD");	// SSDV Callsign
 	config[3].ssdv_conf.ram_buffer = ssdv_buffer;			// Camera buffer
 	config[3].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
 	config[3].ssdv_conf.res = RES_QVGA;						// Resolution VGA
 	config[3].ssdv_conf.redundantTx = true;					// Transmit packets twice
-	//start_image_thread(&config[3]);
+	start_image_thread(&config[3]);
 
 	// Module POSITION, Morse 2m OOK
 	/*config[4].power = 127;								// Power 10 dBm
@@ -266,15 +266,15 @@ void start_user_modules(void)
 	start_position_thread(&config[4]);*/
 
 	// Module IMAGE, APRS 2m 2GFSK
-	config[5].power = 127;									// Power 20 dBm
+	config[5].power = 50;									// Power 20 dBm
 	config[5].protocol = PROT_APRS_2GFSK;					// Protocol APRS SSDV, modulation 2GFSK
 	config[5].gfsk_conf.speed = 9600;						// 2GFSK Speed
 	config[5].frequency.type = FREQ_STATIC;					// Static frequency allocation
 	config[5].frequency.hz = 144860000;						// Transmission frequency 144.860 MHz
 	//config[5].init_delay = 60000;							// Module startup delay in msec
-	config[5].sleep_conf.type = SLEEP_WHEN_VBAT_BELOW_THRES;
-	config[5].sleep_conf.vbat_thres = 4000;
-	config[5].trigger.type = TRIG_TIMEOUT;					// Trigger transmission on timeout (Periodic cycling)
+	//config[5].sleep_conf.type = SLEEP_WHEN_VBAT_BELOW_THRES;
+	//config[5].sleep_conf.vbat_thres = 4000;
+	config[5].trigger.type = TRIG_CONTINUOUSLY;					// Trigger transmission on timeout (Periodic cycling)
 	config[5].trigger.timeout = 30;							// Timeout 10 sec
 	chsnprintf(config[5].aprs_conf.callsign, 6, "DL7AD");	// APRS Callsign
 	config[5].aprs_conf.ssid = 12;							// APRS SSID
@@ -284,7 +284,7 @@ void start_user_modules(void)
 	config[5].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
 	config[5].ssdv_conf.res = RES_VGA;						// Resolution XGA
 	//config[5].ssdv_conf.redundantTx = true;					// Transmit packets twice
-	start_image_thread(&config[5]);
+	//start_image_thread(&config[5]);
 
 	// Module IMAGE, SSDV 2m 2FSK
 	/*config[6].power = 127;								// Power 20 dBm
