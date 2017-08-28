@@ -237,7 +237,7 @@ void start_user_modules(void)
 	config[3].frequency.type = FREQ_APRS_REGION;			// Dynamic frequency allocation
 	config[3].frequency.hz = 144800000;						// Transmission frequency 144.800 MHz
 	config[3].init_delay = 0;								// Module startup delay in msec
-	config[3].packet_spacing = 10000;						// Packet spacing in ms
+	config[3].packet_spacing = 20000;						// Packet spacing in ms
 	//config[3].sleep_conf.type = SLEEP_WHEN_ISOL_BELOW_THRES;
 	//config[3].sleep_conf.isol_thres = 3;
 	config[3].trigger.type = TRIG_CONTINUOUSLY;				// Continuous Trigger

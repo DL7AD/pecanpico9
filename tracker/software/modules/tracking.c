@@ -252,13 +252,15 @@ THD_FUNCTION(trackingThread, arg) {
 		if(isGPSLocked(&gpsFix)) { // GPS locked
 
 			// Switch off GPS (if cycle time is more than 60 seconds)
-			#if TRACK_CYCLE_TIME > 60
+			#if TRACK_CYCLE_TIME >= 60
+			TRACE_INFO("TRAC > Switch off GPS");
 			GPS_Deinit();
+			#else
+			TRACE_INFO("TRAC > Keep GPS switched of because cycle < 60sec");
 			#endif
 
 			// Debug
 			TRACE_INFO("TRAC > GPS sampling finished GPS LOCK");
-			TRACE_GPSFIX(&gpsFix);
 
 			// Calibrate RTC
 			setTime(gpsFix.time);
@@ -332,13 +334,13 @@ THD_FUNCTION(trackingThread, arg) {
 		// Trace data
 		TRACE_INFO(	"TRAC > New tracking point available (ID=%d)\r\n"
 					"%s Time %04d-%02d-%02d %02d:%02d:%02d\r\n"
-					"%s Pos  %d.%07d %d.%07d Alt %dm\r\n"
+					"%s Pos  %d.%05d %d.%05d Alt %dm\r\n"
 					"%s Sats %d  TTFF %dsec\r\n"
 					"%s ADC Vbat=%d.%03dV Vsol=%d.%03dV VUSB=%d.%03dV Pbat=%dmW Isol=%dmA\r\n"
 					"%s AIR p=%6d.%01dPa T=%2d.%02ddegC phi=%2d.%01d%%",
 					tp->id,
 					TRACE_TAB, tp->time.year, tp->time.month, tp->time.day, tp->time.hour, tp->time.minute, tp->time.day,
-					TRACE_TAB, tp->gps_lat/10000000, (tp->gps_lat > 0 ? 1:-1)*tp->gps_lat%10000000, tp->gps_lon/10000000, (tp->gps_lon > 0 ? 1:-1)*tp->gps_lon%10000000, tp->gps_alt,
+					TRACE_TAB, tp->gps_lat/10000000, (tp->gps_lat > 0 ? 1:-1)*(tp->gps_lat/100)%100000, tp->gps_lon/10000000, (tp->gps_lon > 0 ? 1:-1)*(tp->gps_lon/100)%100000, tp->gps_alt,
 					TRACE_TAB, tp->gps_sats, tp->gps_ttff,
 					TRACE_TAB, tp->adc_vbat/1000, (tp->adc_vbat%1000), tp->adc_vsol/1000, (tp->adc_vsol%1000), tp->adc_vusb/1000, (tp->adc_vusb%1000), tp->adc_pbat, tp->adc_isol,
 					TRACE_TAB, tp->air_press/10, tp->air_press%10, tp->air_temp/100, tp->air_temp%100, tp->air_hum/10, tp->air_hum%10
