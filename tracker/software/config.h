@@ -10,7 +10,7 @@
 
 #define TRACK_CYCLE_TIME		60			/* Tracking cycle (all peripheral data [airpressure, GPS, temperature, ...] is collected each x seconds */
 
-#define LOG_CYCLE_TIME			30			/* Log cycle time in seconds */
+#define LOG_CYCLE_TIME			60			/* Log cycle time in seconds */
 #define LOG_FLASH_ADDR1			0x080C0000	/* Log flash memory address 1 */
 #define LOG_FLASH_ADDR2			0x080E0000	/* Log flash memory address 2 */
 #define LOG_SECTOR_SIZE			0x20000		/* Log flash memory size */
@@ -21,7 +21,7 @@
 #define TRACE_TIME				TRUE		/* Enables time tracing on debugging port */
 #define TRACE_FILE				FALSE		/* Enables file and line tracing on debugging port */
 
-#define RUN_3V					TRUE		/* Lets the tracker run a 3V otherwise 1.8V. 3V is needed to do 20dBm radio output power.
+#define RUN_3V					FALSE		/* Lets the tracker run a 3V otherwise 1.8V. 3V is needed to do 20dBm radio output power.
 											 * With 1.8V only 15dBm can be done. Some serial-USB adapters also need a 3V IO level in
 											 * order to work. However 3V takes a lot of power in idle. You can save energy using 1.8V. */
 

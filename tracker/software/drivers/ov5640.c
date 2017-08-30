@@ -96,7 +96,7 @@ static const struct regval_list OV5640YUV_Sensor_Dvp_Init[] =
 	{ 0x3034, 0x1a }, 
 	{ 0x3035, 0x11 }, //15fps
 	{ 0x3036, 0x46 }, 
-	{ 0x3037, 0x14 }, 
+	{ 0x3037, 0x12 }, 
 	{ 0x3038, 0x00 }, 
 	{ 0x3039, 0x00 }, 
 
@@ -993,6 +993,15 @@ CH_IRQ_HANDLER(Vector5C) {
 	if (LptimRdy) {
 		// VSYNC handling
 		if(!vsync) {
+			// Increase AHB clock to 6 MHz
+			uint32_t new = (FLASH->ACR & ~FLASH_ACR_LATENCY_Msk) | FLASH_ACR_LATENCY_3WS;
+			FLASH->ACR = new;
+			while(FLASH->ACR != new);
+
+			new = (RCC->CFGR & ~RCC_CFGR_HPRE_Msk) | RCC_CFGR_HPRE_DIV1;
+			RCC->CFGR = new;
+			while(RCC->CFGR != new);
+
 			/*
 			 * Rising edge of VSYNC after LPTIM1 has been initialised.
 			 * Start DMA channel.
@@ -1002,6 +1011,15 @@ CH_IRQ_HANDLER(Vector5C) {
 			TIM1->DIER |= TIM_DIER_TDE;
 			vsync = true;
 		} else {
+			// Reduce AHB clock to 6 MHz
+			uint32_t new = (RCC->CFGR & ~RCC_CFGR_HPRE_Msk) | RCC_CFGR_HPRE_DIV8;
+			RCC->CFGR = new;
+			while(RCC->CFGR != new);
+
+			new = (FLASH->ACR & ~FLASH_ACR_LATENCY_Msk) | FLASH_ACR_LATENCY_0WS;
+			FLASH->ACR = new;
+			while(FLASH->ACR != new);
+
 			/* VSYNC leading with vsync true.
 			 * This means end of capture for the frame.
 			 * Stop & release the DMA channel.
@@ -1034,12 +1052,12 @@ CH_IRQ_HANDLER(Vector5C) {
 
 bool OV5640_Capture(void)
 {
-  /*
-   * Note:
-   *  If there are no Chibios devices enabled that use DMA then...
-   *  In makefile add entry to UDEFS:
-   *   UDEFS = -DSTM32_DMA_REQUIRED
-   */
+	/*
+	 * Note:
+	 *  If there are no Chibios devices enabled that use DMA then...
+	 *  In makefile add entry to UDEFS:
+	 *   UDEFS = -DSTM32_DMA_REQUIRED
+	 */
 
 	/* Setup DMA for transfer on TIM1_TRIG - DMA2 stream 0, channel 6 */
 	dmastp  = STM32_DMA_STREAM(STM32_DMA_STREAM_ID(2, 0));
@@ -1373,8 +1391,6 @@ bool OV5640_isAvailable(void)
 	// Switch on camera
 	palSetLine(LINE_CAM_EN); 		// Switch on camera
 	palSetLine(LINE_CAM_RESET); // Toggle reset
-
-	OV5640_getLightIntensity();
 
 	chThdSleepMilliseconds(100);
 

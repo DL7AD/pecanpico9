@@ -50,7 +50,7 @@
 #define STM32_PLLQ_VALUE                    4
 #define STM32_HPRE                          STM32_HPRE_DIV8
 #define STM32_PPRE1                         STM32_PPRE1_DIV1
-#define STM32_PPRE2                         STM32_PPRE2_DIV4
+#define STM32_PPRE2                         STM32_PPRE2_DIV1
 #define STM32_RTCSEL                        STM32_RTCSEL_LSI
 #define STM32_RTCPRE_VALUE                  8
 #define STM32_MCO1SEL                       STM32_MCO1SEL_HSE

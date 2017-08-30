@@ -250,7 +250,7 @@ void start_user_modules(void)
 	config[3].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
 	config[3].ssdv_conf.res = RES_QVGA;						// Resolution VGA
 	config[3].ssdv_conf.redundantTx = true;					// Transmit packets twice
-	start_image_thread(&config[3]);
+	//start_image_thread(&config[3]);
 
 	// Module POSITION, Morse 2m OOK
 	/*config[4].power = 127;								// Power 10 dBm
