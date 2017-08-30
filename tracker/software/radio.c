@@ -9,7 +9,7 @@
 #include "padc.h"
 #include <string.h>
 
-#define PLAYBACK_RATE		((STM32_PCLK1) / 250)					/* Samples per second (48Mhz / 250 = 192kHz) */
+#define PLAYBACK_RATE		((STM32_PCLK1) / 500)					/* Samples per second (48Mhz / 250 = 192kHz) */
 #define BAUD_RATE			1200									/* APRS AFSK baudrate */
 #define SAMPLES_PER_BAUD	(PLAYBACK_RATE / BAUD_RATE)				/* Samples per baud (192kHz / 1200baud = 160samp/baud) */
 #define PHASE_DELTA_1200	(((2 * 1200) << 16) / PLAYBACK_RATE)	/* Delta-phase per sample for 1200Hz tone */
@@ -86,7 +86,7 @@ void send2GFSK(radioMSG_t *msg) {
 	current_byte = 0;
 
 	// Initialize variables for timer
-	uint32_t initial_interval = STM32_PCLK1 / msg->gfsk_conf->speed;
+	uint32_t initial_interval = STM32_PCLK1 / msg->gfsk_conf->speed / 2;
 	RCC->APB1ENR |= RCC_APB1ENR_TIM7EN;
 	nvicEnableVector(TIM7_IRQn, 1);
 	TIM7->ARR = initial_interval;
@@ -136,6 +136,7 @@ CH_FAST_IRQ_HANDLER(STM32_TIM7_HANDLER)
 			current_sample_in_baud = 0;
 			packet_pos++;
 		}
+		palToggleLine(LINE_IO_LED1);
 
 	} else if(tim_msg->mod == MOD_2GFSK) {
 

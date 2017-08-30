@@ -96,7 +96,7 @@ static const struct regval_list OV5640YUV_Sensor_Dvp_Init[] =
 	{ 0x3034, 0x1a }, 
 	{ 0x3035, 0x11 }, //15fps
 	{ 0x3036, 0x46 }, 
-	{ 0x3037, 0x13 }, 
+	{ 0x3037, 0x14 }, 
 	{ 0x3038, 0x00 }, 
 	{ 0x3039, 0x00 }, 
 
@@ -755,7 +755,7 @@ static bool analyze_image(uint8_t *image, uint32_t image_len)
 			uint8_t r = bi < image_len-128 ? 128 : image_len - bi;
 			bi += r;
 			if(r <= 0)
-				break;
+				return false;
 			ssdv_enc_feed(&ssdv, b, r);
 		}
 
@@ -776,12 +776,13 @@ bool OV5640_BufferOverflow(void)
   */
 bool OV5640_Snapshot2RAM(void)
 {
-	// Capture image until we get a good image (max 5 tries)
-	uint8_t cntr = 5;
+	// Capture image until we get a good image (max 10 tries)
+	uint8_t cntr = 10;
+	bool status;
 	do {
 
 		TRACE_INFO("CAM  > Capture image");
-		OV5640_Capture();
+		status = OV5640_Capture();
 		TRACE_INFO("CAM  > Capture finished");
 
 		ov5640_conf->size_sampled = ov5640_conf->ram_size - 1;
@@ -790,7 +791,7 @@ bool OV5640_Snapshot2RAM(void)
 
 		TRACE_INFO("CAM  > Image size: %d bytes", ov5640_conf->size_sampled);
 
-	} while(!analyze_image(ov5640_conf->ram_buffer, ov5640_conf->ram_size) && cntr--);
+	} while((!analyze_image(ov5640_conf->ram_buffer, ov5640_conf->ram_size) || !status) && cntr--);
 
 	return true;
 }
@@ -1373,6 +1374,8 @@ bool OV5640_isAvailable(void)
 	palSetLine(LINE_CAM_EN); 		// Switch on camera
 	palSetLine(LINE_CAM_RESET); // Toggle reset
 
+	OV5640_getLightIntensity();
+
 	chThdSleepMilliseconds(100);
 
 	uint8_t val, val2;
@@ -1388,5 +1391,14 @@ bool OV5640_isAvailable(void)
 	palSetLineMode(LINE_CAM_RESET, PAL_MODE_INPUT);	// CAM_RESET
 
 	return ret;
+}
+
+uint32_t OV5640_getLightIntensity(void)
+{
+	uint8_t val1,val2,val3;
+	I2C_read8_16bitreg(OV5640_I2C_ADR, 0x3C1B, &val1);
+	I2C_read8_16bitreg(OV5640_I2C_ADR, 0x3C1C, &val2);
+	I2C_read8_16bitreg(OV5640_I2C_ADR, 0x3C1D, &val3);
+	return (val1 << 16) | (val2 << 8) | val3;
 }
 

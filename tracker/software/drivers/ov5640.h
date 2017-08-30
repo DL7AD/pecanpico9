@@ -20,5 +20,6 @@ void OV5640_TransmitConfig(void);
 void OV5640_init(ssdv_conf_t *config);
 void OV5640_deinit(void);
 bool OV5640_isAvailable(void);
+uint32_t OV5640_getLightIntensity(void);
 
 #endif
