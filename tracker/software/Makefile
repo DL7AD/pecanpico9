@@ -119,10 +119,10 @@ CSRC = $(STARTUPSRC) \
        $(SHELLSRC) \
        $(CHIBIOS)/os/hal/lib/streams/memstreams.c \
        $(CHIBIOS)/os/hal/lib/streams/chprintf.c \
-       modules/tracking.c \
-       modules/position.c \
-       modules/image.c \
-       modules/log.c \
+       threads/tracking.c \
+       threads/position.c \
+       threads/image.c \
+       threads/log.c \
        protocols/ssdv/ssdv.c \
        protocols/ssdv/rs8.c \
        protocols/aprs/aprs.c \
@@ -142,7 +142,7 @@ CSRC = $(STARTUPSRC) \
        debug.c \
        radio.c \
        sleep.c \
-       modules.c \
+       threads/threads.c \
        math/base.c \
        math/sgp4.c \
        math/geofence.c \
@@ -239,7 +239,7 @@ UDEFS =
 UADEFS =
 
 # List all user directories here
-UINCDIR = modules/ drivers/ drivers/wrapper/ protocols/aprs \
+UINCDIR = threads/ drivers/ drivers/wrapper/ protocols/aprs \
           protocols/ssdv protocols/morse math/ drivers/flash/
 
 # List the user directory to look for the libraries here

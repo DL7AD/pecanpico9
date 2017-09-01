@@ -7,7 +7,6 @@
 #include "ch.h"
 #include "hal.h"
 #include "si4464.h"
-#include "modules.h"
 #include "debug.h"
 #include "types.h"
 #include <string.h>

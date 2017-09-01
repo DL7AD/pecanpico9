@@ -2,7 +2,7 @@
 #include "hal.h"
 
 #include "debug.h"
-#include "modules.h"
+#include "threads.h"
 #include "config.h"
 #include "radio.h"
 #include "aprs.h"

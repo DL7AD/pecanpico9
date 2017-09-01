@@ -2,7 +2,7 @@
 #include "hal.h"
 
 #include "debug.h"
-#include "modules.h"
+#include "threads.h"
 #include "tracking.h"
 #include "watchdog.h"
 #include "pi2c.h"

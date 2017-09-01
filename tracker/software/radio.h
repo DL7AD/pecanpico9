@@ -5,7 +5,7 @@
 #include "hal.h"
 #include "config.h"
 #include "si4464.h"
-#include "modules.h"
+#include "threads.h"
 
 // APRS region frequencies
 #define APRS_FREQ_OTHER				144800000

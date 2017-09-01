@@ -733,6 +733,30 @@ static bool vsync;
 static bool dma_error;
 static uint32_t dma_flags;
 
+/* Increase AHB clock to 48 MHz */
+void set48MHz(void)
+{
+	uint32_t new = (FLASH->ACR & ~FLASH_ACR_LATENCY_Msk) | FLASH_ACR_LATENCY_3WS;
+	FLASH->ACR = new;
+	while(FLASH->ACR != new);
+
+	new = (RCC->CFGR & ~RCC_CFGR_HPRE_Msk) | RCC_CFGR_HPRE_DIV1;
+	RCC->CFGR = new;
+	while(RCC->CFGR != new);
+}
+
+void set6MHz(void)
+{
+	// Reduce AHB clock to 6 MHz
+	uint32_t new = (RCC->CFGR & ~RCC_CFGR_HPRE_Msk) | RCC_CFGR_HPRE_DIV8;
+	RCC->CFGR = new;
+	while(RCC->CFGR != new);
+
+	new = (FLASH->ACR & ~FLASH_ACR_LATENCY_Msk) | FLASH_ACR_LATENCY_0WS;
+	FLASH->ACR = new;
+	while(FLASH->ACR != new);
+}
+
 /**
   * Analyzes the image for JPEG errors. Returns true if the image is error free.
   */
@@ -994,13 +1018,7 @@ CH_IRQ_HANDLER(Vector5C) {
 		// VSYNC handling
 		if(!vsync) {
 			// Increase AHB clock to 48 MHz
-			uint32_t new = (FLASH->ACR & ~FLASH_ACR_LATENCY_Msk) | FLASH_ACR_LATENCY_3WS;
-			FLASH->ACR = new;
-			while(FLASH->ACR != new);
-
-			new = (RCC->CFGR & ~RCC_CFGR_HPRE_Msk) | RCC_CFGR_HPRE_DIV1;
-			RCC->CFGR = new;
-			while(RCC->CFGR != new);
+			set48MHz();
 
 			/*
 			 * Rising edge of VSYNC after LPTIM1 has been initialised.
@@ -1012,13 +1030,7 @@ CH_IRQ_HANDLER(Vector5C) {
 			vsync = true;
 		} else {
 			// Reduce AHB clock to 6 MHz
-			uint32_t new = (RCC->CFGR & ~RCC_CFGR_HPRE_Msk) | RCC_CFGR_HPRE_DIV8;
-			RCC->CFGR = new;
-			while(RCC->CFGR != new);
-
-			new = (FLASH->ACR & ~FLASH_ACR_LATENCY_Msk) | FLASH_ACR_LATENCY_0WS;
-			FLASH->ACR = new;
-			while(FLASH->ACR != new);
+			set6MHz();
 
 			/* VSYNC leading with vsync true.
 			 * This means end of capture for the frame.
