@@ -66,7 +66,7 @@ typedef struct
 	uint8_t  packet_mcu_offset;
 	
 	/* Source buffer */
-	uint8_t *inp;      /* Pointer to next input byte                    */
+	const uint8_t *inp;      /* Pointer to next input byte                    */
 	size_t in_len;     /* Number of input bytes remaining               */
 	size_t in_skip;    /* Number of input bytes to skip                 */
 	
@@ -144,7 +144,7 @@ typedef struct {
 extern char ssdv_enc_init(ssdv_t *s, uint8_t type, char *callsign, uint8_t image_id);
 extern char ssdv_enc_set_buffer(ssdv_t *s, uint8_t *buffer);
 extern char ssdv_enc_get_packet(ssdv_t *s);
-extern char ssdv_enc_feed(ssdv_t *s, uint8_t *buffer, size_t length);
+extern char ssdv_enc_feed(ssdv_t *s, const uint8_t *buffer, size_t length);
 
 /* Decoding */
 extern char ssdv_dec_init(ssdv_t *s);

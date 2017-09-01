@@ -30,10 +30,8 @@ int16_t pac1720_getPbat(void) {
 
 	if(I2C_read16(PAC1720_ADDRESS, PAC1720_CH2_PWR_RAT_HIGH, (uint16_t*)&val)) {
 		I2C_read8(PAC1720_ADDRESS, PAC1720_CH2_VSENSE_HIGH, &sign);
-		TRACE_DEBUG("%016x %02x", val, sign >> 7);
 		return (sign >> 7 ? -1 : 1) * (val * fsp / 65535);
 	} else {
-		TRACE_DEBUG("bla");
 		return 0; // PAC1720 not available (maybe Vcc too low)
 	}
 }

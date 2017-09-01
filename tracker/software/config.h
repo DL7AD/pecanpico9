@@ -15,8 +15,8 @@
 #define LOG_FLASH_ADDR2			0x080E0000	/* Log flash memory address 2 */
 #define LOG_SECTOR_SIZE			0x20000		/* Log flash memory size */
 
-#define GPS_ON_VBAT				7000			/* Battery voltage threshold at which GPS is switched on */
-#define GPS_OFF_VBAT			7000			/* Battery voltage threshold at which GPS is switched off */
+#define GPS_ON_VBAT				3000		/* Battery voltage threshold at which GPS is switched on */
+#define GPS_OFF_VBAT			2500		/* Battery voltage threshold at which GPS is switched off */
 
 #define TRACE_TIME				TRUE		/* Enables time tracing on debugging port */
 #define TRACE_FILE				FALSE		/* Enables file and line tracing on debugging port */

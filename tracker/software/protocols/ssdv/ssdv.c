@@ -1020,7 +1020,7 @@ char ssdv_enc_get_packet(ssdv_t *s)
 	return(SSDV_FEED_ME);
 }
 
-char ssdv_enc_feed(ssdv_t *s, uint8_t *buffer, size_t length)
+char ssdv_enc_feed(ssdv_t *s, const uint8_t *buffer, size_t length)
 {
 	s->inp    = buffer;
 	s->in_len = length;

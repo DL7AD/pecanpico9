@@ -282,9 +282,9 @@ void start_user_modules(void)
 	chsnprintf(config[5].ssdv_conf.callsign, 7, "DL7AD2");	// SSDV Callsign
 	config[5].ssdv_conf.ram_buffer = ssdv_buffer;			// Camera buffer
 	config[5].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
-	config[5].ssdv_conf.res = RES_VGA;						// Resolution XGA
+	config[5].ssdv_conf.res = RES_QVGA;						// Resolution XGA
 	//config[5].ssdv_conf.redundantTx = true;					// Transmit packets twice
-	//start_image_thread(&config[5]);
+	start_image_thread(&config[5]);
 
 	// Module IMAGE, SSDV 2m 2FSK
 	/*config[6].power = 127;								// Power 20 dBm

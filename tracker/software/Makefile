@@ -135,7 +135,6 @@ CSRC = $(STARTUPSRC) \
        drivers/si4464.c \
        drivers/bme280.c \
        drivers/pac1720.c \
-       drivers/ov2640.c \
        drivers/ov5640.c \
        drivers/flash/flash.c \
        drivers/flash/helper.c \
