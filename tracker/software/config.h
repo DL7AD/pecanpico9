@@ -21,7 +21,7 @@
 #define TRACE_TIME				TRUE		/* Enables time tracing on debugging port */
 #define TRACE_FILE				FALSE		/* Enables file and line tracing on debugging port */
 
-#define RUN_3V					FALSE		/* Lets the tracker run a 3V otherwise 1.8V. 3V is needed to do 20dBm radio output power.
+#define RUN_3V					TRUE		/* Lets the tracker run a 3V otherwise 1.8V. 3V is needed to do 20dBm radio output power.
 											 * With 1.8V only 15dBm can be done. Some serial-USB adapters also need a 3V IO level in
 											 * order to work. However 3V takes a lot of power in idle. You can save energy using 1.8V. */
 

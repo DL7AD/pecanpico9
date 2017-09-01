@@ -77,7 +77,7 @@ uint32_t aprs_encode_position(uint8_t* message, mod_t mod, const aprs_conf_t *co
 	uint32_t a1  = a / 91;
 	uint32_t a1r = a % 91;
 
-	uint8_t gpsFix = trackPoint->gps_lock ? GSP_FIX_CURRENT : GSP_FIX_OLD;
+	uint8_t gpsFix = trackPoint->gps_lock ? GSP_FIX_OLD : GSP_FIX_CURRENT;
 	uint8_t src = NMEA_SRC_GGA;
 	uint8_t origin = ORIGIN_PICO;
 
@@ -103,7 +103,7 @@ uint32_t aprs_encode_position(uint8_t* message, mod_t mod, const aprs_conf_t *co
 	chsnprintf(temp, sizeof(temp), "%d", trackPoint->gps_sats);
 	ax25_send_string(&packet, temp);
 
-	if(trackPoint->gps_lock)
+	if(trackPoint->gps_lock == GPS_LOCKED) // GPS is locked
 	{
 		// TTFF (Time to first fix)
 		ax25_send_string(&packet, " TTFF ");
@@ -112,12 +112,18 @@ uint32_t aprs_encode_position(uint8_t* message, mod_t mod, const aprs_conf_t *co
 		ax25_send_string(&packet, "sec");
 	}
 
-	// GPS Loss counter
-	if(!trackPoint->gps_lock)
-	{
+	if(trackPoint->gps_lock == GPS_LOSS) { // No GPS lock
+
 		ax25_send_string(&packet, " GPS LOSS ");
 		chsnprintf(temp, sizeof(temp), "%d", ++loss_of_gps_counter);
 		ax25_send_string(&packet, temp);
+
+	} else if(trackPoint->gps_lock == GPS_LOWBATT) { // GPS switched off prematurely
+
+		ax25_send_string(&packet, " GPS LOWBATT ");
+		chsnprintf(temp, sizeof(temp), "%d", ++loss_of_gps_counter);
+		ax25_send_string(&packet, temp);
+
 	} else {
 		loss_of_gps_counter = 0;
 	}
@@ -140,7 +146,7 @@ uint32_t aprs_encode_position(uint8_t* message, mod_t mod, const aprs_conf_t *co
 			case TEL_VBAT:	t = trackPoint->adc_vbat;			break;
 			case TEL_VSOL:	t = trackPoint->adc_vsol;			break;
 			case TEL_PBAT:	t = trackPoint->adc_pbat+4096;		break;
-			case TEL_ISOL:	t = trackPoint->adc_isol;			break;
+			case TEL_RBAT:	t = trackPoint->adc_rbat;			break;
 			case TEL_HUM:	t = trackPoint->air_hum;			break;
 			case TEL_PRESS:	t = trackPoint->air_press/125 - 40;	break;
 			case TEL_TEMP:	t = trackPoint->air_temp/10 + 1000;	break;
@@ -259,7 +265,7 @@ uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const 
 					case TEL_VBAT:		ax25_send_string(&packet, "Vbat");			break;
 					case TEL_VSOL:		ax25_send_string(&packet, "Vsol");			break;
 					case TEL_PBAT:		ax25_send_string(&packet, "Pbat");			break;
-					case TEL_ISOL:		ax25_send_string(&packet, "Isol");			break;
+					case TEL_RBAT:		ax25_send_string(&packet, "Rbat");			break;
 					case TEL_HUM:		ax25_send_string(&packet, "Humidity");		break;
 					case TEL_PRESS:		ax25_send_string(&packet, "Airpressure");	break;
 					case TEL_TEMP:		ax25_send_string(&packet, "Temperature");	break;
@@ -292,8 +298,8 @@ uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const 
 						ax25_send_string(&packet, "W");
 						break;
 
-					case TEL_ISOL:
-						ax25_send_string(&packet, "A");
+					case TEL_RBAT:
+						ax25_send_string(&packet, "Ohm");
 						break;
 
 					case TEL_HUM:
@@ -325,10 +331,9 @@ uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const 
 						ax25_send_string(&packet, "0,1,0");
 						break;
 
-
-					case TEL_ISOL:
 					case TEL_VBAT:
 					case TEL_VSOL:
+					case TEL_RBAT:
 						ax25_send_string(&packet, "0,.001,0");
 						break;
 

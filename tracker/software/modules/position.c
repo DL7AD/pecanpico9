@@ -93,8 +93,8 @@ void replace_placeholders(char* fskmsg, uint16_t size, trackPoint_t *tp) {
 	str_replace(fskmsg, size, "<VSOL>", buf);
 	chsnprintf(buf, sizeof(buf), "%d.%03d", tp->adc_pbat/1000, (tp->adc_pbat >= 0 ? 1 : -1) * (tp->adc_pbat%1000));
 	str_replace(fskmsg, size, "<PBAT>", buf);
-	chsnprintf(buf, sizeof(buf), "%d.%03d", tp->adc_isol/1000, (tp->adc_isol >= 0 ? 1 : -1) * (tp->adc_isol%1000));
-	str_replace(fskmsg, size, "<ISOL>", buf);
+	chsnprintf(buf, sizeof(buf), "%d.%03d", tp->adc_rbat/1000, (tp->adc_rbat >= 0 ? 1 : -1) * (tp->adc_rbat%1000));
+	str_replace(fskmsg, size, "<RBAT>", buf);
 	chsnprintf(buf, sizeof(buf), "%d", tp->air_press/10);
 	str_replace(fskmsg, size, "<PRESS>", buf);
 	chsnprintf(buf, sizeof(buf), "%d.%d", tp->air_temp/100, (tp->air_temp%100)/10);

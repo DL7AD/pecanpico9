@@ -179,7 +179,7 @@ THD_FUNCTION(trackingThread, arg) {
 		lastTrackPoint->gps_alt = lastLogPoint.gps_alt;
 	}
 
-	lastTrackPoint->gps_lock = 0; // But tell the user that there is no current lock nor any GPS sats locked
+	lastTrackPoint->gps_lock = GPS_LOSS; // But tell the user that there is no current lock nor any GPS sats locked
 	lastTrackPoint->gps_sats = 0;
 	lastTrackPoint->gps_ttff = 0;
 
@@ -202,7 +202,6 @@ THD_FUNCTION(trackingThread, arg) {
 	lastTrackPoint->adc_vsol = getSolarVoltageMV();
 	lastTrackPoint->adc_vbat = getBatteryVoltageMV();
 	lastTrackPoint->adc_vusb = getUSBVoltageMV();
-	lastTrackPoint->adc_isol = pac1720_getIsol();
 	lastTrackPoint->adc_pbat = pac1720_getPbat();
 
 	bme280_t bme280;
@@ -278,13 +277,17 @@ THD_FUNCTION(trackingThread, arg) {
 			tp->gps_lon = gpsFix.lon;
 			tp->gps_alt = gpsFix.alt;
 
-			tp->gps_lock = isGPSLocked(&gpsFix);
+			tp->gps_lock = GPS_LOCKED;
 			tp->gps_sats = gpsFix.num_svs;
 
 		} else { // GPS lost (keep GPS switched on)
 
 			// Debug
-			TRACE_WARN("TRAC > GPS sampling finished GPS LOSS");
+			if(batt < GPS_OFF_VBAT) {
+				TRACE_WARN("TRAC > GPS sampling finished GPS LOW BATT");
+			} else {
+				TRACE_WARN("TRAC > GPS sampling finished GPS LOSS");
+			}
 
 			// Take time from internal RTC
 			getTime(&rtc);
@@ -300,8 +303,8 @@ THD_FUNCTION(trackingThread, arg) {
 			tp->gps_lon = ltp->gps_lon;
 			tp->gps_alt = ltp->gps_alt;
 
-			// Mark gpsloss
-			tp->gps_lock = false;
+			// Mark GPS loss (or low batt)
+			tp->gps_lock = batt < GPS_OFF_VBAT ? GPS_LOWBATT : GPS_LOSS;
 			tp->gps_sats = 0;
 
 		}
@@ -313,8 +316,8 @@ THD_FUNCTION(trackingThread, arg) {
 		tp->adc_vsol = getSolarVoltageMV();
 		tp->adc_vbat = getBatteryVoltageMV();
 		tp->adc_vusb = getUSBVoltageMV();
-		tp->adc_isol = pac1720_getIsol();
 		tp->adc_pbat = pac1720_getAvgPbat();
+		tp->adc_rbat = pac1720_getAvgRbat();
 
 		bme280_t bme280;
 
@@ -336,13 +339,13 @@ THD_FUNCTION(trackingThread, arg) {
 					"%s Time %04d-%02d-%02d %02d:%02d:%02d\r\n"
 					"%s Pos  %d.%05d %d.%05d Alt %dm\r\n"
 					"%s Sats %d  TTFF %dsec\r\n"
-					"%s ADC Vbat=%d.%03dV Vsol=%d.%03dV VUSB=%d.%03dV Pbat=%dmW Isol=%dmA\r\n"
+					"%s ADC Vbat=%d.%03dV Vsol=%d.%03dV VUSB=%d.%03dV Pbat=%dmW Rbat=%dmOhm\r\n"
 					"%s AIR p=%6d.%01dPa T=%2d.%02ddegC phi=%2d.%01d%%",
 					tp->id,
 					TRACE_TAB, tp->time.year, tp->time.month, tp->time.day, tp->time.hour, tp->time.minute, tp->time.day,
 					TRACE_TAB, tp->gps_lat/10000000, (tp->gps_lat > 0 ? 1:-1)*(tp->gps_lat/100)%100000, tp->gps_lon/10000000, (tp->gps_lon > 0 ? 1:-1)*(tp->gps_lon/100)%100000, tp->gps_alt,
 					TRACE_TAB, tp->gps_sats, tp->gps_ttff,
-					TRACE_TAB, tp->adc_vbat/1000, (tp->adc_vbat%1000), tp->adc_vsol/1000, (tp->adc_vsol%1000), tp->adc_vusb/1000, (tp->adc_vusb%1000), tp->adc_pbat, tp->adc_isol,
+					TRACE_TAB, tp->adc_vbat/1000, (tp->adc_vbat%1000), tp->adc_vsol/1000, (tp->adc_vsol%1000), tp->adc_vusb/1000, (tp->adc_vusb%1000), tp->adc_pbat, tp->adc_rbat,
 					TRACE_TAB, tp->air_press/10, tp->air_press%10, tp->air_temp/100, tp->air_temp%100, tp->air_hum/10, tp->air_hum%10
 		);
 

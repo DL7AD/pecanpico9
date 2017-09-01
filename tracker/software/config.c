@@ -73,13 +73,13 @@ uint8_t ssdv_buffer[256*1024] __attribute__((aligned(32)));
  * (required)							There are possible options:
  * 										- TEL_SATS		GPS Satellites
  * 										- TEL_TTFF		Time to first fix (amount of seconds which it needed to aquire a GPS fix)
- * 										- TEL_VBAT		Battery voltage
- * 										- TEL_VSOL		Solar voltage
+ * 										- TEL_VBAT		Battery voltage (in mV)
+ * 										- TEL_VSOL		Solar voltage (in mV)
  * 										- TEL_PBAT		Battery power (positive charge, negative discharge)
- * 										- TEL_ISOL		Solar short current (works only if USB is unattached)
- * 										- TEL_PRESS		Air pressure (by BME280)
- * 										- TEL_TEMP		Air temperature (by BME280)
- * 										- TEL_HUM		Air humidity (by BME280)
+ * 										- TEL_RBAT		Battery impedance (in mOhm)
+ * 										- TEL_PRESS		Air pressure (in Pa)
+ * 										- TEL_TEMP		Air temperature (in degC*100)
+ * 										- TEL_HUM		Air humidity (in %*10)
  *
  * aprs_conf.tel_enc	bool			The telemetry in the position packets do only contain the raw values. Receivers (like aprs.fi) dont know what these
  * (default false)						values stands for. So we must tell them (e.g. that value 1 is air pressure measured in Pascal). If set to true, the
@@ -184,8 +184,8 @@ void start_user_modules(void)
 	config[0].aprs_conf.preamble = 300;						// APRS Preamble
 	config[0].aprs_conf.tel[0] = TEL_VBAT;					// APRS Telemetry parameter 1
 	config[0].aprs_conf.tel[1] = TEL_PBAT;					// APRS Telemetry parameter 2
-	config[0].aprs_conf.tel[2] = TEL_TEMP;					// APRS Telemetry parameter 3
-	config[0].aprs_conf.tel[3] = TEL_PRESS;					// APRS Telemetry parameter 4
+	config[0].aprs_conf.tel[2] = TEL_RBAT;					// APRS Telemetry parameter 3
+	config[0].aprs_conf.tel[3] = TEL_TEMP;					// APRS Telemetry parameter 4
 	config[0].aprs_conf.tel[4] = TEL_HUM;					// APRS Telemetry parameter 5
 	config[0].aprs_conf.tel_enc = TRUE;						// Transmit Telemetry encoding information activated
 	config[0].aprs_conf.tel_enc_cycle = 3600;				// Transmit Telemetry encoding information every 3600sec
@@ -248,7 +248,7 @@ void start_user_modules(void)
 	chsnprintf(config[3].ssdv_conf.callsign, 7, "DL7AD");	// SSDV Callsign
 	config[3].ssdv_conf.ram_buffer = ssdv_buffer;			// Camera buffer
 	config[3].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
-	config[3].ssdv_conf.res = RES_QVGA;						// Resolution VGA
+	config[3].ssdv_conf.res = RES_QVGA;						// Resolution QVGA
 	config[3].ssdv_conf.redundantTx = true;					// Transmit packets twice
 	//start_image_thread(&config[3]);
 
@@ -282,7 +282,7 @@ void start_user_modules(void)
 	chsnprintf(config[5].ssdv_conf.callsign, 7, "DL7AD2");	// SSDV Callsign
 	config[5].ssdv_conf.ram_buffer = ssdv_buffer;			// Camera buffer
 	config[5].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
-	config[5].ssdv_conf.res = RES_QVGA;						// Resolution XGA
+	config[5].ssdv_conf.res = RES_VGA;						// Resolution XGA
 	//config[5].ssdv_conf.redundantTx = true;					// Transmit packets twice
 	//start_image_thread(&config[5]);
 

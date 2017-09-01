@@ -993,7 +993,7 @@ CH_IRQ_HANDLER(Vector5C) {
 	if (LptimRdy) {
 		// VSYNC handling
 		if(!vsync) {
-			// Increase AHB clock to 6 MHz
+			// Increase AHB clock to 48 MHz
 			uint32_t new = (FLASH->ACR & ~FLASH_ACR_LATENCY_Msk) | FLASH_ACR_LATENCY_3WS;
 			FLASH->ACR = new;
 			while(FLASH->ACR != new);

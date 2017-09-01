@@ -40,9 +40,9 @@
 #define PAC1720_CH2_VSENSE_LIMIT_LOW	0x1C
 
 #define PAC1720_CH1_VSOURCE_LIMIT_HIGH	0x1D
-#define PAC1720_CH2_VSOURCE_LIMIT_HIGH	0x1E	
-#define PAC1720_CH1_VSOURCE_LIMIT_LOW	0x1F	
-#define PAC1720_CH2_VSOURCE_LIMIT_LOW	0x20	
+#define PAC1720_CH2_VSOURCE_LIMIT_HIGH	0x1E
+#define PAC1720_CH1_VSOURCE_LIMIT_LOW	0x1F
+#define PAC1720_CH2_VSOURCE_LIMIT_LOW	0x20
 
 #define PAC1720_PRODUCT_ID				0xFD
 #define PAC1720_MANUFACTURER_ID			0xFE
@@ -53,8 +53,9 @@ void pac1720_init(void);
 int16_t pac1720_getIsol(void);
 int16_t pac1720_getPbat(void);
 int16_t pac1720_getAvgPbat(void);
-uint16_t pac1720_getBatteryVoltage(void);
-uint16_t pac1720_getSolarVoltage(void);
+uint16_t pac1720_getVbat(void);
+int16_t pac1720_getAvgRbat(void);
+uint16_t pac1720_getVsol(void);
 bool pac1720_isAvailable(void);
 
 #endif

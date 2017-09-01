@@ -4,6 +4,7 @@
 #include "pi2c.h"
 #include "pac1720.h"
 #include "padc.h"
+#include <stdlib.h>
 
 /* 
  * FSP = FSC * FSV
@@ -19,6 +20,8 @@
 
 static int32_t pac1720_pbat;
 static int32_t pac1720_pbat_counter;
+static int32_t pac1720_rbat;
+static int32_t pac1720_rbat_counter;
 
 int16_t pac1720_getPbat(void) {
 	int32_t fsp = FSV * FSC;
@@ -27,40 +30,18 @@ int16_t pac1720_getPbat(void) {
 
 	if(I2C_read16(PAC1720_ADDRESS, PAC1720_CH2_PWR_RAT_HIGH, (uint16_t*)&val)) {
 		I2C_read8(PAC1720_ADDRESS, PAC1720_CH2_VSENSE_HIGH, &sign);
+		TRACE_DEBUG("%016x %02x", val, sign >> 7);
 		return (sign >> 7 ? -1 : 1) * (val * fsp / 65535);
 	} else {
+		TRACE_DEBUG("bla");
 		return 0; // PAC1720 not available (maybe Vcc too low)
 	}
-}
-
-int16_t pac1720_getIsol(void) {
-	if(isUsbConnected()) // USB not connected
-	{
-		// Short solar cells
-		palClearLine(LINE_SOL_SHORT_EN);
-		chThdSleepMilliseconds(300); // Wait a little bit to measure a correct value
-
-		int16_t val;
-		uint8_t ret = I2C_read16(PAC1720_ADDRESS, PAC1720_CH1_VSENSE_HIGH, (uint16_t*)&val);
-
-		// Unshort solar cells
-		palSetLine(LINE_SOL_SHORT_EN);
-
-		// Calculate solar current
-		if(ret) {
-			val = val < 0 ? 0 : val >> 4; // Current can only flow in one direction (negative values are inaccurate readings)
-			return val * FSC / DENO;
-		} else {
-			return 0; // PAC1720 not available (maybe Vcc too low)
-		}
-	}
-	return 0; // USB connected (we dont want to short USB)
 }
 
 int16_t pac1720_getAvgPbat(void) {
 	// Return current value if time interval too short
 	if(!pac1720_pbat_counter)
-		pac1720_getPbat();
+		return pac1720_getPbat();
 
 	// Calculate average power
 	int16_t ret = pac1720_pbat / pac1720_pbat_counter;
@@ -72,7 +53,7 @@ int16_t pac1720_getAvgPbat(void) {
 	return ret;
 }
 
-uint16_t pac1720_getBatteryVoltage(void) {
+uint16_t pac1720_getVbat(void) {
 	uint16_t val;
 	if(!I2C_read16(PAC1720_ADDRESS, PAC1720_CH2_VSOURCE_HIGH, &val))
 		return 0; // PAC1720 not available (maybe Vcc too low)
@@ -80,7 +61,22 @@ uint16_t pac1720_getBatteryVoltage(void) {
 	return (val >> 5) * 20000 / 0x400;
 }
 
-uint16_t pac1720_getSolarVoltage(void) {
+int16_t pac1720_getAvgRbat(void) {
+	// Return current value if time interval too short
+	if(!pac1720_rbat_counter)
+		return 0;
+
+	// Calculate average power
+	int16_t ret = pac1720_rbat / pac1720_rbat_counter;
+
+	// Reset current measurement
+	pac1720_rbat = 0;
+	pac1720_rbat_counter = 0;
+
+	return ret;
+}
+
+uint16_t pac1720_getVsol(void) {
 	uint16_t val;
 	if(!I2C_read16(PAC1720_ADDRESS, PAC1720_CH1_VSOURCE_HIGH, &val))
 		return 0; // PAC1720 not available (maybe Vcc too low)
@@ -101,11 +97,41 @@ THD_FUNCTION(pac1720_thd, arg)
 {
 	(void)arg;
 
+	uint32_t counter = 0;
+	int32_t u1 = 999999;
+	int32_t p1 = 999999;
+	int32_t u2 = -999999;
+	int32_t p2 = -999999;
 	while(true)
 	{
+		// Sample data
+		int32_t v = pac1720_getVbat();
+		int32_t p = pac1720_getPbat();
+
 		// Measure battery power
-		pac1720_pbat += pac1720_getPbat();
+		pac1720_pbat += p;
 		pac1720_pbat_counter++;
+
+		// Measure battery impedance
+		if(p < p1) {
+			u1 = v;
+			p1 = p;
+		}
+		if(p > p2) {
+			u2 = v;
+			p2 = p;
+		}
+		if(++counter%10 == 0 && abs(p1-p2) > 100 && abs(u1-u2) > 0 && p1*u2 != p2*u1)
+		{
+			int32_t rbat = abs((u1*u2*(u1-u2)) / (p1*u2 - p2*u1));
+			pac1720_rbat += rbat;
+			pac1720_rbat_counter++;
+
+			u1 = 999999;
+			p1 = 999999;
+			u2 = -999999;
+			p2 = -999999;
+		}
 
 		chThdSleepMilliseconds(50);
 	}
@@ -131,3 +157,4 @@ void pac1720_init(void)
 	TRACE_INFO("PAC  > Init PAC1720 continuous measurement");
 	chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(256), "PAC1720", NORMALPRIO, pac1720_thd, NULL);
 }
+
