@@ -250,6 +250,7 @@ void start_user_modules(void)
 	config[3].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
 	config[3].ssdv_conf.res = RES_QVGA;						// Resolution QVGA
 	config[3].ssdv_conf.redundantTx = true;					// Transmit packets twice
+	config[3].ssdv_conf.quality = 7;						// High quality
 	//start_image_thread(&config[3]);
 
 	// Module POSITION, Morse 2m OOK
@@ -282,7 +283,8 @@ void start_user_modules(void)
 	chsnprintf(config[5].ssdv_conf.callsign, 7, "DL7AD2");	// SSDV Callsign
 	config[5].ssdv_conf.ram_buffer = ssdv_buffer;			// Camera buffer
 	config[5].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
-	config[5].ssdv_conf.res = RES_VGA;						// Resolution VGA
+	config[5].ssdv_conf.res = RES_QVGA;						// Resolution VGA
+	config[5].ssdv_conf.quality = 4;						// High quality
 	start_image_thread(&config[5]);
 
 	// Module IMAGE, SSDV 2m 2FSK
@@ -303,6 +305,7 @@ void start_user_modules(void)
 	config[6].ssdv_conf.ram_buffer = ssdv_buffer;			// Camera buffer
 	config[6].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
 	config[6].ssdv_conf.res = RES_VGA;						// Resolution VGA
+	config[6].ssdv_conf.quality = 7;						// High quality
 	start_image_thread(&config[6]);*/
 
 	// Module LOG, APRS 2m AFSK

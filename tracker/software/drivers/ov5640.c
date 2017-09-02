@@ -768,7 +768,7 @@ static bool analyze_image(uint8_t *image, uint32_t image_len)
 	uint32_t bi = 0;
 	uint8_t c = SSDV_OK;
 
-	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, "", 0);
+	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, "", 0, 0);
 	ssdv_enc_set_buffer(&ssdv, pkt);
 
 	while(true) // FIXME: I get caught in these loops occasionally and never return
@@ -787,6 +787,8 @@ static bool analyze_image(uint8_t *image, uint32_t image_len)
 			return true;
 		if(c != SSDV_OK) // Error in JPEG image
 			return false;
+
+		chThdSleepMilliseconds(10);
 	}
 }
 

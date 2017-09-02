@@ -273,7 +273,7 @@ const uint8_t noCameraFound[] = {
 	0xBD, 0xC0, 0x20, 0x00, 0x01, 0xFF, 0xD9
 };
 
-static uint8_t gimage_id = 20; // Global image ID (for all image threads)
+static uint8_t gimage_id; // Global image ID (for all image threads)
 mutex_t camera_mtx;
 
 void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_t image_id, bool redudantTx)
@@ -288,7 +288,7 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 
 	// Init SSDV (FEC at 2FSK, non FEC at APRS)
 	bi = 0;
-	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, conf->ssdv_conf.callsign, image_id);
+	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, conf->ssdv_conf.callsign, image_id, conf->ssdv_conf.quality);
 	ssdv_enc_set_buffer(&ssdv, pkt);
 
 	while(true)

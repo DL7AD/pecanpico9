@@ -1,7 +1,7 @@
 
 /* SSDV - Slow Scan Digital Video                                        */
 /*=======================================================================*/
-/* Copyright 2011-2012 Philip Heron <phil@sanslogic.co.uk                */
+/* Copyright 2011-2016 Philip Heron <phil@sanslogic.co.uk>               */
 /*                                                                       */
 /* This program is free software: you can redistribute it and/or modify  */
 /* it under the terms of the GNU General Public License as published by  */
@@ -42,8 +42,9 @@ extern "C" {
 
 #define SSDV_MAX_CALLSIGN (6) /* Maximum number of characters in a callsign */
 
-#define SSDV_TYPE_NORMAL (0)
-#define SSDV_TYPE_NOFEC  (1)
+#define SSDV_TYPE_INVALID (0xFF)
+#define SSDV_TYPE_NORMAL  (0x00)
+#define SSDV_TYPE_NOFEC   (0x01)
 
 typedef struct
 {
@@ -62,11 +63,12 @@ typedef struct
 	uint8_t  mcu_mode;  /* 0 = 2x2, 1 = 2x1, 2 = 1x2, 3 = 1x1           */
 	uint16_t mcu_id;
 	uint16_t mcu_count;
+	uint8_t  quality;   /* JPEG quality level for encoding, 0-7         */
 	uint16_t packet_mcu_id;
 	uint8_t  packet_mcu_offset;
 	
 	/* Source buffer */
-	const uint8_t *inp;      /* Pointer to next input byte                    */
+	const uint8_t *inp;/* Pointer to next input byte                    */
 	size_t in_len;     /* Number of input bytes remaining               */
 	size_t in_skip;    /* Number of input bytes to skip                 */
 	
@@ -134,6 +136,7 @@ typedef struct {
 	uint16_t width;
 	uint16_t height;
 	uint8_t  eoi;
+	uint8_t  quality;
 	uint16_t mcu_mode;
 	uint8_t  mcu_offset;
 	uint16_t mcu_id;
@@ -141,7 +144,7 @@ typedef struct {
 } ssdv_packet_info_t;
 
 /* Encoding */
-extern char ssdv_enc_init(ssdv_t *s, uint8_t type, char *callsign, uint8_t image_id);
+extern char ssdv_enc_init(ssdv_t *s, uint8_t type, char *callsign, uint8_t image_id, int8_t quality);
 extern char ssdv_enc_set_buffer(ssdv_t *s, uint8_t *buffer);
 extern char ssdv_enc_get_packet(ssdv_t *s);
 extern char ssdv_enc_feed(ssdv_t *s, const uint8_t *buffer, size_t length);
