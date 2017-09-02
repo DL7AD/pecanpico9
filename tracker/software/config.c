@@ -267,7 +267,7 @@ void start_user_modules(void)
 	start_position_thread(&config[4]);*/
 
 	// Module IMAGE, APRS 2m 2GFSK
-	config[5].power = 50;									// Power 20 dBm
+	config[5].power = 127;									// Power 20 dBm
 	config[5].protocol = PROT_APRS_2GFSK;					// Protocol APRS SSDV, modulation 2GFSK
 	config[5].gfsk_conf.speed = 9600;						// 2GFSK Speed
 	config[5].frequency.type = FREQ_STATIC;					// Static frequency allocation

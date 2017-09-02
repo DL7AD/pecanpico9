@@ -270,8 +270,12 @@ void setModem2GFSK(gfsk_conf_t* conf) {
 	Si4464_write(setup_data_rate, 7);
 
 	// Use 2GFSK from async GPIO1
-	uint8_t use_2gfsk[] = {0x11, 0x20, 0x01, 0x00, 0x2B};
+	uint8_t use_2gfsk[] = {0x11, 0x20, 0x01, 0x00, 0x23};
 	Si4464_write(use_2gfsk, 5);
+
+	// transmit LSB first
+	uint8_t use_lsb_first[] = {0x11, 0x12, 0x01, 0x06, 0x01};
+	Si4464_write(use_lsb_first, 5);
 }
 
 void setPowerLevel(int8_t level) {

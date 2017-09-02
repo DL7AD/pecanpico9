@@ -411,7 +411,7 @@ static char ssdv_out_jpeg_int(ssdv_t *s, uint8_t rle, int value)
 	jpeg_encode_int(value, &intbits, &intlen);
 	r = jpeg_dht_lookup_symbol(s, (rle << 4) | (intlen & 0x0F), &huffbits, &hufflen);
 	
-	if(r != SSDV_OK) TRACE_ERROR("jpeg_dht_lookup_symbol: %i (%i:%i)", r, value, rle);
+	if(r != SSDV_OK) TRACE_ERROR("SSDV > jpeg_dht_lookup_symbol: %i (%i:%i)", r, value, rle);
 	
 	ssdv_outbits(s, huffbits, hufflen);
 	if(intlen) ssdv_outbits(s, intbits, intlen);
@@ -667,7 +667,7 @@ static char ssdv_have_marker(ssdv_t *s)
 	
 	case J_SOF2:
 		/* Don't do progressive images! */
-		TRACE_ERROR("Error: Progressive images not supported");
+		TRACE_ERROR("SSDV > Error: Progressive images not supported");
 		return(SSDV_ERROR);
 	
 	case J_EOI:
@@ -712,35 +712,35 @@ static char ssdv_have_marker_data(ssdv_t *s)
 		s->height = (d[1] << 8) | d[2];
 		
 		/* Display information about the image... */
-		TRACE_INFO("Precision: %i", d[0]);
-		TRACE_INFO("Resolution: %ix%i", s->width, s->height);
-		TRACE_INFO("Components: %i", d[5]);
+		TRACE_INFO("SSDV > Precision: %i", d[0]);
+		TRACE_INFO("SSDV > Resolution: %ix%i", s->width, s->height);
+		TRACE_INFO("SSDV > Components: %i", d[5]);
 		
 		/* The image must have a precision of 8 */
 		if(d[0] != 8)
 		{
-			TRACE_ERROR("Error: The image must have a precision of 8");
+			TRACE_ERROR("SSDV > Error: The image must have a precision of 8");
 			return(SSDV_ERROR);
 		}
 		
 		/* The image must have 3 components (Y'Cb'Cr) */
 		if(d[5] != 3)
 		{
-			TRACE_ERROR("Error: The image must have 3 components");
+			TRACE_ERROR("SSDV > Error: The image must have 3 components");
 			return(SSDV_ERROR);
 		}
 		
 		/* Maximum image is 4080x4080 */
 		if(s->width > 4080 || s->height > 4080)
 		{
-			TRACE_ERROR("Error: The image is too big. Maximum resolution is 4080x4080");
+			TRACE_ERROR("SSDV > Error: The image is too big. Maximum resolution is 4080x4080");
 			return(SSDV_ERROR);
 		}
 		
 		/* The image dimensions must be a multiple of 16 */
 		if((s->width & 0x0F) || (s->height & 0x0F))
 		{
-			TRACE_ERROR("Error: The image dimensions must be a multiple of 16");
+			TRACE_ERROR("SSDV > Error: The image dimensions must be a multiple of 16");
 			return(SSDV_ERROR);
 		}
 		
@@ -751,11 +751,11 @@ static char ssdv_have_marker_data(ssdv_t *s)
 			uint8_t *dq = &d[i * 3 + 6];
 			if(dq[0] != i + 1)
 			{
-				TRACE_ERROR("Error: Components are not in order in the SOF0 header");
+				TRACE_ERROR("SSDV > Error: Components are not in order in the SOF0 header");
 				return(SSDV_ERROR);
 			}
 			
-			TRACE_INFO("DQT table for component %i: %02X, Sampling factor: %ix%i", dq[0], dq[2], dq[1] & 0x0F, dq[1] >> 4);
+			TRACE_INFO("SSDV > DQT table for component %i: %02X, Sampling factor: %ix%i", dq[0], dq[2], dq[1] & 0x0F, dq[1] >> 4);
 			
 			/* The first (Y) component must have a factor of 2x2,2x1,1x2 or 1x1 */
 			if(dq[0] == 1)
@@ -767,13 +767,13 @@ static char ssdv_have_marker_data(ssdv_t *s)
 				case 0x21: s->mcu_mode = 2; s->ycparts = 2; break;
 				case 0x11: s->mcu_mode = 3; s->ycparts = 1; break;
 				default:
-					TRACE_ERROR("Error: Component 1 sampling factor is not supported");
+					TRACE_ERROR("SSDV > Error: Component 1 sampling factor is not supported");
 					return(SSDV_ERROR);
 				}
 			}
 			else if(dq[0] != 1 && dq[1] != 0x11)
 			{
-				TRACE_ERROR("Error: Component %i sampling factor must be 1x1", dq[0]);
+				TRACE_ERROR("SSDV > Error: Component %i sampling factor must be 1x1", dq[0]);
 				return(SSDV_ERROR);
 			}
 		}
@@ -787,11 +787,11 @@ static char ssdv_have_marker_data(ssdv_t *s)
 		case 3: l = (s->width >> 3) * (s->height >> 3); break;
 		}
 		
-		TRACE_INFO("MCU blocks: %i", (int) l);
+		TRACE_INFO("SSDV > MCU blocks: %i", (int) l);
 		
 		if(l > 0xFFFF)
 		{
-			TRACE_ERROR("Error: Maximum number of MCU blocks is 65535");
+			TRACE_ERROR("SSDV > Error: Maximum number of MCU blocks is 65535");
 			return(SSDV_ERROR);
 		}
 		
@@ -800,12 +800,12 @@ static char ssdv_have_marker_data(ssdv_t *s)
 		break;
 	
 	case J_SOS:
-		TRACE_INFO("Components: %i", d[0]);
+		TRACE_INFO("SSDV > Components: %i", d[0]);
 		
 		/* The image must have 3 components (Y'Cb'Cr) */
 		if(d[0] != 3)
 		{
-			TRACE_ERROR("Error: The image must have 3 components");
+			TRACE_ERROR("SSDV > Error: The image must have 3 components");
 			return(SSDV_ERROR);
 		}
 		
@@ -814,11 +814,11 @@ static char ssdv_have_marker_data(ssdv_t *s)
 			uint8_t *dh = &d[i * 2 + 1];
 			if(dh[0] != i + 1)
 			{
-				TRACE_ERROR("Error: Components are not in order in the SOF0 header");
+				TRACE_ERROR("SSDV > Error: Components are not in order in the SOF0 header");
 				return(SSDV_ERROR);
 			}
 			
-			TRACE_INFO("Component %i DHT: %02X", dh[0], dh[1]);
+			TRACE_INFO("SSDV > Component %i DHT: %02X", dh[0], dh[1]);
 		}
 		
 		/* Do I need to look at the last three bytes of the SOS data? */
@@ -827,14 +827,14 @@ static char ssdv_have_marker_data(ssdv_t *s)
 		/* Verify all of the DQT and DHT tables where loaded */
 		if(!s->sdqt[0] || !s->sdqt[1])
 		{
-			TRACE_ERROR("Error: The image is missing one or more DQT tables");
+			TRACE_ERROR("SSDV > Error: The image is missing one or more DQT tables");
 			return(SSDV_ERROR);
 		}
 		
 		if(!s->sdht[0][0] || !s->sdht[0][1] ||
 		   !s->sdht[1][0] || !s->sdht[1][1])
 		{
-			TRACE_ERROR("Error: The image is missing one or more DHT tables");
+			TRACE_ERROR("SSDV > Error: The image is missing one or more DHT tables");
 			return(SSDV_ERROR);
 		}
 		
@@ -884,7 +884,7 @@ static char ssdv_have_marker_data(ssdv_t *s)
 	
 	case J_DRI:
 		s->dri = (d[0] << 8) + d[1];
-		TRACE_INFO("Reset interval: %i blocks", s->dri);
+		TRACE_INFO("SSDV > Reset interval: %i blocks", s->dri);
 		break;
 	}
 	
@@ -1071,7 +1071,7 @@ char ssdv_enc_get_packet(ssdv_t *s)
 			else if(r != SSDV_FEED_ME)
 			{
 				/* An error occured */
-				TRACE_ERROR("ssdv_process() failed: %i", r);
+				TRACE_ERROR("SSDV > ssdv_process() failed: %i", r);
 				return(SSDV_ERROR);
 			}
 			break;
@@ -1266,12 +1266,12 @@ char ssdv_dec_feed(ssdv_t *s, uint8_t *packet)
 		}
 		
 		/* Display information about the image */
-		TRACE_INFO("Callsign: %s", decode_callsign(callsign, s->callsign));
-		TRACE_INFO("Image ID: %02X", s->image_id);
-		TRACE_INFO("Resolution: %ix%i", s->width, s->height);
-		TRACE_INFO("MCU blocks: %i", s->mcu_count);
-		TRACE_INFO("Sampling factor: %s", factor);
-		TRACE_INFO("Quality level: %d", s->quality);
+		TRACE_INFO("SSDV > Callsign: %s", decode_callsign(callsign, s->callsign));
+		TRACE_INFO("SSDV > Image ID: %02X", s->image_id);
+		TRACE_INFO("SSDV > Resolution: %ix%i", s->width, s->height);
+		TRACE_INFO("SSDV > MCU blocks: %i", s->mcu_count);
+		TRACE_INFO("SSDV > Sampling factor: %s", factor);
+		TRACE_INFO("SSDV > Quality level: %d", s->quality);
 		
 		/* Output JPEG headers and enable byte stuffing */
 		ssdv_out_headers(s);
@@ -1282,7 +1282,7 @@ char ssdv_dec_feed(ssdv_t *s, uint8_t *packet)
 	if(packet_id != s->packet_id)
 	{
 		/* One or more packets have been lost! */
-		TRACE_ERROR("Gap detected between packets %i and %i", s->packet_id - 1, packet_id);
+		TRACE_ERROR("SSDV > Gap detected between packets %i and %i", s->packet_id - 1, packet_id);
 		
 		/* If this packet has no new MCU, ignore */
 		if(s->packet_mcu_offset == 0xFF) return(SSDV_FEED_ME);
@@ -1330,7 +1330,7 @@ char ssdv_dec_feed(ssdv_t *s, uint8_t *packet)
 		else if(r != SSDV_FEED_ME)
 		{
 			/* An error occured */
-			TRACE_ERROR("ssdv_process() failed: %i", r);
+			TRACE_ERROR("SSDV > ssdv_process() failed: %i", r);
 			return(SSDV_ERROR);
 		}
 	}

@@ -72,34 +72,33 @@ void sendAFSK(radioMSG_t *msg) {
 }
 
 void init2GFSK(radioMSG_t *msg) {
-	// Initialize radio and tune
+	// Initialize radio
 	Si4464_Init();
 	setModem2GFSK(msg->gfsk_conf);
-	radioTune(msg->freq, 0, msg->power, 0);
-	chThdSleepMilliseconds(30);
 }
 
 void send2GFSK(radioMSG_t *msg) {
-	// Initialize variables for timer
-	tim_msg = msg;
-	gfsk_bit = 0;
-	current_byte = 0;
+	uint16_t c = 64;
+	uint16_t all = (msg->bin_len+7)/8;
 
-	// Initialize variables for timer
-	uint32_t initial_interval = STM32_PCLK1 / msg->gfsk_conf->speed / 2;
-	RCC->APB1ENR |= RCC_APB1ENR_TIM7EN;
-	nvicEnableVector(TIM7_IRQn, 1);
-	TIM7->ARR = initial_interval;
-	TIM7->PSC = 1;
-	TIM7->CR1 &= ~STM32_TIM_CR1_ARPE;
-	TIM7->DIER |= STM32_TIM_DIER_UIE;
+	// Initial FIFO fill
+	Si4464_writeFIFO(msg->msg, c);
 
-	// Start timer
-	TIM7->CR1 |= STM32_TIM_CR1_CEN;
+	// Transmit
+	radioTune(msg->freq, 0, msg->power, all);
 
-	// Block execution while timer is running
-	while(TIM7->CR1 & STM32_TIM_CR1_CEN)
-		chThdSleepMilliseconds(10);
+	while(c < all) { // Do while bytes not written into FIFO completely
+
+		// Determine free memory in Si4464-FIFO
+		uint16_t more = Si4464_freeFIFO();
+		if(more > all-c)
+			more = all-c; // Last bytes in FIFO
+
+		Si4464_writeFIFO(&msg->msg[c], more); // Write into FIFO
+
+		c += more;
+		chThdSleepMilliseconds(1);
+	}
 }
 
 /**
@@ -263,6 +262,10 @@ void send2FSK(radioMSG_t *msg) {
 
 void shutdownRadio(void)
 {
+	// Wait for PH to finish transmission for 2GFSK
+	while(active_mod == MOD_2GFSK && Si4464_getState() == SI4464_STATE_TX)
+		chThdSleepMilliseconds(5);
+
 	Si4464_shutdown();
 	active_mod = MOD_NOT_SET;
 }
@@ -325,6 +328,10 @@ bool transmitOnRadio(radioMSG_t *msg, bool shutdown) {
 
 	if(inRadioBand(msg->freq)) { // Frequency in radio radio band
 
+		// Wait for PH to finish transmission for 2GFSK
+		if(active_mod == MOD_2GFSK && Si4464_getState() == SI4464_STATE_TX)
+			chThdSleepMilliseconds(5);
+
 		// Lock interference mutex
 		chMtxLock(&interference_mtx);
 
@@ -359,12 +366,9 @@ bool transmitOnRadio(radioMSG_t *msg, bool shutdown) {
 				break;
 		}
 
+		active_mod = msg->mod;
 		if(shutdown)
-		{
 			shutdownRadio(); // Shutdown radio for reinitialization
-		} else {
-			active_mod = msg->mod;
-		}
 
 		chMtxUnlock(&interference_mtx); // Heavy interference finished (HF)
 
