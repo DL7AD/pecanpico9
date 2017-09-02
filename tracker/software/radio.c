@@ -41,7 +41,7 @@ void initAFSK(radioMSG_t *msg) {
 	// Initialize radio and tune
 	Si4464_Init();
 	setModemAFSK();
-	radioTune(msg->freq, 0, msg->power, 0);
+	radioTune(msg->freq, 0, msg->power, 0, false);
 }
 
 void sendAFSK(radioMSG_t *msg) {
@@ -77,7 +77,7 @@ void init2GFSK(radioMSG_t *msg) {
 	setModem2GFSK(msg->gfsk_conf);
 }
 
-void send2GFSK(radioMSG_t *msg) {
+void send2GFSK(radioMSG_t *msg, bool shutdown) {
 	uint16_t c = 64;
 	uint16_t all = (msg->bin_len+7)/8;
 
@@ -85,7 +85,7 @@ void send2GFSK(radioMSG_t *msg) {
 	Si4464_writeFIFO(msg->msg, c);
 
 	// Transmit
-	radioTune(msg->freq, 0, msg->power, all);
+	radioTune(msg->freq, 0, msg->power, all, shutdown);
 
 	while(c < all) { // Do while bytes not written into FIFO completely
 
@@ -164,7 +164,7 @@ void initOOK(radioMSG_t *msg) {
 	// Initialize radio and tune
 	Si4464_Init();
 	setModemOOK();
-	radioTune(msg->freq, 0, msg->power, 0);
+	radioTune(msg->freq, 0, msg->power, 0, false);
 }
 
 /**
@@ -243,7 +243,7 @@ void init2FSK(radioMSG_t *msg) {
 	// Initialize radio and tune
 	Si4464_Init();
 	setModem2FSK();
-	radioTune(msg->freq, msg->fsk_conf->shift, msg->power, 0);
+	radioTune(msg->freq, msg->fsk_conf->shift, msg->power, 0, false);
 }
 
 void send2FSK(radioMSG_t *msg) {
@@ -329,7 +329,7 @@ bool transmitOnRadio(radioMSG_t *msg, bool shutdown) {
 	if(inRadioBand(msg->freq)) { // Frequency in radio radio band
 
 		// Wait for PH to finish transmission for 2GFSK
-		if(active_mod == MOD_2GFSK && Si4464_getState() == SI4464_STATE_TX)
+		while(active_mod == MOD_2GFSK && Si4464_getState() == SI4464_STATE_TX)
 			chThdSleepMilliseconds(5);
 
 		// Lock interference mutex
@@ -349,7 +349,7 @@ bool transmitOnRadio(radioMSG_t *msg, bool shutdown) {
 			case MOD_2GFSK:
 				if(active_mod != msg->mod)
 					init2GFSK(msg);
-				send2GFSK(msg);
+				send2GFSK(msg, shutdown);
 				break;
 			case MOD_AFSK:
 				if(active_mod != msg->mod)

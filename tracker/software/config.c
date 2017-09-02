@@ -190,7 +190,7 @@ void start_user_modules(void)
 	config[0].aprs_conf.tel_enc = TRUE;						// Transmit Telemetry encoding information activated
 	config[0].aprs_conf.tel_enc_cycle = 3600;				// Transmit Telemetry encoding information every 3600sec
 	chsnprintf(config[0].aprs_conf.tel_comment, 30, "http://ssdv.habhub.org/DL7AD");// Telemetry comment
-	start_position_thread(&config[0]);
+	//start_position_thread(&config[0]);
 
 	// Module POSITION, APRS 2m 2GFSK
 	/*config[1].power = 127;								// Power 10 dBm
@@ -283,8 +283,8 @@ void start_user_modules(void)
 	chsnprintf(config[5].ssdv_conf.callsign, 7, "DL7AD2");	// SSDV Callsign
 	config[5].ssdv_conf.ram_buffer = ssdv_buffer;			// Camera buffer
 	config[5].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
-	config[5].ssdv_conf.res = RES_QVGA;						// Resolution VGA
-	config[5].ssdv_conf.quality = 4;						// High quality
+	config[5].ssdv_conf.res = RES_VGA;						// Resolution VGA
+	config[5].ssdv_conf.quality = 7;						// High quality
 	start_image_thread(&config[5]);
 
 	// Module IMAGE, SSDV 2m 2FSK
