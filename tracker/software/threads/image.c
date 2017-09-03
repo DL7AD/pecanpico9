@@ -379,6 +379,7 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 
 THD_FUNCTION(imgThread, arg) {
 	module_conf_t* conf = (module_conf_t*)arg;
+	bool camInitialized = false;
 
 	systime_t time = chVTGetSystemTimeX();
 	while(true)
@@ -406,7 +407,7 @@ THD_FUNCTION(imgThread, arg) {
 			bool camera_found = false;
 
 			// Detect camera
-			if(OV5640_isAvailable()) { // OV5640 available
+			if(camInitialized || OV5640_isAvailable()) { // OV5640 available
 
 				TRACE_INFO("IMG  > OV5640 found");
 				camera_found = true;
@@ -418,7 +419,10 @@ THD_FUNCTION(imgThread, arg) {
 					do {
 
 						// Init camera
-						OV5640_init(&conf->ssdv_conf);
+						if(!camInitialized) {
+							OV5640_init(&conf->ssdv_conf);
+							camInitialized = true;
+						}
 
 						// Sample data from DCMI through DMA into RAM
 						tries = 5; // Try 5 times at maximum
@@ -435,7 +439,10 @@ THD_FUNCTION(imgThread, arg) {
 				} else { // Static resolution
 
 					// Init camera
-					OV5640_init(&conf->ssdv_conf);
+					if(!camInitialized) {
+						OV5640_init(&conf->ssdv_conf);
+						camInitialized = true;
+					}
 
 					// Sample data from DCMI through DMA into RAM
 					tries = 5; // Try 5 times at maximum
@@ -446,7 +453,10 @@ THD_FUNCTION(imgThread, arg) {
 				}
 
 				// Switch off camera
+				#if !KEEP_CAM_SWITCHED_ON
 				OV5640_deinit();
+				camInitialized = false;
+				#endif
 
 				// Get image
 				image_len = OV5640_getBuffer(&image);
@@ -454,6 +464,7 @@ THD_FUNCTION(imgThread, arg) {
 
 			} else { // Camera error
 
+				camInitialized = false;
 				TRACE_ERROR("IMG  > No camera found");
 
 			}

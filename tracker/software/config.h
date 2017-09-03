@@ -25,6 +25,8 @@
 											 * With 1.8V only 15dBm can be done. Some serial-USB adapters also need a 3V IO level in
 											 * order to work. However 3V takes a lot of power in idle. You can save energy using 1.8V. */
 
+#define KEEP_CAM_SWITCHED_ON	TRUE		/* Keep camera switched on and initialized after it has been switched on once, no configuration change is possible */
+
 void start_user_modules(void);
 extern module_conf_t config[9];
 
