@@ -51,7 +51,7 @@
 uint32_t aprs_encode_position(uint8_t* message, mod_t mod, const aprs_conf_t *config, trackPoint_t *trackPoint);
 uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const aprs_conf_t *config, const telemetry_conf_t type);
 uint32_t aprs_encode_message(uint8_t* message, mod_t mod, const aprs_conf_t *config, const char *receiver, const char *text);
-uint32_t aprs_encode_experimental(char packetType, uint8_t* message, mod_t mod, const aprs_conf_t *config, uint8_t *image, size_t size);
+uint32_t aprs_encode_experimental(char packetType, uint8_t* message, mod_t mod, const aprs_conf_t *config, uint8_t *data, size_t size, bool noPreamble);
 
 #endif
 

@@ -169,7 +169,7 @@ uint32_t aprs_encode_position(uint8_t* message, mod_t mod, const aprs_conf_t *co
 /**
  * Transmit custom experimental packet
  */
-uint32_t aprs_encode_experimental(char packetType, uint8_t* message, mod_t mod, const aprs_conf_t *config, uint8_t *data, size_t size)
+uint32_t aprs_encode_experimental(char packetType, uint8_t* message, mod_t mod, const aprs_conf_t *config, uint8_t *data, size_t size, bool noPreamble)
 {
 	ax25_t packet;
 	packet.data = message;
@@ -177,7 +177,7 @@ uint32_t aprs_encode_experimental(char packetType, uint8_t* message, mod_t mod, 
 	packet.mod = mod;
 
 	// Encode APRS header
-	ax25_send_header(&packet, config->callsign, config->ssid, config->path, config->preamble);
+	ax25_send_header(&packet, config->callsign, config->ssid, config->path, noPreamble ? 0 : config->preamble);
 	ax25_send_string(&packet, "{{");
 	ax25_send_byte(&packet, packetType);
 

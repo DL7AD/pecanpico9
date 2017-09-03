@@ -284,10 +284,10 @@ void setPowerLevel(int8_t level) {
 	Si4464_write(set_pa_pwr_lvl_property_command, 5);
 }
 
-void startTx(uint16_t size, bool shutdownAfterPhDone) {
+void startTx(uint16_t size) {
 	palClearLine(LINE_IO_LED1);	// Set indication LED
 
-	uint8_t change_state_command[] = {0x31, 0x00, (shutdownAfterPhDone ? SI4464_STATE_READY : SI4464_STATE_NOCHANGE) << 4, (size >> 8) & 0x1F, size & 0xFF};
+	uint8_t change_state_command[] = {0x31, 0x00, 0x30, (size >> 8) & 0x1F, size & 0xFF};
 	Si4464_write(change_state_command, 5);
 }
 
@@ -311,7 +311,7 @@ void Si4464_shutdown(void) {
  * @param shift Shift of FSK in Hz
  * @param level Transmission power level in dBm
  */
-bool radioTune(uint32_t frequency, uint16_t shift, int8_t level, uint16_t size, bool shutdownAfterPhDone) {
+bool radioTune(uint32_t frequency, uint16_t shift, int8_t level, uint16_t size) {
 	// Tracing
 	TRACE_INFO("SI   > Tune Si4464");
 
@@ -325,7 +325,7 @@ bool radioTune(uint32_t frequency, uint16_t shift, int8_t level, uint16_t size, 
 	setShift(shift);				// Set shift
 	setPowerLevel(level);			// Set power level
 
-	startTx(size, shutdownAfterPhDone);
+	startTx(size);
 	return true;
 }
 

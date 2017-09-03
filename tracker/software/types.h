@@ -86,7 +86,7 @@ typedef struct {
 } gfsk_conf_t;
 
 typedef struct { // Radio message type
-	uint8_t 		msg[512];		// Message (data)
+	uint8_t 		msg[8191];		// Message (data)
 	uint32_t		bin_len;		// Binary length
 	uint32_t		freq;			// Frequency
 	int8_t			power;			// Power in dBm

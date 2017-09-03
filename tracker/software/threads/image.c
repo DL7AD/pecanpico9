@@ -291,6 +291,12 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, conf->ssdv_conf.callsign, image_id, conf->ssdv_conf.quality);
 	ssdv_enc_set_buffer(&ssdv, pkt);
 
+	// Init transmission packet
+	radioMSG_t msg;
+	msg.bin_len = 0;
+	msg.freq = getFrequency(&conf->frequency);
+	msg.power = conf->power;
+
 	while(true)
 	{
 		conf->wdg_timeout = chVTGetSystemTimeX() + S2ST(600); // TODO: Implement more sophisticated method
@@ -303,6 +309,8 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 
 			if(r <= 0)
 			{
+				if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) transmitOnRadio(&msg, true); // Empty buffer
+				shutdownRadio();
 				TRACE_ERROR("SSDV > Premature end of file");
 				break;
 			}
@@ -311,19 +319,16 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 
 		if(c == SSDV_EOI)
 		{
+			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) transmitOnRadio(&msg, true); // Empty buffer
 			shutdownRadio();
 			TRACE_INFO("SSDV > ssdv_enc_get_packet said EOI");
 			break;
 		} else if(c != SSDV_OK) {
+			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) transmitOnRadio(&msg, true); // Empty buffer
 			shutdownRadio();
 			TRACE_ERROR("SSDV > ssdv_enc_get_packet failed: %i", c);
 			return;
 		}
-
-		// Transmit packet
-		radioMSG_t msg;
-		msg.freq = getFrequency(&conf->frequency);
-		msg.power = conf->power;
 
 		switch(conf->protocol) {
 			case PROT_APRS_2GFSK:
@@ -336,12 +341,17 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 				for(uint16_t t=0; t<256; t++)
 					pkt_base91[t] = 0;
 
+				// Encode packet
+				TRACE_INFO("IMG  > Encode APRS/SSDV packet");
 				base91_encode(&pkt[1], pkt_base91, sizeof(pkt)-37); // Sync byte, CRC and FEC of SSDV not transmitted
-				msg.bin_len = aprs_encode_experimental('I', msg.msg, msg.mod, &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91));
+				msg.bin_len += 8 + aprs_encode_experimental('I', &msg.msg[msg.bin_len/8+1], msg.mod, &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91), msg.bin_len > 0);
+				if(redudantTx)
+					msg.bin_len += 8 + aprs_encode_experimental('I', &msg.msg[msg.bin_len/8+1], msg.mod, &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91), false);
 
-				// Transmit on radio (keep transmitter switched on if packet spacing=0ms and it isnt the last packet being sent)
-				if(redudantTx) transmitOnRadio(&msg, false); // Redundant transmission
-				transmitOnRadio(&msg, conf->packet_spacing != 0); // Keep transmitter switched on if next packet will be sent right away
+				if(msg.bin_len > 58000 || conf->packet_spacing) { // Transmit if buffer is full or if single packet transmission activation (packet_spacing != 0)
+					transmitOnRadio(&msg, true);
+					msg.bin_len = 0;
+				}
 				break;
 
 			case PROT_SSDV_2FSK:
@@ -483,7 +493,7 @@ void start_image_thread(module_conf_t *conf)
 	if(conf->init_delay) chThdSleepMilliseconds(conf->init_delay);
 	TRACE_INFO("IMG  > Startup image thread");
 	chsnprintf(conf->name, sizeof(conf->name), "IMG");
-	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(6*1024), "IMG", NORMALPRIO, imgThread, conf);
+	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(6*1024+8191), "IMG", NORMALPRIO, imgThread, conf);
 	if(!th) {
 		// Print startup error, do not start watchdog for this thread
 		TRACE_ERROR("IMG  > Could not startup thread (not enough memory available)");
