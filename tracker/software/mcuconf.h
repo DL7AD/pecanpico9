@@ -65,6 +65,12 @@
 #define STM32_BKPRAM_ENABLE                 FALSE
 
 /*
+ * PAL driver system settings.
+ */
+#define STM32_DISABLE_EXTI1_HANDLER
+#define STM32_DISABLE_EXTI10_15_HANDLER
+
+/*
  * ADC driver system settings.
  */
 #define STM32_ADC_ADCPRE                    ADC_CCR_ADCPRE_DIV2

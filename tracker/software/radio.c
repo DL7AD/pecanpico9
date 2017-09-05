@@ -35,6 +35,7 @@ static const char *getModulation(uint8_t key) {
 };
 
 void initAFSK(radioMSG_t *msg) {
+  (void)msg;
 	// Initialize radio
 	Si4464_Init();
 	setModemAFSK();
@@ -42,6 +43,7 @@ void initAFSK(radioMSG_t *msg) {
 }
 
 void sendAFSK(radioMSG_t *msg) {
+  (void)msg;
 	// Initialize variables for timer
 	memcpy(&tim_msg, msg, sizeof(radioMSG_t));
 
@@ -79,6 +81,7 @@ void init2GFSK(radioMSG_t *msg) {
 }
 
 thread_reference_t feeder_ref = NULL;
+thread_t *feeder_thd = NULL;
 
 /*
  * Radio GPIO1 interrupt
@@ -92,6 +95,11 @@ CH_IRQ_HANDLER(VectorE0) {
 	CH_IRQ_EPILOGUE();
 }
 
+/*
+ * TODO: I'd suggest re-working the FIFO handler system.
+ * Will give it some thought.
+ * Meanwhile there are a few changes that are worth testing.
+ */
 static THD_WORKING_AREA(si_fifo_feeder_wa, 10240);
 THD_FUNCTION(si_fifo_feeder_thd, arg)
 {
@@ -100,26 +108,30 @@ THD_FUNCTION(si_fifo_feeder_thd, arg)
 	uint16_t c = 64;
 	uint16_t all = (tim_msg.bin_len+7)/8;
 
+	chRegSetThreadName("radio_tx_feeder");
 	// Initial FIFO fill
 	Si4464_writeFIFO(tim_msg.msg, c);
 
 	// Initialize interrupt
+	chSysLock();
 	SYSCFG->EXTICR[3] |= SYSCFG_EXTICR4_EXTI12_PC;
-	EXTI->IMR = EXTI_IMR_MR12; // Activate interrupt for chan12 (=>PC12)
-	EXTI->RTSR = EXTI_RTSR_TR12; // Listen on rising edge
+	EXTI->IMR |= EXTI_IMR_MR12; // Activate interrupt for chan12 (=>PC12)
+	EXTI->RTSR |= EXTI_RTSR_TR12; // Listen on rising edge
+    EXTI->PR |= EXTI_PR_PR12; // Clear any pending interrupt
 	nvicEnableVector(EXTI15_10_IRQn, 1); // Enable interrupt
-
+	chSysUnlock();
 	// Transmit
 	radioTune(tim_msg.freq, 0, tim_msg.power, all);
 
 	while(c < all) { // Do while bytes not written into FIFO completely
-		chThdSuspendS(&feeder_ref); // Suspend until interupt resumes it
+		chThdSuspendS(&feeder_ref); // Suspend until interrupt resumes it
 
 		// Determine free memory in Si4464-FIFO
-		uint16_t more = Si4464_freeFIFO();
-		if(more > all-c)
-			more = all-c; // Last bytes in FIFO
-
+		uint8_t more = Si4464_freeFIFO();
+		if(more > all-c) {
+			if((more = all-c) == 0) // Calculate remainder to send
+              break; // End if nothing left
+		}
 		//TRACE_DEBUG("fed %db %d<%d", more, c, all);
 		Si4464_writeFIFO(&tim_msg.msg[c], more); // Write into FIFO
 		c += more;
@@ -128,14 +140,17 @@ THD_FUNCTION(si_fifo_feeder_thd, arg)
 	nvicDisableVector(EXTI15_10_IRQn); // Disable interrupt
 
 	shutdownRadio();
+	chThdExit(MSG_OK);
 }
 
 void send2GFSK(radioMSG_t *msg) {
 	// Copy data
 	memcpy(&tim_msg, msg, sizeof(radioMSG_t));
 
-	// Start FIFO feeder
-	chThdCreateStatic(si_fifo_feeder_wa, sizeof(si_fifo_feeder_wa), HIGHPRIO+1, si_fifo_feeder_thd, NULL);
+	if(feeder_thd != NULL) // No waiting on first use
+	  chThdWait(feeder_thd);
+	// Start/re-start FIFO feeder
+	feeder_thd = chThdCreateStatic(si_fifo_feeder_wa, sizeof(si_fifo_feeder_wa), HIGHPRIO+1, si_fifo_feeder_thd, NULL);
 
 	// Wait for the transmitter to start (because it is used as mutex)
 	while(Si4464_getState() != SI4464_STATE_TX)
@@ -231,6 +246,7 @@ CH_FAST_IRQ_HANDLER(STM32_TIM7_HANDLER)
 }
 
 void initOOK(radioMSG_t *msg) {
+  (void)msg;
 	// Initialize radio
 	Si4464_Init();
 	setModemOOK();
@@ -257,6 +273,7 @@ void sendOOK(radioMSG_t *msg) {
 }
 
 void init2FSK(radioMSG_t *msg) {
+  (void)msg;
 	// Initialize radio and tune
 	Si4464_Init();
 	setModem2FSK();
@@ -359,6 +376,7 @@ uint32_t getAPRSRegionFrequency(void) {
   */
 bool transmitOnRadio(radioMSG_t *msg, bool shutdown)
 {
+  (void)shutdown;
 	if(inRadioBand(msg->freq)) // Frequency in radio radio band
 	{
 		if(inRadioBand(msg->freq)) // Frequency in radio radio band
@@ -397,7 +415,11 @@ bool transmitOnRadio(radioMSG_t *msg, bool shutdown)
 					TRACE_ERROR("RAD  > Modulation not set");
 					break;
 			}
-
+			/*
+			 * FIXME: send2GFSK will return as soon as the radio enter TX state.
+			 * So the radio lock will be removed and then ssdv analysis can run.
+			 * If ssdv analysis finishes before TX is done then tim.buf gets clobbered
+			 */
 			unlockRadio(); // Unlock radio
 
 		} else {
