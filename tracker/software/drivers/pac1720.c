@@ -152,7 +152,7 @@ void pac1720_init(void)
 	I2C_write8(PAC1720_ADDRESS, PAC1720_CH2_VSENSE_SAMP_CONFIG, 0x5F);
 	I2C_write8(PAC1720_ADDRESS, PAC1720_V_SOURCE_SAMP_CONFIG,   0xFF);
 
-	TRACE_INFO("PAC  > Init PAC1720 continuous measurement");
-	chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(256), "PAC1720", NORMALPRIO, pac1720_thd, NULL);
+	//TRACE_INFO("PAC  > Init PAC1720 continuous measurement");
+	//chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(512), "PAC1720", NORMALPRIO, pac1720_thd, NULL);
 }
 

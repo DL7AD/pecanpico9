@@ -99,7 +99,6 @@ typedef struct { // Radio message type
 } radioMSG_t;
 
 typedef enum {
-	RES_QCIF,
 	RES_QVGA,
 	RES_VGA,
 	RES_XGA,
@@ -108,7 +107,7 @@ typedef enum {
 } resolution_t;
 
 typedef struct {
-	char callsign[8];		// Callsign
+	char callsign[7];		// Callsign (or stream identifier)
 	resolution_t res;		// Camera resolution
 	uint8_t quality;		// JPEG quality
 	uint8_t *ram_buffer;	// Camera Buffer

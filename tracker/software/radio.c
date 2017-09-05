@@ -22,15 +22,12 @@ static uint32_t phase;					// Fixed point 9.7 (2PI = TABLE_SIZE)
 static uint32_t packet_pos;				// Next bit to be sent out
 static uint32_t current_sample_in_baud;	// 1 bit = SAMPLES_PER_BAUD samples
 static uint8_t current_byte;
-static radioMSG_t *tim_msg;
-static uint32_t gfsk_bit;
+static radioMSG_t tim_msg;
 
 static uint8_t txs;						// Serial maschine state
 static uint8_t txc;						// Current byte
 static uint32_t txi;					// Bitcounter of current byte
 static uint32_t txj;					// Bytecounter
-static radioMSG_t *fsk_msg;				// Current message
-static virtual_timer_t vt;				// UART timer
 
 static const char *getModulation(uint8_t key) {
 	const char *val[] = {"unknown", "OOK", "2FSK", "2GFSK", "AFSK"};
@@ -38,15 +35,15 @@ static const char *getModulation(uint8_t key) {
 };
 
 void initAFSK(radioMSG_t *msg) {
-	// Initialize radio and tune
+	// Initialize radio
 	Si4464_Init();
 	setModemAFSK();
-	radioTune(msg->freq, 0, msg->power, 0);
+	active_mod = MOD_AFSK;
 }
 
 void sendAFSK(radioMSG_t *msg) {
 	// Initialize variables for timer
-	tim_msg = msg;
+	memcpy(&tim_msg, msg, sizeof(radioMSG_t));
 
 	phase_delta = PHASE_DELTA_1200;
 	phase = 0;
@@ -54,12 +51,13 @@ void sendAFSK(radioMSG_t *msg) {
 	current_sample_in_baud = 0;
 	current_byte = 0;
 
+	// Tune
+	radioTune(msg->freq, 0, msg->power, 0);
+
 	// Initialize timer
-	uint32_t initial_interval = 250;
 	RCC->APB1ENR |= RCC_APB1ENR_TIM7EN;
 	nvicEnableVector(TIM7_IRQn, 1);
-	TIM7->ARR = initial_interval;
-	TIM7->PSC = 1;
+	TIM7->ARR = 500;
 	TIM7->CR1 &= ~STM32_TIM_CR1_ARPE;
 	TIM7->DIER |= STM32_TIM_DIER_UIE;
 
@@ -69,47 +67,91 @@ void sendAFSK(radioMSG_t *msg) {
 	// Block execution while timer is running
 	while(TIM7->CR1 & STM32_TIM_CR1_CEN)
 		chThdSleepMilliseconds(10);
+
+	shutdownRadio();
 }
 
 void init2GFSK(radioMSG_t *msg) {
 	// Initialize radio
 	Si4464_Init();
 	setModem2GFSK(msg->gfsk_conf);
+	active_mod = MOD_2GFSK;
 }
 
-void send2GFSK(radioMSG_t *msg) {
+thread_reference_t feeder_ref = NULL;
+
+/*
+ * Radio GPIO1 interrupt
+ */
+CH_IRQ_HANDLER(VectorE0) {
+	CH_IRQ_PROLOGUE();
+
+	chThdResumeS(&feeder_ref, MSG_OK);
+
+	EXTI->PR |= EXTI_PR_PR12;
+	CH_IRQ_EPILOGUE();
+}
+
+static THD_WORKING_AREA(si_fifo_feeder_wa, 10240);
+THD_FUNCTION(si_fifo_feeder_thd, arg)
+{
+	(void)arg;
+
 	uint16_t c = 64;
-	uint16_t all = (msg->bin_len+7)/8;
+	uint16_t all = (tim_msg.bin_len+7)/8;
 
 	// Initial FIFO fill
-	Si4464_writeFIFO(msg->msg, c);
+	Si4464_writeFIFO(tim_msg.msg, c);
+
+	// Initialize interrupt
+	SYSCFG->EXTICR[3] |= SYSCFG_EXTICR4_EXTI12_PC;
+	EXTI->IMR = EXTI_IMR_MR12; // Activate interrupt for chan12 (=>PC12)
+	EXTI->RTSR = EXTI_RTSR_TR12; // Listen on rising edge
+	nvicEnableVector(EXTI15_10_IRQn, 1); // Enable interrupt
 
 	// Transmit
-	radioTune(msg->freq, 0, msg->power, all);
+	radioTune(tim_msg.freq, 0, tim_msg.power, all);
 
 	while(c < all) { // Do while bytes not written into FIFO completely
+		chThdSuspendS(&feeder_ref); // Suspend until interupt resumes it
 
 		// Determine free memory in Si4464-FIFO
 		uint16_t more = Si4464_freeFIFO();
 		if(more > all-c)
 			more = all-c; // Last bytes in FIFO
 
-		Si4464_writeFIFO(&msg->msg[c], more); // Write into FIFO
-
+		//TRACE_DEBUG("fed %db %d<%d", more, c, all);
+		Si4464_writeFIFO(&tim_msg.msg[c], more); // Write into FIFO
 		c += more;
-		chThdSleepMilliseconds(1);
 	}
+
+	nvicDisableVector(EXTI15_10_IRQn); // Disable interrupt
+
+	shutdownRadio();
+}
+
+void send2GFSK(radioMSG_t *msg) {
+	// Copy data
+	memcpy(&tim_msg, msg, sizeof(radioMSG_t));
+
+	// Start FIFO feeder
+	chThdCreateStatic(si_fifo_feeder_wa, sizeof(si_fifo_feeder_wa), HIGHPRIO+1, si_fifo_feeder_thd, NULL);
+
+	// Wait for the transmitter to start (because it is used as mutex)
+	while(Si4464_getState() != SI4464_STATE_TX)
+		chThdSleepMilliseconds(1);
 }
 
 /**
-  * Fast interrupt handler for AFSK and 2GFSK modulation. It has has the
-  * highest priority in order to provide an accurate low jitter modulation.
+  * Fast interrupt handler for AFSK modulation. It has has the highest priority
+  * in order to provide an accurate low jitter modulation.
   */
 CH_FAST_IRQ_HANDLER(STM32_TIM7_HANDLER)
 {
-	if(tim_msg->mod == MOD_AFSK) {
+	if(active_mod == MOD_AFSK) // AFSK
+	{
 
-		if(packet_pos == tim_msg->bin_len) { 	// Packet transmission finished
+		if(packet_pos == tim_msg.bin_len) { 	// Packet transmission finished
 			TIM7->CR1 &= ~STM32_TIM_CR1_CEN;	// Disable timer
 			TIM7->SR &= ~STM32_TIM_SR_UIF;		// Reset interrupt flag
 			return;
@@ -117,7 +159,7 @@ CH_FAST_IRQ_HANDLER(STM32_TIM7_HANDLER)
 
 		if(current_sample_in_baud == 0) {
 			if((packet_pos & 7) == 0) { // Load up next byte
-				current_byte = tim_msg->msg[packet_pos >> 3];
+				current_byte = tim_msg.msg[packet_pos >> 3];
 			} else { // Load up next bit
 				current_byte = current_byte / 2;
 			}
@@ -127,7 +169,7 @@ CH_FAST_IRQ_HANDLER(STM32_TIM7_HANDLER)
 		phase_delta = (current_byte & 1) ? PHASE_DELTA_1200 : PHASE_DELTA_2200;
 
 		phase += phase_delta;					// Add delta-phase (delta-phase tone dependent)
-		RADIO_MOD_GPIO((phase >> 16) & 1);		// Set modulaton pin (connected to Si4464)
+		RADIO_WRITE_GPIO((phase >> 16) & 1);	// Set modulaton pin (connected to Si4464)
 
 		current_sample_in_baud++;
 
@@ -135,136 +177,129 @@ CH_FAST_IRQ_HANDLER(STM32_TIM7_HANDLER)
 			current_sample_in_baud = 0;
 			packet_pos++;
 		}
-		palToggleLine(LINE_IO_LED1);
 
-	} else if(tim_msg->mod == MOD_2GFSK) {
+	} else { // 2FSK
 
-		if(gfsk_bit >= tim_msg->bin_len) {		// Packet transmission finished
-			TIM7->CR1 &= ~STM32_TIM_CR1_CEN;	// Disable timer
-			TIM7->SR &= ~STM32_TIM_SR_UIF;		// Reset interrupt flag
-			return;
+		switch(txs)
+		{
+			case 6: // TX-delay
+				txj++;
+				if(txj > (uint32_t)(tim_msg.fsk_conf->predelay * tim_msg.fsk_conf->baud / 1000)) {
+					txj = 0;
+					txs = 7;
+				}
+				break;
+
+			case 7: // Transmit a single char
+				if(txj < tim_msg.bin_len/8) {
+					txc = tim_msg.msg[txj]; // Select char
+					txj++;
+					RADIO_WRITE_GPIO(LOW); // Start Bit (Synchronizing)
+					txi = 0;
+					txs = 8;
+				} else { // Finished to transmit string
+					RADIO_WRITE_GPIO(HIGH);
+					TIM7->CR1 &= ~STM32_TIM_CR1_CEN; // Disable timer
+					TIM7->SR &= ~STM32_TIM_SR_UIF; // Reset interrupt flag
+					return;
+				}
+				break;
+
+			case 8:
+				if(txi < tim_msg.fsk_conf->bits) {
+					txi++;
+					RADIO_WRITE_GPIO(txc & 1);
+					txc = txc >> 1;
+				} else {
+					RADIO_WRITE_GPIO(HIGH); // Stop Bit
+					txi = 0;
+					txs = 9;
+				}
+				break;
+
+			case 9:
+				if(tim_msg.fsk_conf->stopbits == 2)
+					RADIO_WRITE_GPIO(HIGH); // Stop Bit
+				txs = 7;
 		}
 
-		if((gfsk_bit & 7) == 0) { // Load up next byte
-			current_byte = tim_msg->msg[gfsk_bit >> 3];
-		} else {
-			current_byte = current_byte / 2; // Load next bit
-		}
-
-		RADIO_MOD_GPIO(current_byte & 0x1);
-		gfsk_bit++;
-
-		palToggleLine(LINE_IO_LED1);
 	}
+
+	palToggleLine(LINE_IO_LED1);
 
 	TIM7->SR &= ~STM32_TIM_SR_UIF; // Reset interrupt flag
 }
 
 void initOOK(radioMSG_t *msg) {
-	// Initialize radio and tune
+	// Initialize radio
 	Si4464_Init();
 	setModemOOK();
-	radioTune(msg->freq, 0, msg->power, 0);
+	active_mod = MOD_OOK;
 }
 
 /**
   * Transmits binary OOK message. One bit = 20ms (1: TONE, 0: NO TONE)
   */
 void sendOOK(radioMSG_t *msg) {
+	// Tune
+	radioTune(msg->freq, 0, msg->power, 0);
+
 	// Transmit data
 	uint32_t bit = 0;
 	systime_t time = chVTGetSystemTimeX();
 	while(bit < msg->bin_len) {
-		RADIO_MOD_GPIO((msg->msg[bit/8] >> (bit%8)) & 0x1);
+		RADIO_WRITE_GPIO((msg->msg[bit/8] >> (bit%8)) & 0x1);
 		bit++;
 
 		time = chThdSleepUntilWindowed(time, time + MS2ST(1200 / msg->ook_conf->speed));
 	}
-}
-
-static void serial_cb(void *arg) {
-	(void)arg;
-
-	switch(txs)
-	{
-		case 6: // TX-delay
-			txj++;
-			if(txj > (uint32_t)(fsk_msg->fsk_conf->predelay * fsk_msg->fsk_conf->baud / 1000)) {
-				txj = 0;
-				txs = 7;
-			}
-			break;
-
-		case 7: // Transmit a single char
-			if(txj < fsk_msg->bin_len/8) {
-				txc = fsk_msg->msg[txj]; // Select char
-				txj++;
-				RADIO_MOD_GPIO(LOW); // Start Bit (Synchronizing)
-				txi = 0;
-				txs = 8;
-			} else {
-				txj = 0;
-				txs = 0; // Finished to transmit string
-				RADIO_MOD_GPIO(HIGH);
-			}
-			break;
-
-		case 8:
-			if(txi < fsk_msg->fsk_conf->bits) {
-				txi++;
-				RADIO_MOD_GPIO(txc & 1);
-				txc = txc >> 1;
-			} else {
-				RADIO_MOD_GPIO(HIGH); // Stop Bit
-				txi = 0;
-				txs = 9;
-			}
-			break;
-
-		case 9:
-			if(fsk_msg->fsk_conf->stopbits == 2)
-				RADIO_MOD_GPIO(HIGH); // Stop Bit
-			txs = 7;
-	}
-
-	// Reload timer
-	if(txs) {
-		chSysLockFromISR();
-		uint32_t delay = US2ST(1000000/fsk_msg->fsk_conf->baud);
-		chVTSetI(&vt, delay, serial_cb, NULL);
-		chSysUnlockFromISR();
-	}
+	shutdownRadio();
 }
 
 void init2FSK(radioMSG_t *msg) {
-	// Initialize virtual timer
-	chVTObjectInit(&vt);
-
 	// Initialize radio and tune
 	Si4464_Init();
 	setModem2FSK();
-	radioTune(msg->freq, msg->fsk_conf->shift, msg->power, 0);
 }
 
 void send2FSK(radioMSG_t *msg) {
-	// Prepare serial machine states
+	// Initialize variables for timer
+	memcpy(&tim_msg, msg, sizeof(radioMSG_t));
+
 	txs = 6;
 	txc = 0;
 	txi = 0;
 	txj = 0;
-	fsk_msg = msg;
 
-	// Modulate
-	chVTSet(&vt, 1, serial_cb, NULL);	// Start timer
-	while(txs)
-		chThdSleepMilliseconds(1);		// Wait for routine to finish
+	// Tune
+	radioTune(msg->freq, msg->fsk_conf->shift, msg->power, 0);
+
+	// Initialize timer
+	RCC->APB1ENR |= RCC_APB1ENR_TIM7EN;
+	nvicEnableVector(TIM7_IRQn, 1);
+	TIM7->ARR = STM32_PCLK1 / 16 / msg->fsk_conf->baud; // FIXME: 5625000 should be actually STM32_PCLK1
+	TIM7->PSC = 15;
+	TIM7->CR1 &= ~STM32_TIM_CR1_ARPE;
+	TIM7->DIER |= STM32_TIM_DIER_UIE;
+
+	// Start timer
+	TIM7->CR1 |= STM32_TIM_CR1_CEN;
+
+	// Block execution while timer is running
+	while(TIM7->CR1 & STM32_TIM_CR1_CEN)
+		chThdSleepMilliseconds(10);
+
+	shutdownRadio();
 }
 
 void shutdownRadio(void)
 {
 	// Wait for PH to finish transmission for 2GFSK
 	while(active_mod == MOD_2GFSK && Si4464_getState() == SI4464_STATE_TX)
+	{
+		TRACE_DEBUG("Waiting for Si4464 (state=%d, free=%d)", Si4464_getState(), Si4464_freeFIFO());
 		chThdSleepMilliseconds(5);
+	}
 
 	Si4464_shutdown();
 	active_mod = MOD_NOT_SET;
@@ -322,55 +357,56 @@ uint32_t getAPRSRegionFrequency(void) {
 /**
   * Sends radio message into message box. This method will return false if message box is full.
   */
-bool transmitOnRadio(radioMSG_t *msg, bool shutdown) {
-	// Lock radio
-	chMtxLock(&radio_mtx);
+bool transmitOnRadio(radioMSG_t *msg, bool shutdown)
+{
+	if(inRadioBand(msg->freq)) // Frequency in radio radio band
+	{
+		if(inRadioBand(msg->freq)) // Frequency in radio radio band
+		{
 
-	if(inRadioBand(msg->freq)) { // Frequency in radio radio band
+			lockRadio(); // Lock radio
 
-		// Wait for PH to finish transmission for 2GFSK
-		while(active_mod == MOD_2GFSK && Si4464_getState() == SI4464_STATE_TX)
-			chThdSleepMilliseconds(5);
-
-		// Lock interference mutex
-		chMtxLock(&interference_mtx);
-
-		TRACE_INFO(	"RAD  > Transmit %d.%03d MHz, Pwr %d, %s, %d bits",
-					msg->freq/1000000, (msg->freq%1000000)/1000, msg->power,
-					getModulation(msg->mod), msg->bin_len
-		);
+			TRACE_INFO(	"RAD  > Transmit %d.%03d MHz, Pwr %d, %s, %d bits",
+						msg->freq/1000000, (msg->freq%1000000)/1000, msg->power,
+						getModulation(msg->mod), msg->bin_len
+			);
 		
-		switch(msg->mod) {
-			case MOD_2FSK:
-				if(active_mod != msg->mod)
-					init2FSK(msg);
-				send2FSK(msg);
-				break;
-			case MOD_2GFSK:
-				if(active_mod != msg->mod)
-					init2GFSK(msg);
-				send2GFSK(msg);
-				break;
-			case MOD_AFSK:
-				if(active_mod != msg->mod)
-					initAFSK(msg);
-				sendAFSK(msg);
-				break;
-			case MOD_OOK:
-				if(active_mod != msg->mod)
-					initOOK(msg);
-				sendOOK(msg);
-				break;
-			case MOD_NOT_SET:
-				TRACE_ERROR("RAD  > Modulation not set");
-				break;
+			switch(msg->mod)
+			{
+				case MOD_2FSK:
+					if(active_mod != msg->mod)
+						init2FSK(msg);
+					send2FSK(msg);
+					break;
+				case MOD_2GFSK:
+					if(active_mod != msg->mod)
+						init2GFSK(msg);
+					send2GFSK(msg);
+					break;
+				case MOD_AFSK:
+					if(active_mod != msg->mod)
+						initAFSK(msg);
+					sendAFSK(msg);
+					break;
+				case MOD_OOK:
+					if(active_mod != msg->mod)
+						initOOK(msg);
+					sendOOK(msg);
+					break;
+				case MOD_NOT_SET:
+					TRACE_ERROR("RAD  > Modulation not set");
+					break;
+			}
+
+			unlockRadio(); // Unlock radio
+
+		} else {
+
+			TRACE_ERROR("RAD  > It is nonsense to transmit 0 bits, %d.%03d MHz, Pwr dBm, %s, %d bits",
+						msg->freq/1000000, (msg->freq%1000000)/1000, msg->power, getModulation(msg->mod), msg->bin_len
+			);
+
 		}
-
-		active_mod = msg->mod;
-		if(shutdown)
-			shutdownRadio(); // Shutdown radio for reinitialization
-
-		chMtxUnlock(&interference_mtx); // Heavy interference finished (HF)
 
 	} else { // Frequency out of radio band
 
@@ -379,9 +415,6 @@ bool transmitOnRadio(radioMSG_t *msg, bool shutdown) {
 		);
 
 	}
-
-	// Unlock radio
-	chMtxUnlock(&radio_mtx);
 
 	return true;
 }
@@ -401,5 +434,18 @@ uint32_t getFrequency(freq_conf_t *config)
 		default:
 			return 0;
 	}
+}
+
+void lockRadio(void)
+{
+	chMtxLock(&radio_mtx);
+
+	while(active_mod != MOD_NOT_SET && Si4464_getState() == SI4464_STATE_TX)
+		chThdSleepMilliseconds(1);
+}
+
+void unlockRadio(void)
+{
+	chMtxUnlock(&radio_mtx);
 }
 

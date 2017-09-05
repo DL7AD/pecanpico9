@@ -233,7 +233,7 @@ THD_FUNCTION(trackingThread, arg) {
 
 		// Switch on GPS is enough power is available
 		uint16_t batt = getBatteryVoltageMV();
-		if(batt >= GPS_ON_VBAT)
+		if(batt >= gps_on_vbat)
 		{
 			// Switch on GPS
 			GPS_Init();
@@ -242,21 +242,21 @@ THD_FUNCTION(trackingThread, arg) {
 			do {
 				batt = getBatteryVoltageMV();
 				gps_get_fix(&gpsFix);
-			} while(!isGPSLocked(&gpsFix) && batt >= GPS_OFF_VBAT && chVTGetSystemTimeX() <= time + S2ST(TRACK_CYCLE_TIME-5)); // Do as long no GPS lock and within timeout, timeout=cycle-1sec (-1sec in order to keep synchronization)
+			} while(!isGPSLocked(&gpsFix) && batt >= gps_off_vbat && chVTGetSystemTimeX() <= time + track_cycle_time - S2ST(3)); // Do as long no GPS lock and within timeout, timeout=cycle-1sec (-3sec in order to keep synchronization)
 
-			if(batt < GPS_OFF_VBAT) // Switch off GPS at low batt
+			if(batt < gps_off_vbat) // Switch off GPS at low batt
 				GPS_Deinit();
 		}
 
 		if(isGPSLocked(&gpsFix)) { // GPS locked
 
 			// Switch off GPS (if cycle time is more than 60 seconds)
-			#if TRACK_CYCLE_TIME >= 60
-			TRACE_INFO("TRAC > Switch off GPS");
-			GPS_Deinit();
-			#else
-			TRACE_INFO("TRAC > Keep GPS switched of because cycle < 60sec");
-			#endif
+			if(track_cycle_time >= S2ST(60)) {
+				TRACE_INFO("TRAC > Switch off GPS");
+				GPS_Deinit();
+			} else {
+				TRACE_INFO("TRAC > Keep GPS switched of because cycle < 60sec");
+			}
 
 			// Debug
 			TRACE_INFO("TRAC > GPS sampling finished GPS LOCK");
@@ -283,7 +283,7 @@ THD_FUNCTION(trackingThread, arg) {
 		} else { // GPS lost (keep GPS switched on)
 
 			// Debug
-			if(batt < GPS_OFF_VBAT) {
+			if(batt < gps_off_vbat) {
 				TRACE_WARN("TRAC > GPS sampling finished GPS LOW BATT");
 			} else {
 				TRACE_WARN("TRAC > GPS sampling finished GPS LOSS");
@@ -304,7 +304,7 @@ THD_FUNCTION(trackingThread, arg) {
 			tp->gps_alt = ltp->gps_alt;
 
 			// Mark GPS loss (or low batt)
-			tp->gps_lock = batt < GPS_OFF_VBAT ? GPS_LOWBATT : GPS_LOSS;
+			tp->gps_lock = batt < gps_off_vbat ? GPS_LOWBATT : GPS_LOSS;
 			tp->gps_sats = 0;
 
 		}
@@ -353,14 +353,14 @@ THD_FUNCTION(trackingThread, arg) {
 		if(nextLogEntryTimer <= chVTGetSystemTimeX() && isGPSLocked(&gpsFix))
 		{
 			writeLogTrackPoint(tp);
-			nextLogEntryTimer += S2ST(LOG_CYCLE_TIME);
+			nextLogEntryTimer += log_cycle_time;
 		}
 
 		// Switch last recent track point
 		lastTrackPoint = tp;
 		id++;
 
-		time = chThdSleepUntilWindowed(time, time + S2ST(TRACK_CYCLE_TIME)); // Wait until time + cycletime
+		time = chThdSleepUntilWindowed(time, time + track_cycle_time); // Wait until time + cycletime
 	}
 }
 

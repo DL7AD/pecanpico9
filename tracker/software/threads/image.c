@@ -273,7 +273,7 @@ const uint8_t noCameraFound[] = {
 	0xBD, 0xC0, 0x20, 0x00, 0x01, 0xFF, 0xD9
 };
 
-static uint8_t gimage_id; // Global image ID (for all image threads)
+static uint8_t gimage_id = 0; // Global image ID (for all image threads)
 mutex_t camera_mtx;
 
 void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_t image_id, bool redudantTx)
@@ -309,8 +309,7 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 
 			if(r <= 0)
 			{
-				if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) transmitOnRadio(&msg, true); // Empty buffer
-				shutdownRadio();
+				if(msg.bin_len > 0) transmitOnRadio(&msg, false); // Empty buffer
 				TRACE_ERROR("SSDV > Premature end of file");
 				break;
 			}
@@ -319,13 +318,11 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 
 		if(c == SSDV_EOI)
 		{
-			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) transmitOnRadio(&msg, true); // Empty buffer
-			shutdownRadio();
+			if(msg.bin_len > 0) transmitOnRadio(&msg, false); // Empty buffer
 			TRACE_INFO("SSDV > ssdv_enc_get_packet said EOI");
 			break;
 		} else if(c != SSDV_OK) {
-			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) transmitOnRadio(&msg, true); // Empty buffer
-			shutdownRadio();
+			if(msg.bin_len > 0) transmitOnRadio(&msg, false); // Empty buffer
 			TRACE_ERROR("SSDV > ssdv_enc_get_packet failed: %i", c);
 			return;
 		}
@@ -348,8 +345,9 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 				if(redudantTx)
 					msg.bin_len += 8 + aprs_encode_experimental('I', &msg.msg[msg.bin_len/8+1], msg.mod, &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91), false);
 
-				if(msg.bin_len > 58000 || conf->packet_spacing) { // Transmit if buffer is full or if single packet transmission activation (packet_spacing != 0)
-					transmitOnRadio(&msg, true);
+				// Transmit
+				if(msg.bin_len >= 58000 || conf->packet_spacing) { // Transmit if buffer is full or if single packet transmission activation (packet_spacing != 0)
+					transmitOnRadio(&msg, false);
 					msg.bin_len = 0;
 				}
 				break;
@@ -358,11 +356,21 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 				msg.mod = MOD_2FSK;
 				msg.fsk_conf = &(conf->fsk_conf);
 
-				memcpy(msg.msg, pkt, sizeof(pkt));
-				msg.bin_len = 8*sizeof(pkt);
+				// Encode packet
+				TRACE_INFO("IMG  > Encode 2FSK/SSDV packet");
+				memcpy(&msg.msg[msg.bin_len/8], pkt, sizeof(pkt));
+				msg.bin_len += 8*sizeof(pkt);
+				if(redudantTx)
+				{
+					memcpy(&msg.msg[msg.bin_len/8], pkt, sizeof(pkt));
+					msg.bin_len += 8*sizeof(pkt);
+				}
 
-				if(redudantTx) transmitOnRadio(&msg, false); // Redundant transmission
-				transmitOnRadio(&msg, conf->packet_spacing != 0); // Keep transmitter switched on if next packet will be sent right away
+				// Transmit
+				if(msg.bin_len >= 61440 || conf->packet_spacing) { // Transmit if buffer is full or if single packet transmission activation (packet_spacing != 0)
+					transmitOnRadio(&msg, false);
+					msg.bin_len = 0;
+				}
 				break;
 
 			default:
@@ -396,11 +404,6 @@ THD_FUNCTION(imgThread, arg) {
 			TRACE_INFO("IMG  > Lock camera");
 			chMtxLock(&camera_mtx);
 			TRACE_INFO("IMG  > Locked camera");
-
-			// Lock RADIO from producing interferences
-			TRACE_INFO("IMG  > Lock radio");
-			chMtxLock(&interference_mtx);
-			TRACE_INFO("IMG  > Locked radio");
 
 			uint8_t tries;
 			bool status = false;
@@ -453,10 +456,10 @@ THD_FUNCTION(imgThread, arg) {
 				}
 
 				// Switch off camera
-				#if !KEEP_CAM_SWITCHED_ON
-				OV5640_deinit();
-				camInitialized = false;
-				#endif
+				if(!keep_cam_switched_on) {
+					OV5640_deinit();
+					camInitialized = false;
+				}
 
 				// Get image
 				image_len = OV5640_getBuffer(&image);
@@ -468,11 +471,6 @@ THD_FUNCTION(imgThread, arg) {
 				TRACE_ERROR("IMG  > No camera found");
 
 			}
-
-			// Unlock radio
-			TRACE_INFO("IMG  > Unlock radio");
-			chMtxUnlock(&interference_mtx);
-			TRACE_INFO("IMG  > Unlocked radio");
 
 			// Unlock camera
 			TRACE_INFO("IMG  > Unlock camera");
@@ -504,7 +502,7 @@ void start_image_thread(module_conf_t *conf)
 	if(conf->init_delay) chThdSleepMilliseconds(conf->init_delay);
 	TRACE_INFO("IMG  > Startup image thread");
 	chsnprintf(conf->name, sizeof(conf->name), "IMG");
-	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(6*1024+8191), "IMG", NORMALPRIO, imgThread, conf);
+	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(50*1024), "IMG", NORMALPRIO, imgThread, conf);
 	if(!th) {
 		// Print startup error, do not start watchdog for this thread
 		TRACE_ERROR("IMG  > Could not startup thread (not enough memory available)");

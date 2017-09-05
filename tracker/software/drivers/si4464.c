@@ -14,7 +14,7 @@
 static const SPIConfig ls_spicfg = {
 	.ssport	= PAL_PORT(LINE_RADIO_CS),
 	.sspad	= PAL_PAD(LINE_RADIO_CS),
-	.cr1	= SPI_CR1_MSTR | SPI_CR1_BR_0
+	.cr1	= SPI_CR1_MSTR
 };
 #define getSPIDriver() &ls_spicfg
 
@@ -31,16 +31,13 @@ void Si4464_Init(void) {
 	Si4464_shutdown();
 	chThdSleepMilliseconds(10);
 
-	// Initialize SPI
+	// Configure SPI pins
 	palSetLineMode(LINE_SPI_SCK, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);		// SCK
 	palSetLineMode(LINE_SPI_MISO, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);	// MISO
 	palSetLineMode(LINE_SPI_MOSI, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);	// MOSI
 	palSetLineMode(LINE_RADIO_CS, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);	// RADIO CS
+	palSetLineMode(LINE_RADIO_SDN, PAL_MODE_OUTPUT_PUSHPULL);							// RADIO SDN
 	palSetLine(LINE_RADIO_CS);
-
-	// Configure pins
-	palSetLineMode(LINE_RADIO_SDN, PAL_MODE_OUTPUT_PUSHPULL);	// RADIO SDN
-	palSetLineMode(LINE_RADIO_GPIO, PAL_MODE_OUTPUT_PUSHPULL);	// RADIO GPIO1
 
 	// Power up transmitter
 	palClearLine(LINE_RADIO_SDN);	// Radio SDN low (power up transmitter)
@@ -55,20 +52,6 @@ void Si4464_Init(void) {
 	Si4464_write(init_command, 7);
 	chThdSleepMilliseconds(25);
 
-	// Set transmitter GPIOs
-	uint8_t gpio_pin_cfg_command[] = {
-		0x13,	// Command type = GPIO settings
-		0x00,	// GPIO0        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x44,	// GPIO1        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x00,	// GPIO2        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x00,	// GPIO3        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x00,	// NIRQ
-		0x00,	// SDO
-		0x00	// GEN_CONFIG
-	};
-	Si4464_write(gpio_pin_cfg_command, 8);
-	chThdSleepMilliseconds(25);
-
 	// Temperature readout
 	TRACE_INFO("SI   > Transmitter temperature %d degC", Si4464_getTemperature());
 	initialized = true;
@@ -81,29 +64,25 @@ void Si4464_write(uint8_t* txData, uint32_t len) {
 	// SPI transfer
 	spiAcquireBus(&SPID1);
 	spiStart(&SPID1, getSPIDriver());
+
 	spiSelect(&SPID1);
 	spiExchange(&SPID1, len, txData, rxData);
 	spiUnselect(&SPID1);
-	spiStop(&SPID1);
-	spiReleaseBus(&SPID1);
 
 	// Reqest ACK by Si4464
-	uint32_t counter = 0; // FIXME: Sometimes CTS is not returned by Si4464 correctly
 	rxData[1] = 0x00;
-	while(rxData[1] != 0xFF && ++counter < 2000) {
+	while(rxData[1] != 0xFF) {
 
 		// Request ACK by Si4464
 		uint8_t rx_ready[] = {0x44};
 
 		// SPI transfer
-		spiAcquireBus(&SPID1);
-		spiStart(&SPID1, getSPIDriver());
 		spiSelect(&SPID1);
 		spiExchange(&SPID1, 3, rx_ready, rxData);
 		spiUnselect(&SPID1);
-		spiStop(&SPID1);
-		spiReleaseBus(&SPID1);
 	}
+	spiStop(&SPID1);
+	spiReleaseBus(&SPID1);
 }
 
 /**
@@ -115,30 +94,26 @@ void Si4464_read(uint8_t* txData, uint32_t txlen, uint8_t* rxData, uint32_t rxle
 	// SPI transfer
 	spiAcquireBus(&SPID1);
 	spiStart(&SPID1, getSPIDriver());
+
 	spiSelect(&SPID1);
 	spiExchange(&SPID1, txlen, txData, null_spi);
 	spiUnselect(&SPID1);
-	spiStop(&SPID1);
-	spiReleaseBus(&SPID1);
 
 	// Reqest ACK by Si4464
-	uint32_t counter = 0; // FIXME: Sometimes CTS is not returned by Si4464 correctly
 	rxData[1] = 0x00;
-	while(rxData[1] != 0xFF && ++counter < 2000) {
+	while(rxData[1] != 0xFF) {
 
 		// Request ACK by Si4464
 		uint16_t rx_ready[rxlen];
 		rx_ready[0] = 0x44;
 
 		// SPI transfer
-		spiAcquireBus(&SPID1);
-		spiStart(&SPID1, getSPIDriver());
 		spiSelect(&SPID1);
 		spiExchange(&SPID1, rxlen, rx_ready, rxData);
 		spiUnselect(&SPID1);
-		spiStop(&SPID1);
-		spiReleaseBus(&SPID1);
 	}
+	spiStop(&SPID1);
+	spiReleaseBus(&SPID1);
 }
 
 void setFrequency(uint32_t freq, uint16_t shift) {
@@ -198,6 +173,21 @@ void setShift(uint16_t shift) {
 }
 
 void setModemAFSK(void) {
+	// Set transmitter GPIOs
+	palSetLineMode(LINE_RADIO_GPIO, PAL_MODE_OUTPUT_PUSHPULL); // GPIO1
+	uint8_t gpio_pin_cfg_command[] = {
+		0x13,	// Command type = GPIO settings
+		0x00,	// GPIO0        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x44,	// GPIO1        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x00,	// GPIO2        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x00,	// GPIO3        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x00,	// NIRQ
+		0x00,	// SDO
+		0x00	// GEN_CONFIG
+	};
+	Si4464_write(gpio_pin_cfg_command, 8);
+	chThdSleepMilliseconds(25);
+
 	// Disable preamble
 	uint8_t disable_preamble[] = {0x11, 0x10, 0x01, 0x00, 0x00};
 	Si4464_write(disable_preamble, 5);
@@ -233,14 +223,44 @@ void setModemAFSK(void) {
 }
 
 void setModemOOK(void) {
+	// Set transmitter GPIOs
+	palSetLineMode(LINE_RADIO_GPIO, PAL_MODE_OUTPUT_PUSHPULL); // GPIO1
+	uint8_t gpio_pin_cfg_command[] = {
+		0x13,	// Command type = GPIO settings
+		0x00,	// GPIO0        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x44,	// GPIO1        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x00,	// GPIO2        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x00,	// GPIO3        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x00,	// NIRQ
+		0x00,	// SDO
+		0x00	// GEN_CONFIG
+	};
+	Si4464_write(gpio_pin_cfg_command, 8);
+	chThdSleepMilliseconds(25);
+
 	// Use OOK from async GPIO1
 	uint8_t use_ook[] = {0x11, 0x20, 0x01, 0x00, 0xA9};
 	Si4464_write(use_ook, 5);
 }
 
 void setModem2FSK(void) {
+	// Set transmitter GPIOs
+	palSetLineMode(LINE_RADIO_GPIO, PAL_MODE_OUTPUT_PUSHPULL); // GPIO1
+	uint8_t gpio_pin_cfg_command[] = {
+		0x13,	// Command type = GPIO settings
+		0x00,	// GPIO0        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x44,	// GPIO1        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x00,	// GPIO2        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x00,	// GPIO3        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x00,	// NIRQ
+		0x00,	// SDO
+		0x00	// GEN_CONFIG
+	};
+	Si4464_write(gpio_pin_cfg_command, 8);
+	chThdSleepMilliseconds(25);
+
 	// Initialize high tone
-	RADIO_MOD_GPIO(HIGH);
+	RADIO_WRITE_GPIO(HIGH);
 
 	// use 2FSK from async GPIO1
 	uint8_t use_2fsk[] = {0x11, 0x20, 0x01, 0x00, 0xAA};
@@ -248,6 +268,25 @@ void setModem2FSK(void) {
 }
 
 void setModem2GFSK(gfsk_conf_t* conf) {
+	// Set transmitter GPIOs
+	palSetLineMode(LINE_RADIO_GPIO, PAL_MODE_INPUT); // GPIO1
+	uint8_t gpio_pin_cfg_command[] = {
+		0x13,	// Command type = GPIO settings
+		0x00,	// GPIO0        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x23,	// GPIO1        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x00,	// GPIO2        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x00,	// GPIO3        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x00,	// NIRQ
+		0x00,	// SDO
+		0x00	// GEN_CONFIG
+	};
+	Si4464_write(gpio_pin_cfg_command, 8);
+	chThdSleepMilliseconds(25);
+
+	// Set FIFO empty interrupt threshold (32 byte)
+	uint8_t set_fifo_irq[] = {0x11, 0x12, 0x01, 0x0B, 0x20};
+	Si4464_write(set_fifo_irq, 5);
+
 	// Disable preamble
 	uint8_t disable_preamble[] = {0x11, 0x10, 0x01, 0x00, 0x00};
 	Si4464_write(disable_preamble, 5);
@@ -301,7 +340,7 @@ void stopTx(void) {
 void Si4464_shutdown(void) {
 	palSetLine(LINE_RADIO_SDN);	// Power down chip
 	palSetLine(LINE_IO_LED1);	// Set indication LED
-	RADIO_MOD_GPIO(false);		// Set GPIO1 low
+	RADIO_WRITE_GPIO(false);		// Set GPIO1 low
 	initialized = false;
 }
 

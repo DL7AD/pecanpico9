@@ -11,7 +11,6 @@
 
 void start_essential_threads(void);
 
-extern mutex_t interference_mtx;	// HF interference mutex (needed to exclude radio from HF sensitiv components [Camera])
 extern systime_t watchdog_tracking;	// Last update time for module TRACKING
 
 #endif

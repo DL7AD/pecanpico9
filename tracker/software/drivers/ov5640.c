@@ -96,7 +96,7 @@ static const struct regval_list OV5640YUV_Sensor_Dvp_Init[] =
 	{ 0x3034, 0x1a }, 
 	{ 0x3035, 0x11 }, //15fps
 	{ 0x3036, 0x46 }, 
-	{ 0x3037, 0x12 }, 
+	{ 0x3037, 0x14 }, 
 	{ 0x3038, 0x00 }, 
 	{ 0x3039, 0x00 }, 
 
@@ -774,7 +774,7 @@ static bool analyze_image(uint8_t *image, uint32_t image_len)
 	uint32_t bi = 0;
 	uint8_t c = SSDV_OK;
 
-	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, "", 0, 0);
+	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, "", 0, 7);
 	ssdv_enc_set_buffer(&ssdv, pkt);
 
 	while(true) // FIXME: I get caught in these loops occasionally and never return
@@ -785,16 +785,22 @@ static bool analyze_image(uint8_t *image, uint32_t image_len)
 			uint8_t r = bi < image_len-128 ? 128 : image_len - bi;
 			bi += r;
 			if(r <= 0)
+			{
+				TRACE_ERROR("CAM  > Error in image");
 				return false;
+			}
 			ssdv_enc_feed(&ssdv, b, r);
 		}
 
 		if(c == SSDV_EOI) // End of image
 			return true;
 		if(c != SSDV_OK) // Error in JPEG image
+		{
+			TRACE_ERROR("CAM  > Error in image");
 			return false;
+		}
 
-		chThdSleepMilliseconds(10);
+		chThdSleepMilliseconds(5);
 	}
 }
 
@@ -814,7 +820,9 @@ bool OV5640_Snapshot2RAM(void)
 	do {
 
 		TRACE_INFO("CAM  > Capture image");
+		lockRadio(); // Lock radio because SPI and pseudo DCMI use the same DMA
 		status = OV5640_Capture();
+		unlockRadio(); // Unlock radio
 		TRACE_INFO("CAM  > Capture finished");
 
 		ov5640_conf->size_sampled = ov5640_conf->ram_size - 1;
@@ -1072,6 +1080,7 @@ CH_IRQ_HANDLER(Vector5C) {
 
 bool OV5640_Capture(void)
 {
+
 	/*
 	 * Note:
 	 *  If there are no Chibios devices enabled that use DMA then...
@@ -1210,7 +1219,7 @@ bool OV5640_Capture(void)
 	capture_finished = false;
 	vsync = false;
 
-	// Setup EXTI: EXTI1 PC for PC1 (VSYNC) and EXIT2 PC for PC2 (HREF)
+	// Setup EXTI: EXTI1 PC for PC1 (VSYNC)
 	SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI1_PC;
 	EXTI->IMR = EXTI_IMR_MR1; // Activate interrupt for chan1 (=>PC1) and chan2 (=>PC2)
 	EXTI->RTSR = EXTI_RTSR_TR1; // Listen on rising edge
@@ -1235,6 +1244,7 @@ bool OV5640_Capture(void)
 	}
 
     TRACE_INFO("CAM  > Capture success");
+
 	return true;
 }
 

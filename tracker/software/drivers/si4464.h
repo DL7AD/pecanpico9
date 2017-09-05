@@ -6,7 +6,8 @@
 #include "defines.h"
 #include "types.h"
 
-#define RADIO_MOD_GPIO(state)	palWriteLine(LINE_RADIO_GPIO, state)
+#define RADIO_WRITE_GPIO(state)	palWriteLine(LINE_RADIO_GPIO, state)
+#define RADIO_READ_GPIO()		palReadLine(LINE_RADIO_GPIO)
 #define inRadioBand(freq) 		(RADIO_MIN_FREQ <= (freq) && (freq) <= RADIO_MAX_FREQ)
 
 #define SI4464_STATE_NOCHANGE	0

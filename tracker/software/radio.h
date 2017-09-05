@@ -24,6 +24,8 @@ extern mutex_t radio_mtx;
 bool transmitOnRadio(radioMSG_t *msg, bool shutdown);
 void shutdownRadio(void);
 uint32_t getFrequency(freq_conf_t *config);
+void lockRadio(void);
+void unlockRadio(void);
 
 THD_FUNCTION(moduleRADIO, arg);
 
