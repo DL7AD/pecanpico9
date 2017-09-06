@@ -178,7 +178,7 @@ THD_FUNCTION(logThread, arg)
 					msg.gfsk_conf = &(conf->gfsk_conf);
 
 					base91_encode((uint8_t*)pkt, pkt_base91, sizeof(pkt)); // Encode base 91
-					msg.bin_len = aprs_encode_experimental('L', msg.msg, msg.mod, &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91), false); // Encode APRS
+					msg.bin_len = aprs_encode_experimental('L', msg.msg, msg.mod, &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91)); // Encode APRS
 
 					transmitOnRadio(&msg, true); // Transmit packet
 					break;

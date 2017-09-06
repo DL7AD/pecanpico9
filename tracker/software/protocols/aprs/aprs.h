@@ -21,6 +21,7 @@
 #include "config.h"
 #include "si4464.h"
 #include "tracking.h"
+#include "ax25.h"
 
 #define GSP_FIX_OLD						0x0
 #define GSP_FIX_CURRENT					0x1
@@ -51,7 +52,11 @@
 uint32_t aprs_encode_position(uint8_t* message, mod_t mod, const aprs_conf_t *config, trackPoint_t *trackPoint);
 uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const aprs_conf_t *config, const telemetry_conf_t type);
 uint32_t aprs_encode_message(uint8_t* message, mod_t mod, const aprs_conf_t *config, const char *receiver, const char *text);
-uint32_t aprs_encode_experimental(char packetType, uint8_t* message, mod_t mod, const aprs_conf_t *config, uint8_t *data, size_t size, bool noPreamble);
+uint32_t aprs_encode_experimental(char packetType, uint8_t* message, mod_t mod, const aprs_conf_t *config, uint8_t *data, size_t size);
+
+void aprs_encode_data_init(ax25_t* packet, uint8_t* message, mod_t mod);
+uint32_t aprs_encode_data_encodePacket(ax25_t* packet, char packetType, const aprs_conf_t *config, uint8_t *data, size_t size);
+uint32_t aprs_encode_data_finalize(ax25_t* packet);
 
 #endif
 

@@ -47,6 +47,7 @@ uint32_t aprs_encode_position(uint8_t* message, mod_t mod, const aprs_conf_t *co
 	packet.max_size = 512; // TODO: replace 512 with real size
 	packet.mod = mod;
 
+	ax25_init(&packet);
 	ax25_send_header(&packet, config->callsign, config->ssid, config->path, config->preamble);
 	ax25_send_byte(&packet, '/');                // Report w/ timestamp, no APRS messaging. $ = NMEA raw data
 
@@ -169,7 +170,7 @@ uint32_t aprs_encode_position(uint8_t* message, mod_t mod, const aprs_conf_t *co
 /**
  * Transmit custom experimental packet
  */
-uint32_t aprs_encode_experimental(char packetType, uint8_t* message, mod_t mod, const aprs_conf_t *config, uint8_t *data, size_t size, bool noPreamble)
+uint32_t aprs_encode_experimental(char packetType, uint8_t* message, mod_t mod, const aprs_conf_t *config, uint8_t *data, size_t size)
 {
 	ax25_t packet;
 	packet.data = message;
@@ -177,7 +178,8 @@ uint32_t aprs_encode_experimental(char packetType, uint8_t* message, mod_t mod, 
 	packet.mod = mod;
 
 	// Encode APRS header
-	ax25_send_header(&packet, config->callsign, config->ssid, config->path, noPreamble ? 0 : config->preamble);
+	ax25_init(&packet);
+	ax25_send_header(&packet, config->callsign, config->ssid, config->path, config->preamble);
 	ax25_send_string(&packet, "{{");
 	ax25_send_byte(&packet, packetType);
 
@@ -185,12 +187,47 @@ uint32_t aprs_encode_experimental(char packetType, uint8_t* message, mod_t mod, 
 	for(uint16_t i=0; i<size; i++)
 		ax25_send_byte(&packet, data[i]);
 
-	// Send footer
+	// Encode footer
 	ax25_send_footer(&packet);
 	scramble(&packet);
 	nrzi_encode(&packet);
 
 	return packet.size;
+}
+
+/**
+ * Transmit custom data packet (the methods aprs_encode_data allow multiple APRS packets in a row without preable being sent)
+ */
+void aprs_encode_data_init(ax25_t* packet, uint8_t* message, mod_t mod)
+{
+	packet->data = message;
+	packet->max_size = 8192; // TODO: replace 8192 with real size
+	packet->mod = mod;
+
+	// Encode APRS header
+	ax25_init(packet);
+}
+uint32_t aprs_encode_data_encodePacket(ax25_t* packet, char packetType, const aprs_conf_t *config, uint8_t *data, size_t size)
+{
+	// Encode header
+	ax25_send_header(packet, config->callsign, config->ssid, config->path, packet->size > 0 ? 0 : config->preamble);
+	ax25_send_string(packet, "{{");
+	ax25_send_byte(packet, packetType);
+
+	// Encode message
+	for(uint16_t i=0; i<size; i++)
+		ax25_send_byte(packet, data[i]);
+
+	// Encode footer
+	ax25_send_footer(packet);
+
+	return packet->size;
+}
+uint32_t aprs_encode_data_finalize(ax25_t* packet)
+{
+	scramble(packet);
+	nrzi_encode(packet);
+	return packet->size;
 }
 
 /**
@@ -205,6 +242,7 @@ uint32_t aprs_encode_message(uint8_t* message, mod_t mod, const aprs_conf_t *con
 
 	// Encode APRS header
 	char temp[10];
+	ax25_init(&packet);
 	ax25_send_header(&packet, config->callsign, config->ssid, config->path, config->preamble);
 	ax25_send_byte(&packet, ':');
 
@@ -218,7 +256,7 @@ uint32_t aprs_encode_message(uint8_t* message, mod_t mod, const aprs_conf_t *con
 	chsnprintf(temp, sizeof(temp), "%d", ++msg_id);
 	ax25_send_string(&packet, temp);
 
-	// Send footer
+	// Encode footer
 	ax25_send_footer(&packet);
 	scramble(&packet);
 	nrzi_encode(&packet);
@@ -237,6 +275,7 @@ uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const 
 	packet.max_size = 512; // TODO: replace 512 with real size
 	packet.mod = mod;
 
+	ax25_init(&packet);
 	ax25_send_header(&packet, config->callsign, config->ssid, config->path, config->preamble); // Header
 	ax25_send_byte(&packet, ':'); // Message flag
 

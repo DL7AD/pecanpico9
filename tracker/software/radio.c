@@ -80,20 +80,7 @@ void init2GFSK(radioMSG_t *msg) {
 	active_mod = MOD_2GFSK;
 }
 
-thread_reference_t feeder_ref = NULL;
 thread_t *feeder_thd = NULL;
-
-/*
- * Radio GPIO1 interrupt
- */
-CH_IRQ_HANDLER(VectorE0) {
-	CH_IRQ_PROLOGUE();
-
-	chThdResumeS(&feeder_ref, MSG_OK);
-
-	EXTI->PR |= EXTI_PR_PR12;
-	CH_IRQ_EPILOGUE();
-}
 
 /*
  * TODO: I'd suggest re-working the FIFO handler system.
@@ -112,19 +99,11 @@ THD_FUNCTION(si_fifo_feeder_thd, arg)
 	// Initial FIFO fill
 	Si4464_writeFIFO(tim_msg.msg, c);
 
-	// Initialize interrupt
-	chSysLock();
-	SYSCFG->EXTICR[3] |= SYSCFG_EXTICR4_EXTI12_PC;
-	EXTI->IMR |= EXTI_IMR_MR12; // Activate interrupt for chan12 (=>PC12)
-	EXTI->RTSR |= EXTI_RTSR_TR12; // Listen on rising edge
-    EXTI->PR |= EXTI_PR_PR12; // Clear any pending interrupt
-	nvicEnableVector(EXTI15_10_IRQn, 1); // Enable interrupt
-	chSysUnlock();
-	// Transmit
+	// Start transmission
 	radioTune(tim_msg.freq, 0, tim_msg.power, all);
 
 	while(c < all) { // Do while bytes not written into FIFO completely
-		chThdSuspendS(&feeder_ref); // Suspend until interrupt resumes it
+		//chThdSuspendS(&feeder_ref); // Suspend until interrupt resumes it
 
 		// Determine free memory in Si4464-FIFO
 		uint8_t more = Si4464_freeFIFO();
@@ -132,14 +111,14 @@ THD_FUNCTION(si_fifo_feeder_thd, arg)
 			if((more = all-c) == 0) // Calculate remainder to send
               break; // End if nothing left
 		}
-		//TRACE_DEBUG("fed %db %d<%d", more, c, all);
 		Si4464_writeFIFO(&tim_msg.msg[c], more); // Write into FIFO
 		c += more;
+		chThdSleepMilliseconds(20);
 	}
 
-	nvicDisableVector(EXTI15_10_IRQn); // Disable interrupt
-
+	// Shutdown radio (and wait for Si4464 to finish transmission)
 	shutdownRadio();
+
 	chThdExit(MSG_OK);
 }
 
@@ -147,8 +126,6 @@ void send2GFSK(radioMSG_t *msg) {
 	// Copy data
 	memcpy(&tim_msg, msg, sizeof(radioMSG_t));
 
-	if(feeder_thd != NULL) // No waiting on first use
-	  chThdWait(feeder_thd);
 	// Start/re-start FIFO feeder
 	feeder_thd = chThdCreateStatic(si_fifo_feeder_wa, sizeof(si_fifo_feeder_wa), HIGHPRIO+1, si_fifo_feeder_thd, NULL);
 
@@ -313,10 +290,7 @@ void shutdownRadio(void)
 {
 	// Wait for PH to finish transmission for 2GFSK
 	while(active_mod == MOD_2GFSK && Si4464_getState() == SI4464_STATE_TX)
-	{
-		TRACE_DEBUG("Waiting for Si4464 (state=%d, free=%d)", Si4464_getState(), Si4464_freeFIFO());
 		chThdSleepMilliseconds(5);
-	}
 
 	Si4464_shutdown();
 	active_mod = MOD_NOT_SET;
@@ -376,12 +350,11 @@ uint32_t getAPRSRegionFrequency(void) {
   */
 bool transmitOnRadio(radioMSG_t *msg, bool shutdown)
 {
-  (void)shutdown;
+ 	(void)shutdown;
 	if(inRadioBand(msg->freq)) // Frequency in radio radio band
 	{
 		if(inRadioBand(msg->freq)) // Frequency in radio radio band
 		{
-
 			lockRadio(); // Lock radio
 
 			TRACE_INFO(	"RAD  > Transmit %d.%03d MHz, Pwr %d, %s, %d bits",
@@ -462,8 +435,9 @@ void lockRadio(void)
 {
 	chMtxLock(&radio_mtx);
 
-	while(active_mod != MOD_NOT_SET && Si4464_getState() == SI4464_STATE_TX)
-		chThdSleepMilliseconds(1);
+	// Wait for old feeder thread to terminate
+	if(feeder_thd != NULL) // No waiting on first use
+		chThdWait(feeder_thd);
 }
 
 void unlockRadio(void)

@@ -36,6 +36,7 @@ typedef struct {
 	mod_t mod;				// Modulation type (MOD_AFSK or MOD_2GFSK)
 } ax25_t;
 
+void ax25_init(ax25_t *packet);
 void ax25_send_header(ax25_t *packet, const char *callsign, uint8_t ssid, const char *path, uint16_t preamble);
 void ax25_send_path(ax25_t *packet, const char *callsign, uint8_t ssid, bool last);
 void ax25_send_byte(ax25_t *packet, char byte);

@@ -820,9 +820,7 @@ bool OV5640_Snapshot2RAM(void)
 	do {
 
 		TRACE_INFO("CAM  > Capture image");
-		lockRadio(); // Lock radio because SPI and pseudo DCMI use the same DMA
 		status = OV5640_Capture();
-		unlockRadio(); // Unlock radio
 		TRACE_INFO("CAM  > Capture finished");
 
 		ov5640_conf->size_sampled = ov5640_conf->ram_size - 1;
