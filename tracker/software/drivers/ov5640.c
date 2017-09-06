@@ -497,6 +497,37 @@ static const struct regval_list OV5640_QSXGA2QVGA[]  =
 	{0xffff, 0xff},
 };
 
+//320x240 QQVGA
+static const struct regval_list OV5640_QSXGA2QQVGA[]  =
+{
+	{0x3800 ,0x00},
+	{0x3801 ,0x00},
+	{0x3802 ,0x00},
+	{0x3803 ,0x00},
+	{0x3804 ,0xA },
+	{0x3805 ,0x3f},
+	{0x3806 ,0x7 },
+	{0x3807 ,0x9f},
+	{0x3808 ,0x0 },
+	{0x3809 ,0xA0},
+	{0x380a ,0x0 },
+	{0x380b ,0x70},
+	{0x380c ,0xc },
+	{0x380d ,0x80},
+	{0x380e ,0x7 },
+	{0x380f ,0xd0},
+	{0x5001 ,0xa3},
+	{0x5680 ,0x0 },
+	{0x5681 ,0x0 },
+	{0x5682 ,0xA },
+	{0x5683 ,0x20},
+	{0x5684 ,0x0 },
+	{0x5685 ,0x0 },
+	{0x5686 ,0x7 },
+	{0x5687 ,0x98},
+	{0xffff, 0xff},
+};
+
 //640x480 VGA
 static const struct regval_list OV5640_QSXGA2VGA[]  =
 {
@@ -1291,6 +1322,11 @@ void OV5640_TransmitConfig(void)
 
 	TRACE_INFO("CAM  > ... Configure Resolution");
 	switch(ov5640_conf->res) {
+		case RES_QQVGA:
+			for(uint32_t i=0; (OV5640_QSXGA2QQVGA[i].reg != 0xffff) || (OV5640_QSXGA2QQVGA[i].val != 0xff); i++)
+				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2QQVGA[i].reg, OV5640_QSXGA2QQVGA[i].val);
+			break;
+
 		case RES_QVGA:
 			for(uint32_t i=0; (OV5640_QSXGA2QVGA[i].reg != 0xffff) || (OV5640_QSXGA2QVGA[i].val != 0xff); i++)
 				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2QVGA[i].reg, OV5640_QSXGA2QVGA[i].val);
@@ -1315,9 +1351,6 @@ void OV5640_TransmitConfig(void)
 			for(uint32_t i=0; (OV5640_QSXGA2QVGA[i].reg != 0xffff) || (OV5640_QSXGA2QVGA[i].val != 0xff); i++)
 				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2QVGA[i].reg, OV5640_QSXGA2QVGA[i].val);
 	}
-
-	//I2C_write8_16bitreg(OV5640_I2C_ADR, 0x4404, 0x27);
-	//I2C_write8_16bitreg(OV5640_I2C_ADR, 0x4407, 0x04); // Quantization scale
 
 	TRACE_INFO("CAM  > ... Light Mode: Auto");
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3

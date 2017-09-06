@@ -99,6 +99,7 @@ typedef struct { // Radio message type
 } radioMSG_t;
 
 typedef enum {
+	RES_QQVGA,
 	RES_QVGA,
 	RES_VGA,
 	RES_XGA,
