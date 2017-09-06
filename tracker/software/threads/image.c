@@ -415,7 +415,6 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 
 		i++;
 	}
-	chThdSleepMilliseconds(7000); // FIXME: To fix bug temporarly
 }
 
 THD_FUNCTION(imgThread, arg) {
@@ -436,10 +435,6 @@ THD_FUNCTION(imgThread, arg) {
 			// Lock camera FIXME: Removed for testing
 			TRACE_INFO("IMG  > Lock camera");
 			chMtxLock(&camera_mtx);
-			TRACE_INFO("IMG  > Locked camera");
-			//TRACE_INFO("IMG  > Lock radio");
-			//lockRadio(); // Lock radio because SPI and pseudo DCMI use the same DMA
-			//TRACE_INFO("IMG  > Locked radio");
 
 			uint8_t tries;
 			bool status = false;
@@ -466,7 +461,9 @@ THD_FUNCTION(imgThread, arg) {
 						// Sample data from DCMI through DMA into RAM
 						tries = 5; // Try 5 times at maximum
 						do { // Try capturing image until capture successful
+							lockRadio(); // Lock radio
 							status = OV5640_Snapshot2RAM();
+							unlockRadio(); // Unlock radio
 						} while(!status && --tries);
 
 						conf->ssdv_conf.res--; // Decrement resolution in next attempt (if status==false)
@@ -509,12 +506,8 @@ THD_FUNCTION(imgThread, arg) {
 			}
 
 			// Unlock camera FIXME: Removed for testing
-			//TRACE_INFO("IMG  > Unlock radio");
-			//unlockRadio(); // Unlock radio
-			//TRACE_INFO("IMG  > Unlocked radio");
 			TRACE_INFO("IMG  > Unlock camera");
 			chMtxUnlock(&camera_mtx);
-			TRACE_INFO("IMG  > Unlocked camera");
 
 			// Encode/Transmit SSDV if image sampled successfully
 			if(status) {

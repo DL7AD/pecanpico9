@@ -32,9 +32,9 @@ void Si4464_Init(void) {
 	chThdSleepMilliseconds(10);
 
 	// Configure SPI pins
-	palSetLineMode(LINE_SPI_SCK, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);		// SCK
-	palSetLineMode(LINE_SPI_MISO, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);	// MISO
-	palSetLineMode(LINE_SPI_MOSI, PAL_MODE_ALTERNATE(5) | PAL_STM32_OSPEED_HIGHEST);	// MOSI
+	palSetLineMode(LINE_SPI_SCK, PAL_MODE_ALTERNATE(6) | PAL_STM32_OSPEED_HIGHEST);		// SCK
+	palSetLineMode(LINE_SPI_MISO, PAL_MODE_ALTERNATE(6) | PAL_STM32_OSPEED_HIGHEST);	// MISO
+	palSetLineMode(LINE_SPI_MOSI, PAL_MODE_ALTERNATE(6) | PAL_STM32_OSPEED_HIGHEST);	// MOSI
 	palSetLineMode(LINE_RADIO_CS, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);	// RADIO CS
 	palSetLineMode(LINE_RADIO_SDN, PAL_MODE_OUTPUT_PUSHPULL);							// RADIO SDN
 	palSetLine(LINE_RADIO_CS);
@@ -62,12 +62,12 @@ void Si4464_write(uint8_t* txData, uint32_t len) {
 	uint8_t rxData[len];
 	
 	// SPI transfer
-	spiAcquireBus(&SPID1);
-	spiStart(&SPID1, getSPIDriver());
+	spiAcquireBus(&SPID3);
+	spiStart(&SPID3, getSPIDriver());
 
-	spiSelect(&SPID1);
-	spiExchange(&SPID1, len, txData, rxData);
-	spiUnselect(&SPID1);
+	spiSelect(&SPID3);
+	spiExchange(&SPID3, len, txData, rxData);
+	spiUnselect(&SPID3);
 
 	// Reqest ACK by Si4464
 	rxData[1] = 0x00;
@@ -77,12 +77,12 @@ void Si4464_write(uint8_t* txData, uint32_t len) {
 		uint8_t rx_ready[] = {0x44};
 
 		// SPI transfer
-		spiSelect(&SPID1);
-		spiExchange(&SPID1, 3, rx_ready, rxData);
-		spiUnselect(&SPID1);
+		spiSelect(&SPID3);
+		spiExchange(&SPID3, 3, rx_ready, rxData);
+		spiUnselect(&SPID3);
 	}
-	spiStop(&SPID1);
-	spiReleaseBus(&SPID1);
+	spiStop(&SPID3);
+	spiReleaseBus(&SPID3);
 }
 
 /**
@@ -92,12 +92,12 @@ void Si4464_read(uint8_t* txData, uint32_t txlen, uint8_t* rxData, uint32_t rxle
 	// Transmit data by SPI
 	uint8_t null_spi[txlen];
 	// SPI transfer
-	spiAcquireBus(&SPID1);
-	spiStart(&SPID1, getSPIDriver());
+	spiAcquireBus(&SPID3);
+	spiStart(&SPID3, getSPIDriver());
 
-	spiSelect(&SPID1);
-	spiExchange(&SPID1, txlen, txData, null_spi);
-	spiUnselect(&SPID1);
+	spiSelect(&SPID3);
+	spiExchange(&SPID3, txlen, txData, null_spi);
+	spiUnselect(&SPID3);
 
 	// Reqest ACK by Si4464
 	rxData[1] = 0x00;
@@ -108,12 +108,12 @@ void Si4464_read(uint8_t* txData, uint32_t txlen, uint8_t* rxData, uint32_t rxle
 		rx_ready[0] = 0x44;
 
 		// SPI transfer
-		spiSelect(&SPID1);
-		spiExchange(&SPID1, rxlen, rx_ready, rxData);
-		spiUnselect(&SPID1);
+		spiSelect(&SPID3);
+		spiExchange(&SPID3, rxlen, rx_ready, rxData);
+		spiUnselect(&SPID3);
 	}
-	spiStop(&SPID1);
-	spiReleaseBus(&SPID1);
+	spiStop(&SPID3);
+	spiReleaseBus(&SPID3);
 }
 
 void setFrequency(uint32_t freq, uint16_t shift) {
