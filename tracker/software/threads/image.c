@@ -273,7 +273,7 @@ const uint8_t noCameraFound[] = {
 	0xBD, 0xC0, 0x20, 0x00, 0x01, 0xFF, 0xD9
 };
 
-static uint8_t gimage_id = 5; // Global image ID (for all image threads)
+static uint8_t gimage_id; // Global image ID (for all image threads)
 mutex_t camera_mtx;
 
 void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_t image_id, bool redudantTx)
@@ -323,6 +323,11 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 				TRACE_ERROR("SSDV > Premature end of file");
 				if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) msg.bin_len = aprs_encode_data_finalize(&ax25_handle);
 				if(msg.bin_len > 0) transmitOnRadio(&msg, false); // Empty buffer
+				if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK)
+				{
+					aprs_encode_data_init(&ax25_handle, msg.msg, msg.mod);
+					msg.bin_len = 0;
+				}
 				break;
 			}
 			ssdv_enc_feed(&ssdv, b, r);
@@ -333,11 +338,21 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 			TRACE_INFO("SSDV > ssdv_enc_get_packet said EOI");
 			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) msg.bin_len = aprs_encode_data_finalize(&ax25_handle);
 			if(msg.bin_len > 0) transmitOnRadio(&msg, false); // Empty buffer
+			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK)
+			{
+				aprs_encode_data_init(&ax25_handle, msg.msg, msg.mod);
+				msg.bin_len = 0;
+			}
 			break;
 		} else if(c != SSDV_OK) {
 			TRACE_ERROR("SSDV > ssdv_enc_get_packet failed: %i", c);
 			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) msg.bin_len = aprs_encode_data_finalize(&ax25_handle);
 			if(msg.bin_len > 0) transmitOnRadio(&msg, false); // Empty buffer
+			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK)
+			{
+				aprs_encode_data_init(&ax25_handle, msg.msg, msg.mod);
+				msg.bin_len = 0;
+			}
 			return;
 		}
 
@@ -352,12 +367,17 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 					msg.bin_len = aprs_encode_data_encodePacket(&ax25_handle, 'I', &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91));
 
 				// Transmit
-				if(msg.bin_len >= 58000 || conf->packet_spacing) // Transmit if buffer is full or if single packet transmission activation (packet_spacing != 0)
+				if(msg.bin_len >= 58000 || conf->packet_spacing) // Transmit if buffer is almost full or if single packet transmission is activated (packet_spacing != 0)
 				{
+					// Transmit packets
 					msg.bin_len = aprs_encode_data_finalize(&ax25_handle);
 					transmitOnRadio(&msg, false);
+
+					// Initialize new packet buffer
+					aprs_encode_data_init(&ax25_handle, msg.msg, msg.mod);
 					msg.bin_len = 0;
-					chThdSleepMilliseconds(7500); // FIXME: Throttle it for my poor TH-D72. Has to be removed later.
+
+					//chThdSleepMilliseconds(8000); // FIXME: Throttle it for my poor TH-D72. Has to be removed later.
 				}
 				break;
 
@@ -377,7 +397,10 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 
 				// Transmit
 				if(msg.bin_len >= 61440 || conf->packet_spacing) { // Transmit if buffer is full or if single packet transmission activation (packet_spacing != 0)
+					// Transmit packets
 					transmitOnRadio(&msg, false);
+
+					// Initialize new packet buffer
 					msg.bin_len = 0;
 				}
 				break;
@@ -392,6 +415,7 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 
 		i++;
 	}
+	chThdSleepMilliseconds(7000); // FIXME: To fix bug temporarly
 }
 
 THD_FUNCTION(imgThread, arg) {

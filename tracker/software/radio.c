@@ -87,7 +87,7 @@ thread_t *feeder_thd = NULL;
  * Will give it some thought.
  * Meanwhile there are a few changes that are worth testing.
  */
-static THD_WORKING_AREA(si_fifo_feeder_wa, 10240);
+static THD_WORKING_AREA(si_fifo_feeder_wa, 1024);
 THD_FUNCTION(si_fifo_feeder_thd, arg)
 {
 	(void)arg;
@@ -113,7 +113,7 @@ THD_FUNCTION(si_fifo_feeder_thd, arg)
 		}
 		Si4464_writeFIFO(&tim_msg.msg[c], more); // Write into FIFO
 		c += more;
-		chThdSleepMilliseconds(20);
+		chThdSleepMilliseconds(5);
 	}
 
 	// Shutdown radio (and wait for Si4464 to finish transmission)
