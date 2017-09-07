@@ -17,14 +17,14 @@ bool p_sleep(const sleep_conf_t *config)
 		case SLEEP_WHEN_VBAT_BELOW_THRES:
 			return getBatteryVoltageMV() < config->vbat_thres;
 
-		case SLEEP_WHEN_ISOL_BELOW_THRES:
-			return pac1720_getIsol() < config->isol_thres;
+		case SLEEP_WHEN_RBAT_BELOW_THRES:
+			return 0 < config->rbat_thres; // FIXME
 
 		case SLEEP_WHEN_VBAT_ABOVE_THRES:
 			return getBatteryVoltageMV() > config->vbat_thres;
 
-		case SLEEP_WHEN_ISOL_ABOVE_THRES:
-			return pac1720_getIsol() > config->isol_thres;
+		case SLEEP_WHEN_RBAT_ABOVE_THRES:
+			return 0 > config->rbat_thres; // FIXME
 
 		case SLEEP_WHEN_DISCHARGING:
 		case SLEEP_WHEN_CHARGING:
@@ -48,7 +48,7 @@ systime_t waitForTrigger(systime_t prev, trigger_conf_t *config)
 		case TRIG_TIMEOUT: // Wait for specified timeout
 			return chThdSleepUntilWindowed(prev, prev + S2ST(config->timeout));
 
-		case TRIG_CONTINOUSLY: // Immediate trigger
+		case TRIG_CONTINUOUSLY: // Immediate trigger
 			return chVTGetSystemTimeX();
 
 		case TRIG_ONCE: // No trigger defined

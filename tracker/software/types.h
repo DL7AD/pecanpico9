@@ -31,7 +31,7 @@ typedef enum {
 	TEL_VBAT,
 	TEL_VSOL,
 	TEL_PBAT,
-	TEL_ISOL,
+	TEL_RBAT,
 	TEL_PRESS,
 	TEL_TEMP,
 	TEL_HUM
@@ -52,9 +52,9 @@ typedef struct {
 typedef enum {
 	SLEEP_DISABLED,
 	SLEEP_WHEN_VBAT_BELOW_THRES,
-	SLEEP_WHEN_ISOL_BELOW_THRES,
+	SLEEP_WHEN_RBAT_BELOW_THRES,
 	SLEEP_WHEN_VBAT_ABOVE_THRES,
-	SLEEP_WHEN_ISOL_ABOVE_THRES,
+	SLEEP_WHEN_RBAT_ABOVE_THRES,
 	SLEEP_WHEN_DISCHARGING,
 	SLEEP_WHEN_CHARGING
 } sleep_type_t;
@@ -62,7 +62,7 @@ typedef enum {
 typedef struct {
 	sleep_type_t type;
 	uint16_t vbat_thres;
-	uint16_t isol_thres;
+	uint16_t rbat_thres;
 } sleep_conf_t;
 
 typedef struct {
@@ -86,7 +86,7 @@ typedef struct {
 } gfsk_conf_t;
 
 typedef struct { // Radio message type
-	uint8_t 		msg[512];		// Message (data)
+	uint8_t 		msg[8191];		// Message (data)
 	uint32_t		bin_len;		// Binary length
 	uint32_t		freq;			// Frequency
 	int8_t			power;			// Power in dBm
@@ -99,7 +99,7 @@ typedef struct { // Radio message type
 } radioMSG_t;
 
 typedef enum {
-	RES_QCIF,
+	RES_QQVGA,
 	RES_QVGA,
 	RES_VGA,
 	RES_XGA,
@@ -108,12 +108,12 @@ typedef enum {
 } resolution_t;
 
 typedef struct {
-	char callsign[8];		// Callsign
+	char callsign[7];		// Callsign (or stream identifier)
 	resolution_t res;		// Camera resolution
 	uint8_t quality;		// JPEG quality
 	uint8_t *ram_buffer;	// Camera Buffer
-	uint16_t ram_size;		// Size of buffer
-	uint16_t size_sampled;	// Actual image data size (do not set in config)
+	uint32_t ram_size;		// Size of buffer
+	uint32_t size_sampled;	// Actual image data size (do not set in config)
 	bool redundantTx;		// Redundand packet transmission (APRS only)
 } ssdv_conf_t;
 
@@ -131,7 +131,7 @@ typedef enum {
 	TRIG_ONCE,				// Trigger once and never again (e.g. transmit specific position packet only at startup)
 	TRIG_NEW_POINT,			// Triggered when new track point available
 	TRIG_TIMEOUT,			// Triggered by timeout (e.g. trasmit position every 120sec)
-	TRIG_CONTINOUSLY		// Continue continously (e.g. send new image once old image sent completely)
+	TRIG_CONTINUOUSLY		// Continue continuously (e.g. send new image once old image sent completely)
 } trigger_type_t;
 
 typedef struct {

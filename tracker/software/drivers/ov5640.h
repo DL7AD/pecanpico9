@@ -9,6 +9,8 @@
 #include "hal.h"
 #include "types.h"
 
+#define OV5640_USE_DMA_DBM  TRUE
+
 bool OV5640_Snapshot2RAM(void);
 bool OV5640_Capture(void);
 void OV5640_InitGPIO(void);
@@ -18,5 +20,6 @@ void OV5640_TransmitConfig(void);
 void OV5640_init(ssdv_conf_t *config);
 void OV5640_deinit(void);
 bool OV5640_isAvailable(void);
+uint32_t OV5640_getLightIntensity(void);
 
 #endif

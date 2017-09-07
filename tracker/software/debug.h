@@ -73,21 +73,6 @@ extern bool debug_on_usb;
 #define TRACE_TAB "              "
 #endif
 
-#define TRACE_GPSFIX(fix) { \
-	TRACE_INFO("GPS  > New GPS Fix\r\n"\
-		"%s GPS Time: %04d-%02d-%02d %02d:%02d:%02d\r\n" \
-		"%s Sats: %d (used for solution)\r\n" \
-		"%s Latitude: %d.%07ddeg\r\n" \
-		"%s Longitude: %d.%07ddeg\r\n" \
-		"%s Altitude: %d Meter", \
-		TRACE_TAB, (fix)->time.year, (fix)->time.month, (fix)->time.day, (fix)->time.hour, (fix)->time.minute, (fix)->time.second, \
-		TRACE_TAB, (fix)->num_svs, \
-		TRACE_TAB, (fix)->lat/10000000, ((fix)->lat > 0 ? 1:-1)*(fix)->lat%10000000, \
-		TRACE_TAB, (fix)->lon/10000000, ((fix)->lon > 0 ? 1:-1)*(fix)->lon%10000000, \
-		TRACE_TAB, (fix)->alt \
-	); \
-}
-
 #define TRACE_BIN(data, len) { \
 	chMtxLock(&trace_mtx); \
 	chprintf((BaseSequentialStream*)&SD3, "[%8d.%03d][DEBUG] ", chVTGetSystemTimeX()/CH_CFG_ST_FREQUENCY, (chVTGetSystemTimeX()*1000/CH_CFG_ST_FREQUENCY)%1000); \

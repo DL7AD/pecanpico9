@@ -1,7 +1,7 @@
 
 /* SSDV - Slow Scan Digital Video                                        */
 /*=======================================================================*/
-/* Copyright 2011-2012 Philip Heron <phil@sanslogic.co.uk                */
+/* Copyright 2011-2016 Philip Heron <phil@sanslogic.co.uk>               */
 /*                                                                       */
 /* This program is free software: you can redistribute it and/or modify  */
 /* it under the terms of the GNU General Public License as published by  */
@@ -44,6 +44,11 @@ static const uint8_t const app0[14] = {
 /* SOS header data */
 static const uint8_t const sos[10] = {
 0x03,0x01,0x00,0x02,0x11,0x03,0x11,0x00,0x3F,0x00,
+};
+
+/* Quantisation table scaling factors for each quality level 0-7 */
+static const uint16_t const dqt_scales[8] = {
+5000, 357, 172, 116, 100, 58, 28, 0
 };
 
 /* Quantisation tables */
@@ -135,6 +140,61 @@ static char *strbits(uint32_t value, uint8_t bits)
 	return(s);
 }
 */
+
+static void load_standard_dqt(uint8_t *dst, const uint8_t *table, uint8_t quality)
+{
+	int i;
+	uint16_t scale_factor;
+	uint32_t temp;
+	
+	/* Copy the table ID */
+	*dst++ = *table++;
+	
+	/* Load the scaling factor */
+	if(quality > 7) quality = 7;
+	scale_factor = dqt_scales[quality];
+	
+	/* Copy the remaining 64 coefficients, while applying the scaling factor */
+	for(i = 0; i < 64; i++)
+	{
+		temp = *table++;
+		temp = (temp * scale_factor + 50) / 100;
+		
+		/* limit the values to the valid range */
+		if(temp == 0) temp = 1;
+		if(temp > 255) temp = 255;
+		
+		*dst++ = temp;
+	}
+}
+
+static void *sload_standard_dqt(ssdv_t *s, const uint8_t *table, uint8_t quality)
+{
+	uint8_t *r;
+	
+	/* DQT is 65 bytes long, ensure there is space */
+	if(s->stbl_len + 65 > TBL_LEN + HBUFF_LEN) return(NULL);
+	
+	r = &s->stbls[s->stbl_len];
+	load_standard_dqt(r, table, quality);
+	s->stbl_len += 65;
+	
+	return(r);
+}
+
+static void *dload_standard_dqt(ssdv_t *s, const uint8_t *table, uint8_t quality)
+{
+	uint8_t *r;
+	
+	/* DQT is 65 bytes long, ensure there is space */
+	if(s->dtbl_len + 65 > TBL_LEN + HBUFF_LEN) return(NULL);
+	
+	r = &s->dtbls[s->dtbl_len];
+	load_standard_dqt(r, table, quality);
+	s->dtbl_len += 65;
+	
+	return(r);
+}
 
 static void *stblcpy(ssdv_t *s, const void *src, size_t n)
 {
@@ -607,7 +667,7 @@ static char ssdv_have_marker(ssdv_t *s)
 	
 	case J_SOF2:
 		/* Don't do progressive images! */
-		TRACE_ERROR("SSDV > Progressive images not supported");
+		TRACE_ERROR("SSDV > Error: Progressive images not supported");
 		return(SSDV_ERROR);
 	
 	case J_EOI:
@@ -659,28 +719,28 @@ static char ssdv_have_marker_data(ssdv_t *s)
 		/* The image must have a precision of 8 */
 		if(d[0] != 8)
 		{
-			TRACE_ERROR("SSDV > The image must have a precision of 8");
+			TRACE_ERROR("SSDV > Error: The image must have a precision of 8");
 			return(SSDV_ERROR);
 		}
 		
 		/* The image must have 3 components (Y'Cb'Cr) */
 		if(d[5] != 3)
 		{
-			TRACE_ERROR("SSDV > The image must have 3 components");
+			TRACE_ERROR("SSDV > Error: The image must have 3 components");
 			return(SSDV_ERROR);
 		}
 		
 		/* Maximum image is 4080x4080 */
 		if(s->width > 4080 || s->height > 4080)
 		{
-			TRACE_ERROR("SSDV > The image is too big. Maximum resolution is 4080x4080");
+			TRACE_ERROR("SSDV > Error: The image is too big. Maximum resolution is 4080x4080");
 			return(SSDV_ERROR);
 		}
 		
 		/* The image dimensions must be a multiple of 16 */
 		if((s->width & 0x0F) || (s->height & 0x0F))
 		{
-			TRACE_ERROR("SSDV > The image dimensions must be a multiple of 16");
+			TRACE_ERROR("SSDV > Error: The image dimensions must be a multiple of 16");
 			return(SSDV_ERROR);
 		}
 		
@@ -691,7 +751,7 @@ static char ssdv_have_marker_data(ssdv_t *s)
 			uint8_t *dq = &d[i * 3 + 6];
 			if(dq[0] != i + 1)
 			{
-				TRACE_ERROR("SSDV > Components are not in order in the SOF0 header");
+				TRACE_ERROR("SSDV > Error: Components are not in order in the SOF0 header");
 				return(SSDV_ERROR);
 			}
 			
@@ -707,13 +767,13 @@ static char ssdv_have_marker_data(ssdv_t *s)
 				case 0x21: s->mcu_mode = 2; s->ycparts = 2; break;
 				case 0x11: s->mcu_mode = 3; s->ycparts = 1; break;
 				default:
-					TRACE_ERROR("SSDV > Component 1 sampling factor is not supported");
+					TRACE_ERROR("SSDV > Error: Component 1 sampling factor is not supported");
 					return(SSDV_ERROR);
 				}
 			}
 			else if(dq[0] != 1 && dq[1] != 0x11)
 			{
-				TRACE_ERROR("SSDV > Component %i sampling factor must be 1x1", dq[0]);
+				TRACE_ERROR("SSDV > Error: Component %i sampling factor must be 1x1", dq[0]);
 				return(SSDV_ERROR);
 			}
 		}
@@ -731,7 +791,7 @@ static char ssdv_have_marker_data(ssdv_t *s)
 		
 		if(l > 0xFFFF)
 		{
-			TRACE_ERROR("SSDV > Maximum number of MCU blocks is 65535");
+			TRACE_ERROR("SSDV > Error: Maximum number of MCU blocks is 65535");
 			return(SSDV_ERROR);
 		}
 		
@@ -745,7 +805,7 @@ static char ssdv_have_marker_data(ssdv_t *s)
 		/* The image must have 3 components (Y'Cb'Cr) */
 		if(d[0] != 3)
 		{
-			TRACE_ERROR("SSDV > The image must have 3 components");
+			TRACE_ERROR("SSDV > Error: The image must have 3 components");
 			return(SSDV_ERROR);
 		}
 		
@@ -754,7 +814,7 @@ static char ssdv_have_marker_data(ssdv_t *s)
 			uint8_t *dh = &d[i * 2 + 1];
 			if(dh[0] != i + 1)
 			{
-				TRACE_ERROR("SSDV > Components are not in order in the SOF0 header");
+				TRACE_ERROR("SSDV > Error: Components are not in order in the SOF0 header");
 				return(SSDV_ERROR);
 			}
 			
@@ -767,14 +827,14 @@ static char ssdv_have_marker_data(ssdv_t *s)
 		/* Verify all of the DQT and DHT tables where loaded */
 		if(!s->sdqt[0] || !s->sdqt[1])
 		{
-			TRACE_ERROR("SSDV > The image is missing one or more DQT tables");
+			TRACE_ERROR("SSDV > Error: The image is missing one or more DQT tables");
 			return(SSDV_ERROR);
 		}
 		
 		if(!s->sdht[0][0] || !s->sdht[0][1] ||
 		   !s->sdht[1][0] || !s->sdht[1][1])
 		{
-			TRACE_ERROR("SSDV > The image is missing one or more DHT tables");
+			TRACE_ERROR("SSDV > Error: The image is missing one or more DHT tables");
 			return(SSDV_ERROR);
 		}
 		
@@ -824,7 +884,7 @@ static char ssdv_have_marker_data(ssdv_t *s)
 	
 	case J_DRI:
 		s->dri = (d[0] << 8) + d[1];
-		TRACE_ERROR("SSDV > Reset interval: %i blocks", s->dri);
+		TRACE_INFO("SSDV > Reset interval: %i blocks", s->dri);
 		break;
 	}
 	
@@ -832,18 +892,23 @@ static char ssdv_have_marker_data(ssdv_t *s)
 	return(SSDV_OK);
 }
 
-char ssdv_enc_init(ssdv_t *s, uint8_t type, char *callsign, uint8_t image_id)
+char ssdv_enc_init(ssdv_t *s, uint8_t type, char *callsign, uint8_t image_id, int8_t quality)
 {
+	/* Limit the quality level */
+	if(quality < 0) quality = 0;
+	if(quality > 7) quality = 7;
+	
 	memset(s, 0, sizeof(ssdv_t));
 	s->image_id = image_id;
 	s->callsign = encode_callsign(callsign);
 	s->mode = S_ENCODING;
 	s->type = type;
+	s->quality = quality;
 	ssdv_set_packet_conf(s);
 	
 	/* Prepare the output JPEG tables */
-	s->ddqt[0] = dtblcpy(s, std_dqt0, sizeof(std_dqt0));
-	s->ddqt[1] = dtblcpy(s, std_dqt1, sizeof(std_dqt1));
+	s->ddqt[0] = dload_standard_dqt(s, std_dqt0, s->quality);
+	s->ddqt[1] = dload_standard_dqt(s, std_dqt1, s->quality);
 	s->ddht[0][0] = dtblcpy(s, std_dht00, sizeof(std_dht00));
 	s->ddht[0][1] = dtblcpy(s, std_dht01, sizeof(std_dht01));
 	s->ddht[1][0] = dtblcpy(s, std_dht10, sizeof(std_dht10));
@@ -973,6 +1038,7 @@ char ssdv_enc_get_packet(ssdv_t *s)
 				s->out[9]   = s->width >> 4;       /* Width / 16 */
 				s->out[10]  = s->height >> 4;      /* Height / 16 */
 				s->out[11]  = 0x00;
+				s->out[11] |= ((s->quality - 4) & 7) << 3;  /* Quality level */
 				s->out[11] |= (r == SSDV_EOI ? 1 : 0) << 2; /* EOI flag (1 bit) */
 				s->out[11] |= s->mcu_mode & 0x03;  /* MCU mode (2 bits) */
 				s->out[12]  = mcu_offset;          /* Next MCU offset */
@@ -1020,7 +1086,7 @@ char ssdv_enc_get_packet(ssdv_t *s)
 	return(SSDV_FEED_ME);
 }
 
-char ssdv_enc_feed(ssdv_t *s, uint8_t *buffer, size_t length)
+char ssdv_enc_feed(ssdv_t *s, const uint8_t *buffer, size_t length)
 {
 	s->inp    = buffer;
 	s->in_len = length;
@@ -1045,8 +1111,8 @@ static void ssdv_out_headers(ssdv_t *s)
 	
 	ssdv_write_marker(s, J_SOI,    0, 0);
 	ssdv_write_marker(s, J_APP0,  14, app0);
-	ssdv_write_marker(s, J_DQT,   65, std_dqt0);  /* DQT Luminance       */
-	ssdv_write_marker(s, J_DQT,   65, std_dqt1);  /* DQT Chrominance     */
+	ssdv_write_marker(s, J_DQT,   65, s->ddqt[0]);  /* DQT Luminance       */
+	ssdv_write_marker(s, J_DQT,   65, s->ddqt[1]);  /* DQT Chrominance     */
 	
 	/* Build SOF0 header */
 	b[0]  = 8; /* Precision */
@@ -1125,16 +1191,12 @@ char ssdv_dec_init(ssdv_t *s)
 	s->mode = S_DECODING;
 	
 	/* Prepare the source JPEG tables */
-	s->sdqt[0] = stblcpy(s, std_dqt0, sizeof(std_dqt0));
-	s->sdqt[1] = stblcpy(s, std_dqt1, sizeof(std_dqt1));
 	s->sdht[0][0] = stblcpy(s, std_dht00, sizeof(std_dht00));
 	s->sdht[0][1] = stblcpy(s, std_dht01, sizeof(std_dht01));
 	s->sdht[1][0] = stblcpy(s, std_dht10, sizeof(std_dht10));
 	s->sdht[1][1] = stblcpy(s, std_dht11, sizeof(std_dht11));
 	
 	/* Prepare the output JPEG tables */
-	s->ddqt[0] = dtblcpy(s, std_dqt0, sizeof(std_dqt0));
-	s->ddqt[1] = dtblcpy(s, std_dqt1, sizeof(std_dqt1));
 	s->ddht[0][0] = dtblcpy(s, std_dht00, sizeof(std_dht00));
 	s->ddht[0][1] = dtblcpy(s, std_dht01, sizeof(std_dht01));
 	s->ddht[1][0] = dtblcpy(s, std_dht10, sizeof(std_dht10));
@@ -1183,12 +1245,19 @@ char ssdv_dec_feed(ssdv_t *s, uint8_t *packet)
 		s->width     = packet[9] << 4;
 		s->height    = packet[10] << 4;
 		s->mcu_count = packet[9] * packet[10];
+		s->quality   = ((packet[11] >> 3) & 7) ^ 4;
 		s->mcu_mode  = packet[11] & 0x03;
 		
 		/* Configure the payload size and CRC position */
 		ssdv_set_packet_conf(s);
 		
-		switch(s->mcu_mode)
+		/* Generate the DQT tables */
+		s->sdqt[0] = sload_standard_dqt(s, std_dqt0, s->quality);
+		s->sdqt[1] = sload_standard_dqt(s, std_dqt1, s->quality);
+		s->ddqt[0] = dload_standard_dqt(s, std_dqt0, s->quality);
+		s->ddqt[1] = dload_standard_dqt(s, std_dqt1, s->quality);
+		
+		switch(s->mcu_mode & 3)
 		{
 		case 0: factor = "2x2"; s->ycparts = 4; break;
 		case 1: factor = "1x2"; s->ycparts = 2; s->mcu_count *= 2; break;
@@ -1202,6 +1271,7 @@ char ssdv_dec_feed(ssdv_t *s, uint8_t *packet)
 		TRACE_INFO("SSDV > Resolution: %ix%i", s->width, s->height);
 		TRACE_INFO("SSDV > MCU blocks: %i", s->mcu_count);
 		TRACE_INFO("SSDV > Sampling factor: %s", factor);
+		TRACE_INFO("SSDV > Quality level: %d", s->quality);
 		
 		/* Output JPEG headers and enable byte stuffing */
 		ssdv_out_headers(s);
@@ -1301,19 +1371,50 @@ char ssdv_dec_is_packet(uint8_t *packet, int *errors)
 	memcpy(pkt, packet, SSDV_PKT_SIZE);
 	pkt[0] = 0x55;
 	
+	type = SSDV_TYPE_INVALID;
+	
 	if(pkt[1] == 0x66 + SSDV_TYPE_NOFEC)
 	{
-		type = SSDV_TYPE_NOFEC;
-		
+		/* Test for a valid NOFEC packet */
 		pkt_size_payload = SSDV_PKT_SIZE - SSDV_PKT_SIZE_HEADER - SSDV_PKT_SIZE_CRC;
 		pkt_size_crcdata = SSDV_PKT_SIZE_HEADER + pkt_size_payload - 1;
 		
+		/* No FEC scan */
 		if(errors) *errors = 0;
-	}
-	else
-	{
-		type = SSDV_TYPE_NORMAL;
 		
+		/* Test the checksum */
+		x = crc32(&pkt[1], pkt_size_crcdata);
+		
+		i = 1 + pkt_size_crcdata;
+		if(x == (pkt[i + 3] | (pkt[i + 2] << 8) | (pkt[i + 1] << 16) | (pkt[i] << 24)))
+		{
+			/* Valid, set the type and continue */
+			type = SSDV_TYPE_NOFEC;
+		}
+	}
+	else if(pkt[1] == 0x66 + SSDV_TYPE_NORMAL)
+	{
+		/* Test for a valid NORMAL packet */
+		pkt_size_payload = SSDV_PKT_SIZE - SSDV_PKT_SIZE_HEADER - SSDV_PKT_SIZE_CRC - SSDV_PKT_SIZE_RSCODES;
+		pkt_size_crcdata = SSDV_PKT_SIZE_HEADER + pkt_size_payload - 1;
+		
+		/* No FEC scan */
+		if(errors) *errors = 0;
+		
+		/* Test the checksum */
+		x = crc32(&pkt[1], pkt_size_crcdata);
+		
+		i = 1 + pkt_size_crcdata;
+		if(x == (pkt[i + 3] | (pkt[i + 2] << 8) | (pkt[i + 1] << 16) | (pkt[i] << 24)))
+		{
+			/* Valid, set the type and continue */
+			type = SSDV_TYPE_NORMAL;
+		}
+	}
+	
+	if(type == SSDV_TYPE_INVALID)
+	{
+		/* Test for a valid NORMAL packet with correctable errors */
 		pkt_size_payload = SSDV_PKT_SIZE - SSDV_PKT_SIZE_HEADER - SSDV_PKT_SIZE_CRC - SSDV_PKT_SIZE_RSCODES;
 		pkt_size_crcdata = SSDV_PKT_SIZE_HEADER + pkt_size_payload - 1;
 		
@@ -1323,6 +1424,22 @@ char ssdv_dec_is_packet(uint8_t *packet, int *errors)
 		
 		if(i < 0) return(-1); /* Reed-solomon decoder failed */
 		if(errors) *errors = i;
+		
+		/* Test the checksum */
+		x = crc32(&pkt[1], pkt_size_crcdata);
+		
+		i = 1 + pkt_size_crcdata;
+		if(x == (pkt[i + 3] | (pkt[i + 2] << 8) | (pkt[i + 1] << 16) | (pkt[i] << 24)))
+		{
+			/* Valid, set the type and continue */
+			type = SSDV_TYPE_NORMAL;
+		}
+	}
+	
+	if(type == SSDV_TYPE_INVALID)
+	{
+		/* All attempts to read the packet have failed */
+		return(-1);
 	}
 	
 	/* Sanity checks */
@@ -1335,15 +1452,6 @@ char ssdv_dec_is_packet(uint8_t *packet, int *errors)
 		if(p.mcu_id >= p.mcu_count) return(-1);
 		if(p.mcu_offset >= pkt_size_payload) return(-1);
 	}
-	
-	/* Test the checksum */
-	x = crc32(&pkt[1], pkt_size_crcdata);
-	
-	i = 1 + pkt_size_crcdata;
-	if(pkt[i++] != ((x >> 24) & 0xFF)) return(-1);
-	if(pkt[i++] != ((x >> 16) & 0xFF)) return(-1);
-	if(pkt[i++] != ((x >> 8) & 0xFF)) return(-1);
-	if(pkt[i++] != (x & 0xFF)) return(-1);
 	
 	/* Appears to be a valid packet! Copy it back */
 	memcpy(packet, pkt, SSDV_PKT_SIZE);
@@ -1361,6 +1469,7 @@ void ssdv_dec_header(ssdv_packet_info_t *info, uint8_t *packet)
 	info->width      = packet[9] << 4;
 	info->height     = packet[10] << 4;
 	info->eoi        = (packet[11] >> 2) & 1;
+	info->quality    = ((packet[11] >> 3) & 7) ^ 4;
 	info->mcu_mode   = packet[11] & 0x03;
 	info->mcu_offset = packet[12];
 	info->mcu_id     = (packet[13] << 8) | packet[14];
