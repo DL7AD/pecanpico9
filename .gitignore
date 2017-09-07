@@ -1,4 +1,4 @@
 build
 .dep
-decoder/*.pyc
-decoder/__pycache__
+*.pyc
+__pycache__
