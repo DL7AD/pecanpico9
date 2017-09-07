@@ -7,7 +7,7 @@
 #include "hal.h"
 
 #include "debug.h"
-#include "modules.h"
+#include "threads.h"
 #include "base.h"
 #include "aprs.h"
 #include "flash.h"

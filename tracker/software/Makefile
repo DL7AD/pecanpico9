@@ -10,7 +10,7 @@ endif
 
 # C specific options here (added to USE_OPT).
 ifeq ($(USE_COPT),)
-  USE_COPT = 
+  USE_COPT = -std=c11
 endif
 
 # C++ specific options here (added to USE_OPT).
@@ -87,6 +87,7 @@ PROJECT = ch
 
 # Imported source files and paths
 CHIBIOS = ChibiOS
+#CHIBIOS = C:\ChibiStudio\chibios_trunk
 # Startup files.
 include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32f4xx.mk
 # HAL-OSAL files (optional).
@@ -118,10 +119,10 @@ CSRC = $(STARTUPSRC) \
        $(SHELLSRC) \
        $(CHIBIOS)/os/hal/lib/streams/memstreams.c \
        $(CHIBIOS)/os/hal/lib/streams/chprintf.c \
-       modules/tracking.c \
-       modules/position.c \
-       modules/image.c \
-       modules/log.c \
+       threads/tracking.c \
+       threads/position.c \
+       threads/image.c \
+       threads/log.c \
        protocols/ssdv/ssdv.c \
        protocols/ssdv/rs8.c \
        protocols/aprs/aprs.c \
@@ -134,7 +135,6 @@ CSRC = $(STARTUPSRC) \
        drivers/si4464.c \
        drivers/bme280.c \
        drivers/pac1720.c \
-       drivers/ov2640.c \
        drivers/ov5640.c \
        drivers/flash/flash.c \
        drivers/flash/helper.c \
@@ -142,7 +142,7 @@ CSRC = $(STARTUPSRC) \
        debug.c \
        radio.c \
        sleep.c \
-       modules.c \
+       threads/threads.c \
        math/base.c \
        math/sgp4.c \
        math/geofence.c \
@@ -239,7 +239,7 @@ UDEFS =
 UADEFS =
 
 # List all user directories here
-UINCDIR = modules/ drivers/ drivers/wrapper/ protocols/aprs \
+UINCDIR = threads/ drivers/ drivers/wrapper/ protocols/aprs \
           protocols/ssdv protocols/morse math/ drivers/flash/
 
 # List the user directory to look for the libraries here

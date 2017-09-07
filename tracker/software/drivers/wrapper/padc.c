@@ -68,15 +68,20 @@ void doConversion(void)
 	deinitADC();
 }
 
-uint16_t getBatteryVoltageMV(void)
+uint16_t getBatteryVoltageMV_STM32(void)
 {
 	doConversion();
-	uint16_t vbat = samples[2] * vcc_ref * DIVIDER_VBAT / 4096;
+	return samples[2] * vcc_ref * DIVIDER_VBAT / 4096;
+}
+
+uint16_t getBatteryVoltageMV(void)
+{
+	uint16_t vbat = getBatteryVoltageMV_STM32();
 
 	// Get voltage from PAC1720 (PAC1720 returns false redings below 2.35V)
 	if(vbat >= 2500)
 	{
-		uint16_t vbat_pac = pac1720_getBatteryVoltage(); // Get value from PAC1720
+		uint16_t vbat_pac = pac1720_getVbat(); // Get value from PAC1720
 		if(vbat_pac) // Apply it if valid
 			vbat = vbat_pac;
 	}
@@ -86,10 +91,12 @@ uint16_t getBatteryVoltageMV(void)
 
 uint16_t getSolarVoltageMV(void)
 {
+	uint16_t vbat = getBatteryVoltageMV_STM32();
+
 	// Get voltage from PAC1720 (PAC1720 returns false redings below 2.35V)
-	if(getBatteryVoltageMV() >= 2500)
+	if(vbat >= 2500)
 	{
-		uint16_t vsol_pac = pac1720_getSolarVoltage(); // Get value from PAC1720
+		uint16_t vsol_pac = pac1720_getVsol(); // Get value from PAC1720
 		if(vsol_pac)
 			return vsol_pac;
 	}

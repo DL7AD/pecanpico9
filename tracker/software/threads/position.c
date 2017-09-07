@@ -2,7 +2,7 @@
 #include "hal.h"
 
 #include "debug.h"
-#include "modules.h"
+#include "threads.h"
 #include "config.h"
 #include "radio.h"
 #include "aprs.h"
@@ -93,8 +93,8 @@ void replace_placeholders(char* fskmsg, uint16_t size, trackPoint_t *tp) {
 	str_replace(fskmsg, size, "<VSOL>", buf);
 	chsnprintf(buf, sizeof(buf), "%d.%03d", tp->adc_pbat/1000, (tp->adc_pbat >= 0 ? 1 : -1) * (tp->adc_pbat%1000));
 	str_replace(fskmsg, size, "<PBAT>", buf);
-	chsnprintf(buf, sizeof(buf), "%d.%03d", tp->adc_isol/1000, (tp->adc_isol >= 0 ? 1 : -1) * (tp->adc_isol%1000));
-	str_replace(fskmsg, size, "<ISOL>", buf);
+	chsnprintf(buf, sizeof(buf), "%d.%03d", tp->adc_rbat/1000, (tp->adc_rbat >= 0 ? 1 : -1) * (tp->adc_rbat%1000));
+	str_replace(fskmsg, size, "<RBAT>", buf);
 	chsnprintf(buf, sizeof(buf), "%d", tp->air_press/10);
 	str_replace(fskmsg, size, "<PRESS>", buf);
 	chsnprintf(buf, sizeof(buf), "%d.%d", tp->air_temp/100, (tp->air_temp%100)/10);
@@ -218,7 +218,7 @@ void start_position_thread(module_conf_t *conf)
 	// Start position thread
 	TRACE_INFO("POS  > Startup position thread");
 	chsnprintf(conf->name, sizeof(conf->name), "POS");
-	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(2*1024), "POS", NORMALPRIO, posThread, conf);
+	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(10*1024), "POS", NORMALPRIO, posThread, conf);
 	if(!th) {
 		// Print startup error, do not start watchdog for this thread
 		TRACE_ERROR("POS  > Could not startup thread (not enough memory available)");

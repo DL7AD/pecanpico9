@@ -179,7 +179,7 @@ THD_FUNCTION(trackingThread, arg) {
 		lastTrackPoint->gps_alt = lastLogPoint.gps_alt;
 	}
 
-	lastTrackPoint->gps_lock = 0; // But tell the user that there is no current lock nor any GPS sats locked
+	lastTrackPoint->gps_lock = GPS_LOSS; // But tell the user that there is no current lock nor any GPS sats locked
 	lastTrackPoint->gps_sats = 0;
 	lastTrackPoint->gps_ttff = 0;
 
@@ -202,7 +202,6 @@ THD_FUNCTION(trackingThread, arg) {
 	lastTrackPoint->adc_vsol = getSolarVoltageMV();
 	lastTrackPoint->adc_vbat = getBatteryVoltageMV();
 	lastTrackPoint->adc_vusb = getUSBVoltageMV();
-	lastTrackPoint->adc_isol = pac1720_getIsol();
 	lastTrackPoint->adc_pbat = pac1720_getPbat();
 
 	bme280_t bme280;
@@ -234,7 +233,7 @@ THD_FUNCTION(trackingThread, arg) {
 
 		// Switch on GPS is enough power is available
 		uint16_t batt = getBatteryVoltageMV();
-		if(batt >= GPS_ON_VBAT)
+		if(batt >= gps_on_vbat)
 		{
 			// Switch on GPS
 			GPS_Init();
@@ -243,22 +242,24 @@ THD_FUNCTION(trackingThread, arg) {
 			do {
 				batt = getBatteryVoltageMV();
 				gps_get_fix(&gpsFix);
-			} while(!isGPSLocked(&gpsFix) && batt >= GPS_OFF_VBAT && chVTGetSystemTimeX() <= time + S2ST(TRACK_CYCLE_TIME-5)); // Do as long no GPS lock and within timeout, timeout=cycle-1sec (-1sec in order to keep synchronization)
+			} while(!isGPSLocked(&gpsFix) && batt >= gps_off_vbat && chVTGetSystemTimeX() <= time + track_cycle_time - S2ST(3)); // Do as long no GPS lock and within timeout, timeout=cycle-1sec (-3sec in order to keep synchronization)
 
-			if(batt < GPS_OFF_VBAT) // Switch off GPS at low batt
+			if(batt < gps_off_vbat) // Switch off GPS at low batt
 				GPS_Deinit();
 		}
 
 		if(isGPSLocked(&gpsFix)) { // GPS locked
 
 			// Switch off GPS (if cycle time is more than 60 seconds)
-			#if TRACK_CYCLE_TIME > 60
-			GPS_Deinit();
-			#endif
+			if(track_cycle_time >= S2ST(60)) {
+				TRACE_INFO("TRAC > Switch off GPS");
+				GPS_Deinit();
+			} else {
+				TRACE_INFO("TRAC > Keep GPS switched of because cycle < 60sec");
+			}
 
 			// Debug
 			TRACE_INFO("TRAC > GPS sampling finished GPS LOCK");
-			TRACE_GPSFIX(&gpsFix);
 
 			// Calibrate RTC
 			setTime(gpsFix.time);
@@ -276,13 +277,17 @@ THD_FUNCTION(trackingThread, arg) {
 			tp->gps_lon = gpsFix.lon;
 			tp->gps_alt = gpsFix.alt;
 
-			tp->gps_lock = isGPSLocked(&gpsFix);
+			tp->gps_lock = GPS_LOCKED;
 			tp->gps_sats = gpsFix.num_svs;
 
 		} else { // GPS lost (keep GPS switched on)
 
 			// Debug
-			TRACE_WARN("TRAC > GPS sampling finished GPS LOSS");
+			if(batt < gps_off_vbat) {
+				TRACE_WARN("TRAC > GPS sampling finished GPS LOW BATT");
+			} else {
+				TRACE_WARN("TRAC > GPS sampling finished GPS LOSS");
+			}
 
 			// Take time from internal RTC
 			getTime(&rtc);
@@ -298,8 +303,8 @@ THD_FUNCTION(trackingThread, arg) {
 			tp->gps_lon = ltp->gps_lon;
 			tp->gps_alt = ltp->gps_alt;
 
-			// Mark gpsloss
-			tp->gps_lock = false;
+			// Mark GPS loss (or low batt)
+			tp->gps_lock = batt < gps_off_vbat ? GPS_LOWBATT : GPS_LOSS;
 			tp->gps_sats = 0;
 
 		}
@@ -311,8 +316,8 @@ THD_FUNCTION(trackingThread, arg) {
 		tp->adc_vsol = getSolarVoltageMV();
 		tp->adc_vbat = getBatteryVoltageMV();
 		tp->adc_vusb = getUSBVoltageMV();
-		tp->adc_isol = pac1720_getIsol();
 		tp->adc_pbat = pac1720_getAvgPbat();
+		tp->adc_rbat = pac1720_getAvgRbat();
 
 		bme280_t bme280;
 
@@ -332,15 +337,15 @@ THD_FUNCTION(trackingThread, arg) {
 		// Trace data
 		TRACE_INFO(	"TRAC > New tracking point available (ID=%d)\r\n"
 					"%s Time %04d-%02d-%02d %02d:%02d:%02d\r\n"
-					"%s Pos  %d.%07d %d.%07d Alt %dm\r\n"
+					"%s Pos  %d.%05d %d.%05d Alt %dm\r\n"
 					"%s Sats %d  TTFF %dsec\r\n"
-					"%s ADC Vbat=%d.%03dV Vsol=%d.%03dV VUSB=%d.%03dV Pbat=%dmW Isol=%dmA\r\n"
+					"%s ADC Vbat=%d.%03dV Vsol=%d.%03dV VUSB=%d.%03dV Pbat=%dmW Rbat=%dmOhm\r\n"
 					"%s AIR p=%6d.%01dPa T=%2d.%02ddegC phi=%2d.%01d%%",
 					tp->id,
 					TRACE_TAB, tp->time.year, tp->time.month, tp->time.day, tp->time.hour, tp->time.minute, tp->time.day,
-					TRACE_TAB, tp->gps_lat/10000000, (tp->gps_lat > 0 ? 1:-1)*tp->gps_lat%10000000, tp->gps_lon/10000000, (tp->gps_lon > 0 ? 1:-1)*tp->gps_lon%10000000, tp->gps_alt,
+					TRACE_TAB, tp->gps_lat/10000000, (tp->gps_lat > 0 ? 1:-1)*(tp->gps_lat/100)%100000, tp->gps_lon/10000000, (tp->gps_lon > 0 ? 1:-1)*(tp->gps_lon/100)%100000, tp->gps_alt,
 					TRACE_TAB, tp->gps_sats, tp->gps_ttff,
-					TRACE_TAB, tp->adc_vbat/1000, (tp->adc_vbat%1000), tp->adc_vsol/1000, (tp->adc_vsol%1000), tp->adc_vusb/1000, (tp->adc_vusb%1000), tp->adc_pbat, tp->adc_isol,
+					TRACE_TAB, tp->adc_vbat/1000, (tp->adc_vbat%1000), tp->adc_vsol/1000, (tp->adc_vsol%1000), tp->adc_vusb/1000, (tp->adc_vusb%1000), tp->adc_pbat, tp->adc_rbat,
 					TRACE_TAB, tp->air_press/10, tp->air_press%10, tp->air_temp/100, tp->air_temp%100, tp->air_hum/10, tp->air_hum%10
 		);
 
@@ -348,14 +353,14 @@ THD_FUNCTION(trackingThread, arg) {
 		if(nextLogEntryTimer <= chVTGetSystemTimeX() && isGPSLocked(&gpsFix))
 		{
 			writeLogTrackPoint(tp);
-			nextLogEntryTimer += S2ST(LOG_CYCLE_TIME);
+			nextLogEntryTimer += log_cycle_time;
 		}
 
 		// Switch last recent track point
 		lastTrackPoint = tp;
 		id++;
 
-		time = chThdSleepUntilWindowed(time, time + S2ST(TRACK_CYCLE_TIME)); // Wait until time + cycletime
+		time = chThdSleepUntilWindowed(time, time + track_cycle_time); // Wait until time + cycletime
 	}
 }
 
