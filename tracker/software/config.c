@@ -491,7 +491,7 @@ void start_user_modules(void)
 	config[6].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
 	config[6].ssdv_conf.res = RES_XGA;						// Resolution XGA
 	config[6].ssdv_conf.quality = 4;						// Image quality
-	start_image_thread(&config[6]);
+	//start_image_thread(&config[6]);
 
 
 	/* ----------------------------------------------------- LOG TRANSMISSION ---------------------------------------------------- */
