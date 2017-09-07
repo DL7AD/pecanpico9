@@ -15,8 +15,8 @@ from subprocess import *
 from cStringIO import StringIO
 
 send_to_server = False
-SCREENX = 640
-SCREENY = 480
+SCREENX = 1024
+SCREENY = 768
 pygame.font.init()
 myfont = pygame.font.SysFont('Comic Sans MS', 20)
 textsurface = myfont.render('Callsign: DL7AD2 Image ID: 07 Resolution: 640x480', False, (0, 255, 255))
@@ -81,12 +81,19 @@ def received_data(data):
 
 		# Parse line and detect data
 		m = re.search("(.*)\>APECAN(.*):\{\{I(.*)", data)
-		try:
-			call = m.group(1)
-			aprs = m.group(3)
-			receiver = 'bla'
-		except:
-			return # message format incorrect (probably no APRS message or line cut off too short)
+		if m:
+			try:
+				call = m.group(1)
+				aprs = m.group(3)
+				receiver = 'bla'
+			except:
+				return # message format incorrect (probably no APRS message or line cut off too short)
+		else:
+			m = re.search("\[(.*)\]\[(.*)\] DATA \> (.*)", data)
+			try:
+				aprs = m.group(3)
+			except:
+				return
 
 	if args.log is not None:
 		logfile.write(data) # Log data to file
@@ -100,24 +107,6 @@ def received_data(data):
 
 	if len(data) != 219: 
 		return # APRS message sampled too short
-		
-	jsons.append("""{
-		\"type\": \"packet\",
-		\"packet\": \"""" + ssdv + """\",
-		\"encoding\": \"hex\",
-		\"received\": \"""" + datetime.datetime.now().isoformat('T')[:19] + """Z\",
-		\"receiver\": \"""" + receiver + """\"
-	}""")
-	#print datetime.datetime.now().isoformat('T') + ' Received packet call %02x%02x%02x%02x image %d packet %d' % (data[1], data[2], data[3], data[4], data[5], data[7] + data[6] * 256)
-	# Write data buffer to file
-	#open file with name from datetime and image count
-
-
-	#fa = open(filename_str_ssdv,'ab+', 0) # buffer 0 flush data just an time
-	#fa.write(binascii.unhexlify(ssdv))
-	#fa.close()
-	# call only if file exist with minimum 2 packet
-	#os.system("./ssdv -d -c %s ./%s ./currximg.jpg" % (args.call, filename_str_ssdv))
 
 	if (data[7] + data[6] * 256) == 0:
 		buf = ''
@@ -186,4 +175,4 @@ else:
 			pygame.display.flip()
 			pygame.display.update(displaygroup.draw(screen))
 
-		clock.tick(30)
+		clock.tick(500)

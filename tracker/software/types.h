@@ -1,8 +1,8 @@
 #ifndef __TYPES_H__
 #define __TYPES_H__
 
-//#define HIGH	true
-//#define LOW		false
+#define HIGH	true
+#define LOW		false
 
 typedef enum { // Modulation type
 	MOD_NOT_SET,
@@ -15,6 +15,7 @@ typedef enum { // Modulation type
 // Protocol type
 typedef enum {
 	PROT_SSDV_2FSK,
+	PROT_SSDV_USB,
 	PROT_APRS_AFSK,
 	PROT_APRS_2GFSK,
 	PROT_UKHAS_2FSK,

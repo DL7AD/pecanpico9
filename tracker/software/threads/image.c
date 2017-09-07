@@ -405,6 +405,14 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 				}
 				break;
 
+			case PROT_SSDV_USB:
+				// Encode packet
+				TRACE_INFO("IMG  > Encode 2FSK/SSDV packet");
+				base91_encode(&pkt[1], pkt_base91, sizeof(pkt)-37); // Sync byte, CRC and FEC of SSDV not transmitted
+				TRACE_USB("DATA > %s", pkt_base91);
+
+				break;
+
 			default:
 				TRACE_ERROR("IMG  > Unsupported protocol selected for module IMAGE");
 		}

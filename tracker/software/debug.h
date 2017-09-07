@@ -42,6 +42,11 @@ extern bool debug_on_usb;
 	chprintf((BaseSequentialStream*)&SD3, (format), ##args); \
 	chprintf((BaseSequentialStream*)&SD3, "\r\n"); \
 	\
+	TRACE_BASE_USB(format, type, ##args); \
+	chMtxUnlock(&trace_mtx); \
+}
+
+#define TRACE_BASE_USB(format, type, args...) { \
 	if(usb_initialized && debug_on_usb) { \
 		if(TRACE_TIME) { \
 			chprintf((BaseSequentialStream*)&SDU1, "[%8d.%03d]", chVTGetSystemTimeX()/CH_CFG_ST_FREQUENCY, (chVTGetSystemTimeX()*1000/CH_CFG_ST_FREQUENCY)%1000); \
@@ -54,14 +59,13 @@ extern bool debug_on_usb;
 		chprintf((BaseSequentialStream*)&SDU1, (format), ##args); \
 		chprintf((BaseSequentialStream*)&SDU1, "\r\n"); \
 	} \
-	\
-	chMtxUnlock(&trace_mtx); \
 }
 
 #define TRACE_DEBUG(format, args...) TRACE_BASE(format, "DEBUG", ##args)
 #define TRACE_INFO(format, args...)  TRACE_BASE(format, "     ", ##args)
 #define TRACE_WARN(format, args...)  TRACE_BASE(format, "WARN ", ##args)
 #define TRACE_ERROR(format, args...) TRACE_BASE(format, "ERROR", ##args)
+#define TRACE_USB(format, args...)   TRACE_BASE_USB(format, "USB  ", ##args) /* only traced on USB */
 
 #if TRACE_TIME && TRACE_FILE
 #define TRACE_TAB "                                             "
