@@ -11,7 +11,8 @@ import argparse
 import pygame, random
 from pygame.locals import *
 import pygame.time
-#import aprs
+from subprocess import *
+from cStringIO import StringIO
 
 send_to_server = False
 SCREENX = 640
@@ -29,7 +30,7 @@ pygame.display.set_caption('PecanRXGui  v.1.0.0 (Q)uit (s)end image')
 
 # Parse arguments from terminal
 parser = argparse.ArgumentParser(description='APRS/SSDV decoder')
-parser.add_argument('-c', '--call', help='Callsign of the station', required=True)
+parser.add_argument('-c', '--call', help='Callsign of the station')
 parser.add_argument('-l', '--log', help='Name of the logfile')
 parser.add_argument('-n', '--grouping', help='Amount packets that will be sent to the SSDV server in one request', default=1, type=int)
 parser.add_argument('-d', '--device', help='Serial device (\'-\' for stdin)', default='-')
@@ -63,9 +64,12 @@ if args.log is not None:
 
 jsons = []
 current_filename = 'data.csv'
+buf = ''
+jpg = ''
+imgbuf = ''
 
-def received_data(data):		
-	global jsons, old_filename, current_filename, send_to_server
+def received_data(data):
+	global jsons, old_filename, current_filename, send_to_server, buf, imgbuf
 
 	if str(type(data)) == "<class 'aprs.classes.Frame'>": # APRS-IS
 
@@ -80,7 +84,7 @@ def received_data(data):
 		try:
 			call = m.group(1)
 			aprs = m.group(3)
-			receiver = 'APRS/'+m.group(2) if len(m.group(2)) > 0 else 'APRS/'+args.call
+			receiver = 'bla'
 		except:
 			return # message format incorrect (probably no APRS message or line cut off too short)
 
@@ -107,16 +111,23 @@ def received_data(data):
 	#print datetime.datetime.now().isoformat('T') + ' Received packet call %02x%02x%02x%02x image %d packet %d' % (data[1], data[2], data[3], data[4], data[5], data[7] + data[6] * 256)
 	# Write data buffer to file
 	#open file with name from datetime and image count
-	filename_str_ssdv = 'rx_img.ssdv'
-	if (data[7] + data[6] * 256) == 0:
-		os.remove(filename_str_ssdv)
-		# remove old datafile
 
-	fa = open(filename_str_ssdv,'ab+', 0) # buffer 0 flush data just an time
-	fa.write(binascii.unhexlify(ssdv))
-	fa.close()
+
+	#fa = open(filename_str_ssdv,'ab+', 0) # buffer 0 flush data just an time
+	#fa.write(binascii.unhexlify(ssdv))
+	#fa.close()
 	# call only if file exist with minimum 2 packet
-	os.system("./ssdv -d -c %s ./%s ./currximg.jpg" % (args.call, filename_str_ssdv))
+	#os.system("./ssdv -d -c %s ./%s ./currximg.jpg" % (args.call, filename_str_ssdv))
+
+	if (data[7] + data[6] * 256) == 0:
+		buf = ''
+	buf += binascii.unhexlify(ssdv)
+
+	command = ['./ssdv', '-d']
+	process = Popen(command, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+	process.stdin.write(buf)
+	jpg,dummy = process.communicate()
+	imgbuf = StringIO(jpg)
 
 	if send_to_server is False:
 		return
@@ -162,7 +173,7 @@ else:
 		updategroup.update()
 		filename = str("currximg.jpg")
 		try:
-			img=pygame.image.load(filename)
+			img=pygame.image.load(imgbuf)
 			textsurface = myfont.render("Call: %s send: %d" % (args.call, send_to_server), False, (0, 255, 255))
 			screen.blit(img,(0,0))
 			screen.blit(textsurface,(0,0))
@@ -175,4 +186,4 @@ else:
 			pygame.display.flip()
 			pygame.display.update(displaygroup.draw(screen))
 
-		clock.tick(4)
+		clock.tick(30)
