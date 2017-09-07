@@ -534,7 +534,7 @@ void start_image_thread(module_conf_t *conf)
 	if(conf->init_delay) chThdSleepMilliseconds(conf->init_delay);
 	TRACE_INFO("IMG  > Startup image thread");
 	chsnprintf(conf->name, sizeof(conf->name), "IMG");
-	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(100*1024), "IMG", NORMALPRIO, imgThread, conf);
+	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(30*1024), "IMG", NORMALPRIO, imgThread, conf);
 	if(!th) {
 		// Print startup error, do not start watchdog for this thread
 		TRACE_ERROR("IMG  > Could not startup thread (not enough memory available)");
