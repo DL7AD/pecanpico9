@@ -1,6 +1,9 @@
 #ifndef __TYPES_H__
 #define __TYPES_H__
 
+//#define HIGH	true
+//#define LOW		false
+
 typedef enum { // Modulation type
 	MOD_NOT_SET,
 	MOD_OOK,

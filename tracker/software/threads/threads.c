@@ -5,6 +5,7 @@
 #include "threads.h"
 #include "tracking.h"
 #include "watchdog.h"
+#include "image.h"
 #include "pi2c.h"
 #include "pac1720.h"
 

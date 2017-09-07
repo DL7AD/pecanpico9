@@ -355,7 +355,10 @@
 // Global variables
 #include "config.h"
 #include "aprs.h"
-#include "debug.h"
+#include "image.h"
+#include "position.h"
+#include "log.h"
+#include "chprintf.h"
 
 module_conf_t config[7];
 
@@ -363,7 +366,7 @@ uint8_t ssdv_buffer[128*1024] __attribute__((aligned(32)));	// Image buffer
 
 systime_t track_cycle_time = S2ST(60);						// Tracking cycle (all peripheral data [airpressure, GPS, temperature, ...] is collected each 60 seconds
 systime_t log_cycle_time = S2ST(600);						// Log cycle time in seconds (600 seconds)
-bool keep_cam_switched_on =	false;							// Keep camera switched on and initialized after it has been switched on once, no configuration change is possible
+bool keep_cam_switched_on =	true;							// Keep camera switched on and initialized after it has been switched on once, no configuration change is possible
 uint16_t gps_on_vbat = 3000;								// Battery voltage threshold at which GPS is switched on
 uint16_t gps_off_vbat = 2500;								// Battery voltage threshold at which GPS is switched off
 
@@ -448,7 +451,7 @@ void start_user_modules(void)
 	// Module IMAGE, APRS 2m 2GFSK
 	config[4].power = 127;									// Transmission Power
 	config[4].protocol = PROT_APRS_2GFSK;					// Protocol APRS/SSDV (2GFSK)
-	config[4].gfsk_conf.speed = 9600;						// 2GFSK Speed
+	config[4].gfsk_conf.speed = 19200;						// 2GFSK Speed
 	config[4].frequency.type = FREQ_STATIC;					// Static frequency allocation
 	config[4].frequency.hz = 144860000;						// Transmission frequency 144.860 MHz
 	config[4].trigger.type = TRIG_CONTINUOUSLY;				// Transmit continuously

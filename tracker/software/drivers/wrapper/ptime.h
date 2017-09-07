@@ -1,8 +1,7 @@
-#ifndef __TIME_H__
-#define __TIME_H__
+#ifndef __PTIME_H__
+#define __PTIME_H__
 
 #include "ch.h"
-#include "hal.h"
 
 typedef struct {
 	uint16_t year;

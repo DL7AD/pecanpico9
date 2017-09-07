@@ -27,8 +27,7 @@ int main(void) {
 	chSysInit();				// Startup RTOS
 
 	// Voltage switching (1.8V <=> 3.0V)
-	bool usbConnected = isUsbConnected();
-	if(usbConnected || RUN_3V)
+	if(ACTIVATE_USB || ACTIVATE_3V)
 	{
 		boost_voltage(true); // Ramp up voltage to 3V
 		chThdSleepMilliseconds(100);
@@ -38,11 +37,9 @@ int main(void) {
 	DEBUG_INIT();
 	TRACE_INFO("MAIN > Startup");
 
-	// Start USB (if connected)
-	if(usbConnected)
+	// Start USB
+	if(ACTIVATE_USB)
 	{
-		TRACE_INFO("MAIN > USB detected");
-
 		sduObjectInit(&SDU1);
 		sduStart(&SDU1, &serusbcfg);
 
@@ -51,8 +48,6 @@ int main(void) {
 		usbStart(serusbcfg.usbp, &usbcfg);
 		usbConnectBus(serusbcfg.usbp);
 		usb_initialized = true;
-	} else {
-		TRACE_INFO("MAIN > USB not detected");
 	}
 
 	// Startup threads
@@ -62,7 +57,7 @@ int main(void) {
 	// Print time every 10 sec
 	while(true) {
 		if (SDU1.config->usbp->state == USB_ACTIVE) {
-			thread_t *shelltp = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(2048), "shell", NORMALPRIO+1, shellThread, (void*)&shell_cfg);
+			thread_t *shelltp = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(512), "shell", NORMALPRIO+1, shellThread, (void*)&shell_cfg);
 			chThdWait(shelltp);
 		}
 		chThdSleepMilliseconds(1000);

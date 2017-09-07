@@ -12,6 +12,7 @@
 #include "aprs.h"
 #include "flash.h"
 #include "watchdog.h"
+#include "sleep.h"
 
 /*
  * Sequence determines in which order log packets are sent out
