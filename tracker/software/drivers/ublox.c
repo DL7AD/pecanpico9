@@ -4,11 +4,11 @@
 
 #include "ch.h"
 #include "hal.h"
+
 #include "ublox.h"
 #include "pi2c.h"
 #include "debug.h"
 #include "config.h"
-#include "defines.h"
 
 // Serial driver configuration for GPS
 const SerialConfig gps_config =

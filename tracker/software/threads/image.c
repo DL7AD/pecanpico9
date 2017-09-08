@@ -275,6 +275,7 @@ const uint8_t noCameraFound[4071] = {
 
 static uint8_t gimage_id; // Global image ID (for all image threads)
 mutex_t camera_mtx;
+bool camera_mtx_init = false;
 
 void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_t image_id, bool redudantTx)
 {
@@ -418,6 +419,11 @@ static bool camInitialized = false;
 bool takePicture(ssdv_conf_t *conf, bool enableJpegValidation)
 {
 	bool camera_found = false;
+
+	// Initialize mutex
+	if(!camera_mtx_init)
+		chMtxObjectInit(&camera_mtx);
+	camera_mtx_init = true;
 
 	// Lock camera
 	TRACE_INFO("IMG  > Lock camera");

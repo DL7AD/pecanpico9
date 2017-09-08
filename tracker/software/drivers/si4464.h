@@ -3,12 +3,14 @@
 
 #include "ch.h"
 #include "hal.h"
-#include "defines.h"
 #include "types.h"
 
 #define RADIO_WRITE_GPIO(state)	palWriteLine(LINE_RADIO_GPIO, state)
 #define RADIO_READ_GPIO()		palReadLine(LINE_RADIO_GPIO)
 #define inRadioBand(freq) 		(RADIO_MIN_FREQ <= (freq) && (freq) <= RADIO_MAX_FREQ)
+
+#define HIGH	true
+#define LOW		false
 
 #define SI4464_STATE_NOCHANGE	0
 #define SI4464_STATE_SLEEP		1

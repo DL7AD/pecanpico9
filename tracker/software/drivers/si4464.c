@@ -287,6 +287,16 @@ void setModem2GFSK(gfsk_conf_t* conf) {
 	uint8_t set_fifo_irq[] = {0x11, 0x12, 0x01, 0x0B, 0x20};
 	Si4464_write(set_fifo_irq, 5);
 
+	// Set FIFO to 129 byte
+	uint8_t set_129byte[] = {0x11, 0x00, 0x01, 0x03, 0x10};
+	Si4464_write(set_129byte, 5);
+
+	// Reset FIFO
+	uint8_t reset_fifo[] = {0x15, 0x01};
+	Si4464_write(reset_fifo, 2);
+	uint8_t unreset_fifo[] = {0x15, 0x00};
+	Si4464_write(unreset_fifo, 2);
+
 	// Disable preamble
 	uint8_t disable_preamble[] = {0x11, 0x10, 0x01, 0x00, 0x00};
 	Si4464_write(disable_preamble, 5);

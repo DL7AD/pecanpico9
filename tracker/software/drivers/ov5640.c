@@ -8,7 +8,6 @@
 #include "ov5640.h"
 #include "pi2c.h"
 #include "board.h"
-#include "defines.h"
 #include "debug.h"
 #include "ssdv.h"
 #include <string.h>

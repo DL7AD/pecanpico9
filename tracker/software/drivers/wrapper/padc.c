@@ -1,6 +1,6 @@
 #include "ch.h"
 #include "hal.h"
-#include "defines.h"
+
 #include "config.h"
 #include "padc.h"
 #include "pac1720.h"

@@ -28,28 +28,26 @@ int main(void) {
 	chSysInit();				// Startup RTOS
 
 	// Voltage switching (1.8V <=> 3.0V)
-	if(ACTIVATE_USB || ACTIVATE_3V)
-	{
-		boost_voltage(true); // Ramp up voltage to 3V
-		chThdSleepMilliseconds(100);
-	}
+	#if ACTIVATE_USB || ACTIVATE_3V
+	boost_voltage(true); // Ramp up voltage to 3V
+	chThdSleepMilliseconds(100);
+	#endif
 
 	// Init debugging (Serial debug port, LEDs)
 	DEBUG_INIT();
 	TRACE_INFO("MAIN > Startup");
 
 	// Start USB
-	if(ACTIVATE_USB)
-	{
-		sduObjectInit(&SDU1);
-		sduStart(&SDU1, &serusbcfg);
+	#if ACTIVATE_USB
+	sduObjectInit(&SDU1);
+	sduStart(&SDU1, &serusbcfg);
 
-		usbDisconnectBus(serusbcfg.usbp);
-		chThdSleepMilliseconds(100);
-		usbStart(serusbcfg.usbp, &usbcfg);
-		usbConnectBus(serusbcfg.usbp);
-		usb_initialized = true;
-	}
+	usbDisconnectBus(serusbcfg.usbp);
+	chThdSleepMilliseconds(100);
+	usbStart(serusbcfg.usbp, &usbcfg);
+	usbConnectBus(serusbcfg.usbp);
+	usb_initialized = true;
+	#endif
 
 	// Startup threads
 	start_essential_threads();	// Startup required modules (tracking managemer, watchdog)

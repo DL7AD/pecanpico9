@@ -1,7 +1,6 @@
 #include "ch.h"
 #include "hal.h"
 
-#include "defines.h"
 #include "tracking.h"
 #include "debug.h"
 #include "radio.h"
@@ -18,6 +17,8 @@
 #define PHASE_DELTA_2200	(((2 * 2200) << 16) / PLAYBACK_RATE)	/* Delta-phase per sample for 2200Hz tone */
 
 mutex_t radio_mtx;						// Radio mutex
+bool radio_mtx_init = false;
+
 mod_t active_mod = MOD_NOT_SET;
 static uint32_t phase_delta;			// 1200/2200 for standard AX.25
 static uint32_t phase;					// Fixed point 9.7 (2PI = TABLE_SIZE)
@@ -105,8 +106,6 @@ THD_FUNCTION(si_fifo_feeder_thd, arg)
 	radioTune(tim_msg.freq, 0, tim_msg.power, all);
 
 	while(c < all) { // Do while bytes not written into FIFO completely
-		//chThdSuspendS(&feeder_ref); // Suspend until interrupt resumes it
-
 		// Determine free memory in Si4464-FIFO
 		uint8_t more = Si4464_freeFIFO();
 		if(more > all-c) {
@@ -115,7 +114,7 @@ THD_FUNCTION(si_fifo_feeder_thd, arg)
 		}
 		Si4464_writeFIFO(&tim_msg.msg[c], more); // Write into FIFO
 		c += more;
-		chThdSleepMilliseconds(5);
+		chThdSleepMilliseconds(15); // That value is ok up to 38k4
 	}
 
 	// Shutdown radio (and wait for Si4464 to finish transmission)
@@ -292,7 +291,7 @@ void shutdownRadio(void)
 {
 	// Wait for PH to finish transmission for 2GFSK
 	while(active_mod == MOD_2GFSK && Si4464_getState() == SI4464_STATE_TX)
-		chThdSleepMilliseconds(5);
+		chThdSleepMilliseconds(10);
 
 	Si4464_shutdown();
 	active_mod = MOD_NOT_SET;
@@ -435,6 +434,11 @@ uint32_t getFrequency(freq_conf_t *config)
 
 void lockRadio(void)
 {
+	// Initialize mutex
+	if(!radio_mtx_init)
+		chMtxObjectInit(&radio_mtx);
+	radio_mtx_init = true;
+
 	chMtxLock(&radio_mtx);
 
 	// Wait for old feeder thread to terminate

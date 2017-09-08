@@ -33,7 +33,7 @@ void debugOnUSB_On(BaseSequentialStream *chp, int argc, char *argv[])
 	debug_on_usb = true;
 }
 
-static uint8_t usb_buffer[128*1024] __attribute__((aligned(32))); // USB image buffer
+static uint8_t usb_buffer[96*1024] __attribute__((aligned(32))); // USB image buffer
 void printPicture(BaseSequentialStream *chp, int argc, char *argv[])
 {
 	(void)chp;

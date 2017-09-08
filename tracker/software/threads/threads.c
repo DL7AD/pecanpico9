@@ -16,8 +16,8 @@ void start_essential_threads(void) {
 	init_watchdog();
 
 	// Initialize essential mutex's
-	chMtxObjectInit(&camera_mtx);
-	chMtxObjectInit(&radio_mtx);
+	
+	
 
 	pi2cInit();					// Initialize I2C
 	pac1720_init();				// Initialize current measurement
