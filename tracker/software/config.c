@@ -463,7 +463,7 @@ void start_user_modules(void)
 	config[4].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
 	config[4].ssdv_conf.res = RES_VGA;						// Resolution VGA
 	config[4].ssdv_conf.quality = 4;						// Image quality
-	start_image_thread(&config[4]);
+	//start_image_thread(&config[4]);
 
 	// Module IMAGE, SSDV 2m 2FSK
 	config[5].power = 127;									// Transmission Power
@@ -483,32 +483,22 @@ void start_user_modules(void)
 	config[5].ssdv_conf.quality = 4;						// Image quality
 	//start_image_thread(&config[5]);
 
-	// Module IMAGE, USB
-	config[6].protocol = PROT_SSDV_USB;						// Protocol SSDV transmission over USB
-	config[6].trigger.type = TRIG_CONTINUOUSLY;				// Transmit continuously
-	chsnprintf(config[6].ssdv_conf.callsign, 7, "DL7AD2");	// SSDV Callsign
-	config[6].ssdv_conf.ram_buffer = ssdv_buffer;			// Camera buffer
-	config[6].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
-	config[6].ssdv_conf.res = RES_XGA;						// Resolution XGA
-	config[6].ssdv_conf.quality = 4;						// Image quality
-	//start_image_thread(&config[6]);
-
 
 	/* ----------------------------------------------------- LOG TRANSMISSION ---------------------------------------------------- */
 
 	// Module LOG, APRS 2m AFSK
-	config[7].power = 127;									// Transmission Power
-	config[7].protocol = PROT_APRS_AFSK;					// Protocol APRS (AFSK)
-	config[7].frequency.type = FREQ_APRS_REGION;			// Dynamic frequency allocation
-	config[7].frequency.hz = 144800000;						// Default frequency 144.800 MHz
-	config[7].init_delay = 60000;							// Module startup delay (60 seconds)
-	config[7].trigger.type = TRIG_TIMEOUT;					// Periodic cycling (every 180 seconds)
-	config[7].trigger.timeout = 180;						// Timeout 180 sec
-	chsnprintf(config[7].aprs_conf.callsign, 16, "DL7AD");	// APRS Callsign
-	config[7].aprs_conf.ssid = 12;							// APRS SSID
-	chsnprintf(config[7].aprs_conf.path, 16, "WIDE1-1");	// APRS Path
-	config[7].aprs_conf.preamble = 300;						// APRS Preamble (300ms)
-	//start_logging_thread(&config[7]);
+	config[6].power = 127;									// Transmission Power
+	config[6].protocol = PROT_APRS_AFSK;					// Protocol APRS (AFSK)
+	config[6].frequency.type = FREQ_APRS_REGION;			// Dynamic frequency allocation
+	config[6].frequency.hz = 144800000;						// Default frequency 144.800 MHz
+	config[6].init_delay = 60000;							// Module startup delay (60 seconds)
+	config[6].trigger.type = TRIG_TIMEOUT;					// Periodic cycling (every 180 seconds)
+	config[6].trigger.timeout = 180;						// Timeout 180 sec
+	chsnprintf(config[6].aprs_conf.callsign, 16, "DL7AD");	// APRS Callsign
+	config[6].aprs_conf.ssid = 12;							// APRS SSID
+	chsnprintf(config[6].aprs_conf.path, 16, "WIDE1-1");	// APRS Path
+	config[6].aprs_conf.preamble = 300;						// APRS Preamble (300ms)
+	//start_logging_thread(&config[6]);
 }
 
 

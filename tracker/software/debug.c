@@ -3,6 +3,7 @@
 #include "debug.h"
 #include <stdlib.h>
 #include "config.h"
+#include "image.h"
 
 const SerialConfig uart_config =
 {
@@ -30,6 +31,48 @@ void debugOnUSB_On(BaseSequentialStream *chp, int argc, char *argv[])
 	(void)argc;
 	(void)argv;
 	debug_on_usb = true;
+}
+
+static uint8_t usb_buffer[128*1024] __attribute__((aligned(32))); // USB image buffer
+void printPicture(BaseSequentialStream *chp, int argc, char *argv[])
+{
+	(void)chp;
+	(void)argc;
+	(void)argv;
+
+	// Take picture
+	ssdv_conf_t conf = {
+		.res = RES_VGA,
+		.quality = 4,
+		.ram_buffer = usb_buffer,
+		.ram_size = sizeof(usb_buffer),
+	};
+	bool camera_found = takePicture(&conf, false);
+
+	// Transmit image via USB
+	if(camera_found)
+	{
+
+		bool start_detected = false;
+		for(uint32_t i=0; i<conf.size_sampled; i++)
+		{
+			// Look for APP0 instead of SOI because SOI is lost sometimes, but we can add SOI easily later on
+			if(!start_detected && conf.ram_buffer[i] == 0xFF && conf.ram_buffer[i+1] == 0xE0) {
+				start_detected = true;
+				TRACE_USB("DATA > image/jpeg,%d", conf.size_sampled-i+1); // Flag the data on serial output
+				streamPut(&SDU1, 0xFF);
+				streamPut(&SDU1, 0xD8);
+			}
+			if(start_detected)
+				streamPut(&SDU1, conf.ram_buffer[i]);
+		}
+
+	} else { // No camera found
+
+		for(uint32_t i=0; i<sizeof(noCameraFound); i++)
+			streamPut(&SDU1, noCameraFound[i]);
+
+	}
 }
 
 void printConfig(BaseSequentialStream *chp, int argc, char *argv[])

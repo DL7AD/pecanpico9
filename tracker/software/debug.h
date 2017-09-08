@@ -106,6 +106,7 @@ extern bool debug_on_usb;
 void debugOnUSB_Off(BaseSequentialStream *chp, int argc, char *argv[]);
 void debugOnUSB_On(BaseSequentialStream *chp, int argc, char *argv[]);
 void printConfig(BaseSequentialStream *chp, int argc, char *argv[]);
+void printPicture(BaseSequentialStream *chp, int argc, char *argv[]);
 
 #endif
 

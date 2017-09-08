@@ -430,7 +430,7 @@ static const struct regval_list OV5640_JPEG_QSXGA[]  =
 	{0x3824 ,0x04}, 
 	{0x5001 ,0x83}, 
 	{0x3036 ,0x69}, 
-	{0x3035 ,0x11}, 
+	{0x3035 ,0x12}, 
 	{0x4005 ,0x1A},
 	{0xffff, 0xff},	
 };
@@ -799,6 +799,7 @@ void set6MHz(void)
   */
 static bool analyze_image(uint8_t *image, uint32_t image_len)
 {
+	return true;
 	ssdv_t ssdv;
 	uint8_t pkt[SSDV_PKT_SIZE];
 	uint8_t *b;
@@ -843,11 +844,12 @@ bool OV5640_BufferOverflow(void)
 /**
   * Captures an image from the camera.
   */
-bool OV5640_Snapshot2RAM(void)
+bool OV5640_Snapshot2RAM(bool enableJpegValidation)
 {
 	// Capture image until we get a good image (max 10 tries)
 	uint8_t cntr = 10;
 	bool status;
+	bool jpegValid;
 	do {
 
 		TRACE_INFO("CAM  > Capture image");
@@ -860,14 +862,10 @@ bool OV5640_Snapshot2RAM(void)
 
 		TRACE_INFO("CAM  > Image size: %d bytes", ov5640_conf->size_sampled);
 
-	} while((!analyze_image(ov5640_conf->ram_buffer, ov5640_conf->ram_size) || !status) && cntr--);
+		jpegValid = enableJpegValidation ? true : analyze_image(ov5640_conf->ram_buffer, ov5640_conf->ram_size);
+	} while((!jpegValid || !status) && cntr--);
 
 	return true;
-}
-
-uint32_t OV5640_getBuffer(uint8_t** buffer) {
-	*buffer = ov5640_conf->ram_buffer;
-	return ov5640_conf->size_sampled;
 }
 
 const stm32_dma_stream_t *dmastp;
@@ -1256,7 +1254,7 @@ bool OV5640_Capture(void)
 
 	do { // Have a look for some bytes in memory for testing if capturing works
 		TRACE_INFO("CAM  > ... capturing");
-		chThdSleepMilliseconds(200);
+		chThdSleepMilliseconds(50);
 	} while(!capture_finished && !dma_error);
 
 	if (dma_error) {

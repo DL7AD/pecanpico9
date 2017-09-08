@@ -10,6 +10,7 @@
 static const ShellCommand commands[] = {
 	{"dbgon", debugOnUSB_On},
 	{"dbgoff", debugOnUSB_Off},
+	{"picture", printPicture},
 //	{"printconfig", printConfig}, FIXME: This feature is faulty at the moment
 	{NULL, NULL}
 };
