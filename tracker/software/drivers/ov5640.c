@@ -31,7 +31,7 @@ static const struct regval_list OV5640YUV_Sensor_Dvp_Init[] =
 	{ 0x3017, 0x7f }, 
 	{ 0x3018, 0xff }, 		
 	{ 0x302c, 0x02 }, 		
-	{ 0x3108, 0x31 }, 	
+	{ 0x3108, 0x21 }, 	
 	{ 0x3630, 0x2e },//2e
 	{ 0x3632, 0xe2 }, 
 	{ 0x3633, 0x23 },//23 
@@ -757,7 +757,7 @@ static const struct regval_list OV5640_QSXGA2XGA[]  =
 static ssdv_conf_t *ov5640_conf;
 
 /* TODO: Implement a state machine instead of multiple flags. */
-static bool LptimRdy;
+static bool LptimRdy = false;
 static bool capture_finished;
 static bool vsync;
 static bool dma_error;
@@ -1083,7 +1083,7 @@ CH_IRQ_HANDLER(Vector5C) {
 			 */
 			dma_stop();
 			TIM1->DIER &= ~TIM_DIER_TDE;
-			LPTIM1->CR &= ~LPTIM_CR_CNTSTRT;
+			//LPTIM1->CR &= ~LPTIM_CR_CNTSTRT;
 
 			/*
 			 * Disable VSYNC edge interrupts.
@@ -1183,45 +1183,48 @@ bool OV5640_Capture(void)
     dma_flags = 0;
 
 	// Setup timer for PCLK
-	rccResetLPTIM1();
-	rccEnableLPTIM1(FALSE);
+	if(!LptimRdy)
+	{
+		rccResetLPTIM1();
+		rccEnableLPTIM1(FALSE);
 
-    /*
-     * LPTIM1 is run in external count mode (CKSEL = 0, COUNTMODE = 1).
-     * CKPOL is set so leading and trailing edge of PCLK increment the counter.
-     * The internal clocking (checking edges of LPTIM1_IN) is set to use APB.
-     * The internal clock must be >4 times the frequency of the input (PCLK).
-     * NOTE: This does not guarantee that LPTIM1_OUT is coincident with PCLK.
-     * Depending on PCLK state when LPTIM1 is enabled OUT may get inverted.
-     *
-     * LPTIM1 is enabled on the VSYNC edge interrupt.
-     * After enabling LPTIM1 wait for the first interrupt (ARRIF).
-     * The interrupt must be disabled on the first interrupt (else flood).
-     *
-     * LPTIM1_OUT is gated to TIM1 internal trigger input 2.
-     */
-	LPTIM1->CFGR = (LPTIM_CFGR_COUNTMODE | LPTIM_CFGR_CKPOL_1 | LPTIM_CFGR_WAVPOL);
-	LPTIM1->OR |= LPTIM_OR_TIM1_ITR2_RMP;
-	LPTIM1->CR |= LPTIM_CR_ENABLE;
-	LPTIM1->IER |= LPTIM_IER_ARRMIE;
+		/*
+		 * LPTIM1 is run in external count mode (CKSEL = 0, COUNTMODE = 1).
+		 * CKPOL is set so leading and trailing edge of PCLK increment the counter.
+		 * The internal clocking (checking edges of LPTIM1_IN) is set to use APB.
+		 * The internal clock must be >4 times the frequency of the input (PCLK).
+		 * NOTE: This does not guarantee that LPTIM1_OUT is coincident with PCLK.
+		 * Depending on PCLK state when LPTIM1 is enabled OUT may get inverted.
+		 *
+		 * LPTIM1 is enabled on the VSYNC edge interrupt.
+		 * After enabling LPTIM1 wait for the first interrupt (ARRIF).
+		 * The interrupt must be disabled on the first interrupt (else flood).
+		 *
+		 * LPTIM1_OUT is gated to TIM1 internal trigger input 2.
+		 */
+		LPTIM1->CFGR = (LPTIM_CFGR_COUNTMODE | LPTIM_CFGR_CKPOL_1 | LPTIM_CFGR_WAVPOL);
+		LPTIM1->OR |= LPTIM_OR_TIM1_ITR2_RMP;
+		LPTIM1->CR |= LPTIM_CR_ENABLE;
+		LPTIM1->IER |= LPTIM_IER_ARRMIE;
 
-    /*
-     * When LPTIM1 is enabled and ready LPTIM1_OUT will be not set.
-     * WAVPOL inverts LPTIM1_OUT so it is not set.
-     * On the next PCLK edge LPTIM1 will count and match ARR.
-     * LPTIM1_OUT will set briefly and then clear again due ARR match.
-     * This triggers TIM1 with the short pulse from LPTIM1_OUT.
-     * TODO:
-     * This use of LPTIM1 works probably by good luck for now.
-     * Switch to direct triggering of TIM using Capture input is better.
-     * Requires a PCB change.
-     */
-	LPTIM1->CMP = 0;
-	LPTIM1->ARR = 1;
+		/*
+		 * When LPTIM1 is enabled and ready LPTIM1_OUT will be not set.
+		 * WAVPOL inverts LPTIM1_OUT so it is not set.
+		 * On the next PCLK edge LPTIM1 will count and match ARR.
+		 * LPTIM1_OUT will set briefly and then clear again due ARR match.
+		 * This triggers TIM1 with the short pulse from LPTIM1_OUT.
+		 * TODO:
+		 * This use of LPTIM1 works probably by good luck for now.
+		 * Switch to direct triggering of TIM using Capture input is better.
+		 * Requires a PCB change.
+		 */
+		LPTIM1->CMP = 0;
+		LPTIM1->ARR = 1;
+	}
 
 	/* Set vector and clear flag. */
 	nvicEnableVector(LPTIM1_IRQn, 7); // Enable interrupt
-	LptimRdy = false;
+	//LptimRdy = false;
 
 	/*
 	 * Setup slave timer to trigger DMA.
