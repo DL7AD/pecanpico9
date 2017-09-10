@@ -41,10 +41,6 @@ while True:
 		continue
 
 	imgbuf = ser.read(int(size))
-	f = open('data'+str(i)+'.jpg', 'wb')
-	f.write(imgbuf)
-	f.close()
-	i+=1
 
 	for event in pygame.event.get():
 		if event.type == QUIT:
@@ -60,7 +56,7 @@ while True:
 	updategroup.update()
 	try:
 		img=pygame.image.load(StringIO(imgbuf))
-		textsurface = myfont.render("Call: %s send: %d" % ('USB', send_to_server), False, (0, 255, 255))
+		textsurface = myfont.render("ID: %s" % i, False, (0, 255, 255))
 		screen.blit(img,(0,0))
 		screen.blit(textsurface,(0,0))
 		pygame.display.flip()
@@ -73,6 +69,7 @@ while True:
 		pygame.display.update(displaygroup.draw(screen))
 
 	ser.write('picture\r\n')
+	i += 1
 
 
 
