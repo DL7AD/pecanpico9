@@ -42,12 +42,13 @@ extern bool debug_on_usb;
 	chprintf((BaseSequentialStream*)&SD3, (format), ##args); \
 	chprintf((BaseSequentialStream*)&SD3, "\r\n"); \
 	\
-	TRACE_BASE_USB(format, type, ##args); \
+	if(debug_on_usb) \
+		TRACE_BASE_USB(format, type, ##args); \
 	chMtxUnlock(&trace_mtx); \
 }
 
 #define TRACE_BASE_USB(format, type, args...) { \
-	if(usb_initialized && debug_on_usb) { \
+	if(usb_initialized) { \
 		if(TRACE_TIME) { \
 			chprintf((BaseSequentialStream*)&SDU1, "[%8d.%03d]", chVTGetSystemTimeX()/CH_CFG_ST_FREQUENCY, (chVTGetSystemTimeX()*1000/CH_CFG_ST_FREQUENCY)%1000); \
 		} \
@@ -107,6 +108,7 @@ void debugOnUSB_Off(BaseSequentialStream *chp, int argc, char *argv[]);
 void debugOnUSB_On(BaseSequentialStream *chp, int argc, char *argv[]);
 void printConfig(BaseSequentialStream *chp, int argc, char *argv[]);
 void printPicture(BaseSequentialStream *chp, int argc, char *argv[]);
+void readLog(BaseSequentialStream *chp, int argc, char *argv[]);
 
 #endif
 

@@ -136,6 +136,7 @@ static const struct regval_list OV5640YUV_Sensor_Dvp_Init[] =
 	{ 0x4300, 0x30 }, 
 	{ 0x501f, 0x00 }, 
 	{ 0x4713, 0x03 }, 
+	{ 0x4404, 0x34 }, 
 	{ 0x4407, 0x04 }, 
 	{ 0x460b, 0x35 }, 
 	{ 0x460c, 0x22 },//add by bright 
@@ -753,20 +754,21 @@ static const struct regval_list OV5640_QSXGA2XGA[]  =
 	{0xffff, 0xff},	
 };
 
-
-static ssdv_conf_t *ov5640_conf;
-
-/* TODO: Implement a state machine instead of multiple flags. */
+// TODO: Implement a state machine instead of multiple flags
 static bool LptimRdy = false;
 static bool capture_finished;
 static bool vsync;
 static bool dma_error;
 static uint32_t dma_flags;
 
+static uint8_t* dma_buffer;
+
 static uint32_t oldSpeed;
 static uint32_t oldWS;
 
-/* Increase AHB clock to 48 MHz */
+/**
+  * Increase AHB clock to 48 MHz and saves the old speed
+  */
 void set48MHz(void)
 {
 	oldSpeed = RCC->CFGR & RCC_CFGR_HPRE_Msk;
@@ -781,9 +783,11 @@ void set48MHz(void)
 	while(RCC->CFGR != new);
 }
 
+/**
+  * Reduce AHB clock back to the old speed which has been saved by set48MHz()
+  */
 void set6MHz(void)
 {
-	// Reduce AHB clock to 6 MHz
 	uint32_t new = (RCC->CFGR & ~RCC_CFGR_HPRE_Msk) | oldSpeed;
 	RCC->CFGR = new;
 	while(RCC->CFGR != new);
@@ -835,36 +839,61 @@ static bool analyze_image(uint8_t *image, uint32_t image_len)
 	}
 }
 
-bool OV5640_BufferOverflow(void)
-{
-	return ov5640_conf->size_sampled == ov5640_conf->ram_size - 1; // If SRAM was used completly its most likley that and overflow has occured (TODO: This is not 100% accurate)
-}
-
 /**
   * Captures an image from the camera.
+  * @buffer Buffer in which the image can be sampled
+  * @size Size of buffer
+  * @res Resolution of the image
+  * If resolution MAX_RES has been chosen, a highest resolution will be chosen
+  * which it suitable for the amount of buffer. Due to the JPEG compression
+  * that could lead to different resolutions on different method calls.
+  * The method returns the size of the image.
   */
-bool OV5640_Snapshot2RAM(bool enableJpegValidation)
+uint32_t OV5640_Snapshot2RAM(uint8_t* buffer, uint32_t size, resolution_t res, bool enableJpegValidation)
 {
-	// Capture image until we get a good image (max 10 tries)
-	uint8_t cntr = 10;
+	uint8_t cntr = 5;
 	bool status;
 	bool jpegValid;
+	uint32_t size_sampled;
+
+	// Set resoultion
+	if(res == RES_MAX)
+	{
+		OV5640_SetResolution(RES_UXGA); // FIXME: We actually have to choose the resolution which fits in the memory
+	} else {
+		OV5640_SetResolution(res);
+	}
+
+	// Capture image until we get a good image (max 10 tries)
 	do {
+		// Clearing buffer
+		uint32_t i;
+		for(i=0; i<size; i++)
+			buffer[i] = 0;
 
 		TRACE_INFO("CAM  > Capture image");
-		status = OV5640_Capture();
+		status = OV5640_Capture(buffer, size);
 		TRACE_INFO("CAM  > Capture finished");
 
-		ov5640_conf->size_sampled = ov5640_conf->ram_size - 1;
-		while(!ov5640_conf->ram_buffer[ov5640_conf->size_sampled] && ov5640_conf->size_sampled > 0)
-			ov5640_conf->size_sampled--;
+		size_sampled = size - 1;
+		while(!buffer[size_sampled] && size_sampled > 0)
+			size_sampled--;
 
-		TRACE_INFO("CAM  > Image size: %d bytes", ov5640_conf->size_sampled);
+		TRACE_INFO("CAM  > Image size: %d bytes", size_sampled);
 
-		jpegValid = enableJpegValidation ? true : analyze_image(ov5640_conf->ram_buffer, ov5640_conf->ram_size);
+		// Validate JPEG image
+		if(enableJpegValidation)
+		{
+			TRACE_INFO("CAM  > Validate integrity of JPEG");
+			jpegValid = analyze_image(buffer, size);
+			TRACE_INFO("CAM  > JPEG image %s", jpegValid ? "valid" : "invalid");
+		} else {
+			jpegValid = true;
+		}
+
 	} while((!jpegValid || !status) && cntr--);
 
-	return true;
+	return size_sampled;
 }
 
 const stm32_dma_stream_t *dmastp;
@@ -971,9 +1000,9 @@ static void dma_interrupt(void *p, uint32_t flags) {
 
 
       if (dmaStreamGetCurrentTarget(dmastp) == 1) {
-        dmaStreamSetMemory0(dmastp, &ov5640_conf->ram_buffer[++dma_index * DMA_SEGMENT_SIZE]);
+        dmaStreamSetMemory0(dmastp, &dma_buffer[++dma_index * DMA_SEGMENT_SIZE]);
       } else {
-        dmaStreamSetMemory1(dmastp, &ov5640_conf->ram_buffer[++dma_index * DMA_SEGMENT_SIZE]);
+        dmaStreamSetMemory1(dmastp, &dma_buffer[++dma_index * DMA_SEGMENT_SIZE]);
       }
       dmaStreamClearInterrupt(dmastp);
       return;
@@ -1104,9 +1133,8 @@ CH_IRQ_HANDLER(Vector5C) {
 	CH_IRQ_EPILOGUE();
 }
 
-bool OV5640_Capture(void)
+bool OV5640_Capture(uint8_t* buffer, uint32_t size)
 {
-
 	/*
 	 * Note:
 	 *  If there are no Chibios devices enabled that use DMA then...
@@ -1128,14 +1156,16 @@ bool OV5640_Capture(void)
 #if OV5640_USE_DMA_DBM == TRUE
     STM32_DMA_CR_DBM |
     STM32_DMA_CR_HTIE |
-
 #endif
 	STM32_DMA_CR_TCIE;
 
 	dmaStreamAllocate(dmastp, 2, (stm32_dmaisr_t)dma_interrupt, NULL);
 
 	dmaStreamSetPeripheral(dmastp, &GPIOA->IDR); // We want to read the data from here
+
 #if OV5640_USE_DMA_DBM == TRUE
+	dma_buffer = buffer;
+
     /*
      * Buffer address must be word aligned.
      * Also note requirement for burst transfers from FIFO.
@@ -1146,7 +1176,7 @@ bool OV5640_Capture(void)
      * Currently this is set to 32 manually in config.c.
      */
 
-    if (((uint32_t)ov5640_conf->ram_buffer % DMA_FIFO_BURST_ALIGN) != 0) {
+    if (((uint32_t)buffer % DMA_FIFO_BURST_ALIGN) != 0) {
       TRACE_ERROR("CAM > Buffer not allocated on DMA burst boundary");
       return false;
     }
@@ -1154,15 +1184,15 @@ bool OV5640_Capture(void)
      * Set the initial buffer addresses.
      * The updating of DMA:MxAR is done in the the DMA interrupt function.
      */
-    dmaStreamSetMemory0(dmastp, &ov5640_conf->ram_buffer[0]);
-    dmaStreamSetMemory1(dmastp, &ov5640_conf->ram_buffer[DMA_SEGMENT_SIZE]);
+    dmaStreamSetMemory0(dmastp, &buffer[0]);
+    dmaStreamSetMemory1(dmastp, &buffer[DMA_SEGMENT_SIZE]);
     dmaStreamSetTransactionSize(dmastp, DMA_SEGMENT_SIZE);
 
     /*
      * Calculate the number of whole buffers.
      * TODO: Make this include remainder memory as partial buffer?
      */
-    dma_buffers = (ov5640_conf->ram_size / DMA_SEGMENT_SIZE);
+    dma_buffers = (size / DMA_SEGMENT_SIZE);
     if (dma_buffers == 0) {
       TRACE_ERROR("CAM > Capture buffer less than minimum DMA segment size");
       return false;
@@ -1170,8 +1200,8 @@ bool OV5640_Capture(void)
     /* Start with buffer index 0. */
     dma_index = 0;
 #else
-    dmaStreamSetMemory0(dmastp, ov5640_conf->ram_buffer);
-    dmaStreamSetTransactionSize(dmastp, ov5640_conf->ram_size);
+    dmaStreamSetMemory0(dmastp, buffer);
+    dmaStreamSetTransactionSize(dmastp, size);
 
 #endif
     dmaStreamSetMode(dmastp, dmamode); // Setup DMA
@@ -1183,48 +1213,45 @@ bool OV5640_Capture(void)
     dma_flags = 0;
 
 	// Setup timer for PCLK
-	if(!LptimRdy)
-	{
-		rccResetLPTIM1();
-		rccEnableLPTIM1(FALSE);
+	rccResetLPTIM1();
+	rccEnableLPTIM1(FALSE);
 
-		/*
-		 * LPTIM1 is run in external count mode (CKSEL = 0, COUNTMODE = 1).
-		 * CKPOL is set so leading and trailing edge of PCLK increment the counter.
-		 * The internal clocking (checking edges of LPTIM1_IN) is set to use APB.
-		 * The internal clock must be >4 times the frequency of the input (PCLK).
-		 * NOTE: This does not guarantee that LPTIM1_OUT is coincident with PCLK.
-		 * Depending on PCLK state when LPTIM1 is enabled OUT may get inverted.
-		 *
-		 * LPTIM1 is enabled on the VSYNC edge interrupt.
-		 * After enabling LPTIM1 wait for the first interrupt (ARRIF).
-		 * The interrupt must be disabled on the first interrupt (else flood).
-		 *
-		 * LPTIM1_OUT is gated to TIM1 internal trigger input 2.
-		 */
-		LPTIM1->CFGR = (LPTIM_CFGR_COUNTMODE | LPTIM_CFGR_CKPOL_1 | LPTIM_CFGR_WAVPOL);
-		LPTIM1->OR |= LPTIM_OR_TIM1_ITR2_RMP;
-		LPTIM1->CR |= LPTIM_CR_ENABLE;
-		LPTIM1->IER |= LPTIM_IER_ARRMIE;
+	/*
+	 * LPTIM1 is run in external count mode (CKSEL = 0, COUNTMODE = 1).
+	 * CKPOL is set so leading and trailing edge of PCLK increment the counter.
+	 * The internal clocking (checking edges of LPTIM1_IN) is set to use APB.
+	 * The internal clock must be >4 times the frequency of the input (PCLK).
+	 * NOTE: This does not guarantee that LPTIM1_OUT is coincident with PCLK.
+	 * Depending on PCLK state when LPTIM1 is enabled OUT may get inverted.
+	 *
+	 * LPTIM1 is enabled on the VSYNC edge interrupt.
+	 * After enabling LPTIM1 wait for the first interrupt (ARRIF).
+	 * The interrupt must be disabled on the first interrupt (else flood).
+	 *
+	 * LPTIM1_OUT is gated to TIM1 internal trigger input 2.
+	 */
+	LPTIM1->CFGR = (LPTIM_CFGR_COUNTMODE | LPTIM_CFGR_CKPOL_1 | LPTIM_CFGR_WAVPOL);
+	LPTIM1->OR |= LPTIM_OR_TIM1_ITR2_RMP;
+	LPTIM1->CR |= LPTIM_CR_ENABLE;
+	LPTIM1->IER |= LPTIM_IER_ARRMIE;
 
-		/*
-		 * When LPTIM1 is enabled and ready LPTIM1_OUT will be not set.
-		 * WAVPOL inverts LPTIM1_OUT so it is not set.
-		 * On the next PCLK edge LPTIM1 will count and match ARR.
-		 * LPTIM1_OUT will set briefly and then clear again due ARR match.
-		 * This triggers TIM1 with the short pulse from LPTIM1_OUT.
-		 * TODO:
-		 * This use of LPTIM1 works probably by good luck for now.
-		 * Switch to direct triggering of TIM using Capture input is better.
-		 * Requires a PCB change.
-		 */
-		LPTIM1->CMP = 0;
-		LPTIM1->ARR = 1;
-	}
+	/*
+	 * When LPTIM1 is enabled and ready LPTIM1_OUT will be not set.
+	 * WAVPOL inverts LPTIM1_OUT so it is not set.
+	 * On the next PCLK edge LPTIM1 will count and match ARR.
+	 * LPTIM1_OUT will set briefly and then clear again due ARR match.
+	 * This triggers TIM1 with the short pulse from LPTIM1_OUT.
+	 * TODO:
+	 * This use of LPTIM1 works probably by good luck for now.
+	 * Switch to direct triggering of TIM using Capture input is better.
+	 * Requires a PCB change.
+	 */
+	LPTIM1->CMP = 0;
+	LPTIM1->ARR = 1;
 
 	/* Set vector and clear flag. */
 	nvicEnableVector(LPTIM1_IRQn, 7); // Enable interrupt
-	//LptimRdy = false;
+	LptimRdy = false;
 
 	/*
 	 * Setup slave timer to trigger DMA.
@@ -1256,20 +1283,20 @@ bool OV5640_Capture(void)
 
 	do { // Have a look for some bytes in memory for testing if capturing works
 		TRACE_INFO("CAM  > ... capturing");
-		chThdSleepMilliseconds(50);
+		chThdSleepMilliseconds(100);
 	} while(!capture_finished && !dma_error);
 
-	if (dma_error) {
-	  if (dma_flags & STM32_DMA_ISR_HTIF)
-	    TRACE_ERROR("CAM > DMA abort - last buffer segment")
-	  if (dma_flags & STM32_DMA_ISR_FEIF)
-	    TRACE_ERROR("CAM > DMA FIFO error")
-	  if (dma_flags & STM32_DMA_ISR_TEIF)
-	    TRACE_ERROR("CAM > DMA stream transfer error")
-      if (dma_flags & STM32_DMA_ISR_DMEIF)
-        TRACE_ERROR("CAM > DMA direct mode error")
-      TRACE_ERROR("CAM > Error capturing image");
-      return false;
+	if(dma_error) {
+		if(dma_flags & STM32_DMA_ISR_HTIF)
+			TRACE_ERROR("CAM > DMA abort - last buffer segment");
+		if(dma_flags & STM32_DMA_ISR_FEIF)
+			TRACE_ERROR("CAM > DMA FIFO error");
+		if(dma_flags & STM32_DMA_ISR_TEIF)
+			TRACE_ERROR("CAM > DMA stream transfer error");
+		if(dma_flags & STM32_DMA_ISR_DMEIF)
+			TRACE_ERROR("CAM > DMA direct mode error");
+		TRACE_ERROR("CAM > Error capturing image");
+		return false;
 	}
 
     TRACE_INFO("CAM  > Capture success");
@@ -1320,38 +1347,6 @@ void OV5640_TransmitConfig(void)
 	for(uint32_t i=0; (OV5640_JPEG_QSXGA[i].reg != 0xffff) || (OV5640_JPEG_QSXGA[i].val != 0xff); i++)
 		I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_JPEG_QSXGA[i].reg, OV5640_JPEG_QSXGA[i].val);
 
-	TRACE_INFO("CAM  > ... Configure Resolution");
-	switch(ov5640_conf->res) {
-		case RES_QQVGA:
-			for(uint32_t i=0; (OV5640_QSXGA2QQVGA[i].reg != 0xffff) || (OV5640_QSXGA2QQVGA[i].val != 0xff); i++)
-				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2QQVGA[i].reg, OV5640_QSXGA2QQVGA[i].val);
-			break;
-
-		case RES_QVGA:
-			for(uint32_t i=0; (OV5640_QSXGA2QVGA[i].reg != 0xffff) || (OV5640_QSXGA2QVGA[i].val != 0xff); i++)
-				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2QVGA[i].reg, OV5640_QSXGA2QVGA[i].val);
-			break;
-
-		case RES_VGA:
-			for(uint32_t i=0; (OV5640_QSXGA2VGA[i].reg != 0xffff) || (OV5640_QSXGA2VGA[i].val != 0xff); i++)
-				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2VGA[i].reg, OV5640_QSXGA2VGA[i].val);
-			break;
-
-		case RES_XGA:
-			for(uint32_t i=0; (OV5640_QSXGA2XGA[i].reg != 0xffff) || (OV5640_QSXGA2XGA[i].val != 0xff); i++)
-				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2XGA[i].reg, OV5640_QSXGA2XGA[i].val);
-			break;
-
-		case RES_UXGA:
-			for(uint32_t i=0; (OV5640_QSXGA2UXGA[i].reg != 0xffff) || (OV5640_QSXGA2UXGA[i].val != 0xff); i++)
-				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2UXGA[i].reg, OV5640_QSXGA2UXGA[i].val);
-			break;
-
-		default: // Default QVGA
-			for(uint32_t i=0; (OV5640_QSXGA2QVGA[i].reg != 0xffff) || (OV5640_QSXGA2QVGA[i].val != 0xff); i++)
-				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2QVGA[i].reg, OV5640_QSXGA2QVGA[i].val);
-	}
-
 	TRACE_INFO("CAM  > ... Light Mode: Auto");
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0x03); // start group 3
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3406, 0x00);
@@ -1397,14 +1392,43 @@ void OV5640_TransmitConfig(void)
 	I2C_write8_16bitreg(OV5640_I2C_ADR, 0x3212, 0xa3); // launch group 3
 }
 
-void OV5640_init(ssdv_conf_t *config) {
-	ov5640_conf = config;
+void OV5640_SetResolution(resolution_t res)
+{
+	TRACE_INFO("CAM  > ... Configure Resolution");
+	switch(res) {
+		case RES_QQVGA:
+			for(uint32_t i=0; (OV5640_QSXGA2QQVGA[i].reg != 0xffff) || (OV5640_QSXGA2QQVGA[i].val != 0xff); i++)
+				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2QQVGA[i].reg, OV5640_QSXGA2QQVGA[i].val);
+			break;
 
-	// Clearing buffer
-	uint32_t i;
-	for(i=0; i<ov5640_conf->ram_size; i++)
-		ov5640_conf->ram_buffer[i] = 0;
+		case RES_QVGA:
+			for(uint32_t i=0; (OV5640_QSXGA2QVGA[i].reg != 0xffff) || (OV5640_QSXGA2QVGA[i].val != 0xff); i++)
+				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2QVGA[i].reg, OV5640_QSXGA2QVGA[i].val);
+			break;
 
+		case RES_VGA:
+			for(uint32_t i=0; (OV5640_QSXGA2VGA[i].reg != 0xffff) || (OV5640_QSXGA2VGA[i].val != 0xff); i++)
+				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2VGA[i].reg, OV5640_QSXGA2VGA[i].val);
+			break;
+
+		case RES_XGA:
+			for(uint32_t i=0; (OV5640_QSXGA2XGA[i].reg != 0xffff) || (OV5640_QSXGA2XGA[i].val != 0xff); i++)
+				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2XGA[i].reg, OV5640_QSXGA2XGA[i].val);
+			break;
+
+		case RES_UXGA:
+			for(uint32_t i=0; (OV5640_QSXGA2UXGA[i].reg != 0xffff) || (OV5640_QSXGA2UXGA[i].val != 0xff); i++)
+				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2UXGA[i].reg, OV5640_QSXGA2UXGA[i].val);
+			break;
+
+		default: // Default QVGA
+			for(uint32_t i=0; (OV5640_QSXGA2QVGA[i].reg != 0xffff) || (OV5640_QSXGA2QVGA[i].val != 0xff); i++)
+				I2C_write8_16bitreg(OV5640_I2C_ADR, OV5640_QSXGA2QVGA[i].reg, OV5640_QSXGA2QVGA[i].val);
+	}
+}
+
+void OV5640_init(void)
+{
 	TRACE_INFO("CAM  > Init pins");
 	OV5640_InitGPIO();
 
@@ -1422,7 +1446,8 @@ void OV5640_init(ssdv_conf_t *config) {
 	chThdSleepMilliseconds(1000);
 }
 
-void OV5640_deinit(void) {
+void OV5640_deinit(void)
+{
 	// Power off OV5640
 	TRACE_INFO("CAM  > Switch off");
 

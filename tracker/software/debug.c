@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include "config.h"
 #include "image.h"
+#include "tracking.h"
 
 const SerialConfig uart_config =
 {
@@ -15,7 +16,7 @@ const SerialConfig uart_config =
 
 mutex_t trace_mtx; // Used internal to synchronize multiple chprintf in debug.h
 
-bool debug_on_usb = true;
+bool debug_on_usb = false;
 
 void debugOnUSB_Off(BaseSequentialStream *chp, int argc, char *argv[])
 {
@@ -36,7 +37,6 @@ void debugOnUSB_On(BaseSequentialStream *chp, int argc, char *argv[])
 static uint8_t usb_buffer[96*1024] __attribute__((aligned(32))); // USB image buffer
 void printPicture(BaseSequentialStream *chp, int argc, char *argv[])
 {
-	(void)chp;
 	(void)argc;
 	(void)argv;
 
@@ -52,7 +52,6 @@ void printPicture(BaseSequentialStream *chp, int argc, char *argv[])
 	// Transmit image via USB
 	if(camera_found)
 	{
-
 		bool start_detected = false;
 		for(uint32_t i=0; i<conf.size_sampled; i++)
 		{
@@ -60,19 +59,56 @@ void printPicture(BaseSequentialStream *chp, int argc, char *argv[])
 			if(!start_detected && conf.ram_buffer[i] == 0xFF && conf.ram_buffer[i+1] == 0xE0) {
 				start_detected = true;
 				TRACE_USB("DATA > image/jpeg,%d", conf.size_sampled-i+1); // Flag the data on serial output
-				streamPut(&SDU1, 0xFF);
-				streamPut(&SDU1, 0xD8);
+				streamPut(chp, 0xFF);
+				streamPut(chp, 0xD8);
 			}
 			if(start_detected)
-				streamPut(&SDU1, conf.ram_buffer[i]);
+				streamPut(chp, conf.ram_buffer[i]);
+		}
+		if(!start_detected)
+		{
+			TRACE_USB("DATA > image,jpeg,0");
+			TRACE_USB("DATA > error,no SOI flag found");
 		}
 
 	} else { // No camera found
 
-		for(uint32_t i=0; i<sizeof(noCameraFound); i++)
-			streamPut(&SDU1, noCameraFound[i]);
+		TRACE_USB("DATA > image,jpeg,0");
+		TRACE_USB("DATA > error,no camera found");
 
 	}
+}
+
+trackPoint_t* getLogBuffer(uint16_t id)
+{
+	if(sizeof(trackPoint_t)*id < LOG_SECTOR_SIZE-sizeof(trackPoint_t))
+	{
+		return (trackPoint_t*)(LOG_FLASH_ADDR1 + id * sizeof(trackPoint_t));
+	} else if((id-(LOG_SECTOR_SIZE/sizeof(trackPoint_t)))*sizeof(trackPoint_t) < LOG_SECTOR_SIZE-sizeof(trackPoint_t)) {
+		return (trackPoint_t*)(LOG_FLASH_ADDR2 + (id-(LOG_SECTOR_SIZE/sizeof(trackPoint_t))) * sizeof(trackPoint_t));
+	} else { // Outside of memory address allocation
+		return NULL;
+	}
+}
+
+void readLog(BaseSequentialStream *chp, int argc, char *argv[])
+{
+	(void)argc;
+	(void)argv;
+
+	trackPoint_t *tp;
+	for(uint16_t i=0; (tp = getLogBuffer(i)) != NULL; i++)
+		if(tp->id != 0xFFFFFFFF)
+		{
+			chprintf(	chp,
+						"%d,%04d-%02d-%02d,%02d:%02d:%02d,%d.%05d,%d.%05d,%d,%d,%d,%d.%03d,%d.%03d,%d.%03d,%d,%d,%d.%01d,%2d.%02d,%2d.%01d\r\n",
+						tp->id,tp->time.year, tp->time.month, tp->time.day, tp->time.hour, tp->time.minute, tp->time.day,
+						tp->gps_lat/10000000, (tp->gps_lat > 0 ? 1:-1)*(tp->gps_lat/100)%100000, tp->gps_lon/10000000, (tp->gps_lon > 0 ? 1:-1)*(tp->gps_lon/100)%100000, tp->gps_alt,
+						tp->gps_sats, tp->gps_ttff,
+						tp->adc_vbat/1000, (tp->adc_vbat%1000), tp->adc_vsol/1000, (tp->adc_vsol%1000), tp->adc_vusb/1000, (tp->adc_vusb%1000), tp->adc_pbat, tp->adc_rbat,
+						tp->air_press/10, tp->air_press%10, tp->air_temp/100, tp->air_temp%100, tp->air_hum/10, tp->air_hum%10
+			);
+		}
 }
 
 void printConfig(BaseSequentialStream *chp, int argc, char *argv[])

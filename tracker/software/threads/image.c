@@ -435,49 +435,16 @@ bool takePicture(ssdv_conf_t *conf, bool enableJpegValidation)
 		TRACE_INFO("IMG  > OV5640 found");
 		camera_found = true;
 
-		if(conf->res == RES_MAX) // Attempt maximum resolution (limited by memory)
-		{
-			conf->res = RES_UXGA; // Try maximum resolution
-
-			do {
-
-				// Init camera
-				if(!camInitialized) {
-					OV5640_init(conf);
-					camInitialized = true;
-				}
-
-				// Sample data from DCMI through DMA into RAM
-				uint8_t tries = 5; // Try 5 times at maximum
-				bool status;
-				do { // Try capturing image until capture successful
-					lockRadio(); // Lock radio
-					status = OV5640_Snapshot2RAM(enableJpegValidation);
-					unlockRadio(); // Unlock radio
-				} while(!status && --tries);
-
-				conf->res--; // Decrement resolution in next attempt (if status==false)
-
-			} while(OV5640_BufferOverflow() && conf->res >= RES_QVGA);
-
-			conf->res = RES_MAX; // Revert register
-
-		} else { // Static resolution
-
-			// Init camera
-			if(!camInitialized) {
-				OV5640_init(conf);
-				camInitialized = true;
-			}
-
-			// Sample data from DCMI through DMA into RAM
-			uint8_t tries = 5; // Try 5 times at maximum
-			bool status;
-			do { // Try capturing image until capture successful
-				status = OV5640_Snapshot2RAM(enableJpegValidation);
-			} while(!status && --tries);
-
+		// Init camera
+		if(!camInitialized) {
+			OV5640_init();
+			camInitialized = true;
 		}
+
+		// Sample data from pseudo DCMI through DMA into RAM
+		lockRadio(); // Lock radio
+		conf->size_sampled = OV5640_Snapshot2RAM(conf->ram_buffer, conf->ram_size, conf->res, enableJpegValidation);
+		unlockRadio(); // Unlock radio
 
 		// Switch off camera
 		if(!keep_cam_switched_on) {
@@ -485,7 +452,7 @@ bool takePicture(ssdv_conf_t *conf, bool enableJpegValidation)
 			camInitialized = false;
 		}
 
-	} else { // Camera error
+	} else { // Camera not found
 
 		camInitialized = false;
 		TRACE_ERROR("IMG  > No camera found");

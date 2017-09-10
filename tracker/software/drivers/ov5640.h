@@ -11,14 +11,15 @@
 
 #define OV5640_USE_DMA_DBM  TRUE
 
-bool OV5640_Snapshot2RAM(bool enableJpegValidation);
-bool OV5640_Capture(void);
+uint32_t OV5640_Snapshot2RAM(uint8_t* buffer, uint32_t size, resolution_t resolution, bool enableJpegValidation);
+bool OV5640_Capture(uint8_t* buffer, uint32_t size);
 void OV5640_InitGPIO(void);
-bool OV5640_BufferOverflow(void);
 void OV5640_TransmitConfig(void);
-void OV5640_init(ssdv_conf_t *config);
+void OV5640_SetResolution(resolution_t res);
+void OV5640_init(void);
 void OV5640_deinit(void);
 bool OV5640_isAvailable(void);
 uint32_t OV5640_getLightIntensity(void);
 
 #endif
+
