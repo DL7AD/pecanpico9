@@ -40,7 +40,14 @@ while True:
 		print line.strip()
 		continue
 
+	i += 1
+
+	if int(size) == 0:
+		ser.write('picture\r\n')
+		continue
+
 	imgbuf = ser.read(int(size))
+
 
 	for event in pygame.event.get():
 		if event.type == QUIT:
@@ -61,6 +68,11 @@ while True:
 		screen.blit(textsurface,(0,0))
 		pygame.display.flip()
 		pygame.display.update(displaygroup.draw(screen))
+
+		f = open('data/data'+str(i)+'.jpg','wb')
+		f.write(imgbuf)
+		f.close()
+
 	except Exception as e:
 		print str(e)
 		textsurface = myfont.render('Error %s' % (e), False, (255, 100, 100))
@@ -69,7 +81,6 @@ while True:
 		pygame.display.update(displaygroup.draw(screen))
 
 	ser.write('picture\r\n')
-	i += 1
 
 
 

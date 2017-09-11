@@ -5,6 +5,7 @@
 #include "config.h"
 #include "image.h"
 #include "tracking.h"
+#include "pi2c.h"
 
 const SerialConfig uart_config =
 {
@@ -18,23 +19,19 @@ mutex_t trace_mtx; // Used internal to synchronize multiple chprintf in debug.h
 
 bool debug_on_usb = false;
 
-void debugOnUSB_Off(BaseSequentialStream *chp, int argc, char *argv[])
+void debugOnUSB(BaseSequentialStream *chp, int argc, char *argv[])
 {
-	(void)chp;
-	(void)argc;
-	(void)argv;
-	debug_on_usb = false;
+	if(argc < 1)
+	{
+		chprintf(chp, "Argument missing!\r\n");
+		chprintf(chp, "Argument 1: 1 for switch on, 0 for switch off!\r\n");
+		return;
+	}
+
+	debug_on_usb = atoi(argv[0]);
 }
 
-void debugOnUSB_On(BaseSequentialStream *chp, int argc, char *argv[])
-{
-	(void)chp;
-	(void)argc;
-	(void)argv;
-	debug_on_usb = true;
-}
-
-static uint8_t usb_buffer[96*1024] __attribute__((aligned(32))); // USB image buffer
+static uint8_t usb_buffer[64*1024] __attribute__((aligned(32))); // USB image buffer
 void printPicture(BaseSequentialStream *chp, int argc, char *argv[])
 {
 	(void)argc;
@@ -67,8 +64,8 @@ void printPicture(BaseSequentialStream *chp, int argc, char *argv[])
 		}
 		if(!start_detected)
 		{
-			TRACE_USB("DATA > image,jpeg,0");
-			TRACE_USB("DATA > error,no SOI flag found");
+			TRACE_USB("DATA > image/jpeg,0");
+			TRACE_USB("DATA > text/trace,no SOI flag found");
 		}
 
 	} else { // No camera found
@@ -79,16 +76,11 @@ void printPicture(BaseSequentialStream *chp, int argc, char *argv[])
 	}
 }
 
-trackPoint_t* getLogBuffer(uint16_t id)
+void command2Camera(BaseSequentialStream *chp, int argc, char *argv[])
 {
-	if(sizeof(trackPoint_t)*id < LOG_SECTOR_SIZE-sizeof(trackPoint_t))
-	{
-		return (trackPoint_t*)(LOG_FLASH_ADDR1 + id * sizeof(trackPoint_t));
-	} else if((id-(LOG_SECTOR_SIZE/sizeof(trackPoint_t)))*sizeof(trackPoint_t) < LOG_SECTOR_SIZE-sizeof(trackPoint_t)) {
-		return (trackPoint_t*)(LOG_FLASH_ADDR2 + (id-(LOG_SECTOR_SIZE/sizeof(trackPoint_t))) * sizeof(trackPoint_t));
-	} else { // Outside of memory address allocation
-		return NULL;
-	}
+	(void)chp;
+	(void)argc;
+	I2C_write8_16bitreg(0x3C, atoi(argv[0]), atoi(argv[1]));
 }
 
 void readLog(BaseSequentialStream *chp, int argc, char *argv[])
@@ -96,17 +88,19 @@ void readLog(BaseSequentialStream *chp, int argc, char *argv[])
 	(void)argc;
 	(void)argv;
 
+	chprintf(chp, "id,date,time,lat,lon,alt,sats,ttff,vbat,vsol,vsub,pbat,rbat,press,temp,hum,idimg\r\n");
+
 	trackPoint_t *tp;
 	for(uint16_t i=0; (tp = getLogBuffer(i)) != NULL; i++)
 		if(tp->id != 0xFFFFFFFF)
 		{
 			chprintf(	chp,
-						"%d,%04d-%02d-%02d,%02d:%02d:%02d,%d.%05d,%d.%05d,%d,%d,%d,%d.%03d,%d.%03d,%d.%03d,%d,%d,%d.%01d,%2d.%02d,%2d.%01d\r\n",
+						"%d,%04d-%02d-%02d,%02d:%02d:%02d,%d.%05d,%d.%05d,%d,%d,%d,%d.%03d,%d.%03d,%d.%03d,%d,%d,%d.%01d,%2d.%02d,%2d.%01d,%d\r\n",
 						tp->id,tp->time.year, tp->time.month, tp->time.day, tp->time.hour, tp->time.minute, tp->time.day,
 						tp->gps_lat/10000000, (tp->gps_lat > 0 ? 1:-1)*(tp->gps_lat/100)%100000, tp->gps_lon/10000000, (tp->gps_lon > 0 ? 1:-1)*(tp->gps_lon/100)%100000, tp->gps_alt,
 						tp->gps_sats, tp->gps_ttff,
 						tp->adc_vbat/1000, (tp->adc_vbat%1000), tp->adc_vsol/1000, (tp->adc_vsol%1000), tp->adc_vusb/1000, (tp->adc_vusb%1000), tp->adc_pbat, tp->adc_rbat,
-						tp->air_press/10, tp->air_press%10, tp->air_temp/100, tp->air_temp%100, tp->air_hum/10, tp->air_hum%10
+						tp->air_press/10, tp->air_press%10, tp->air_temp/100, tp->air_temp%100, tp->air_hum/10, tp->air_hum%10, tp->id_image
 			);
 		}
 }
@@ -117,6 +111,7 @@ void printConfig(BaseSequentialStream *chp, int argc, char *argv[])
 	{
 		chprintf(chp, "Argument missing!\r\n");
 		chprintf(chp, "Argument 1: Id of config!\r\n");
+		return;
 	}
 
 	uint8_t id = atoi(argv[0]);
@@ -125,9 +120,14 @@ void printConfig(BaseSequentialStream *chp, int argc, char *argv[])
 	chprintf(chp, "Power: %d\r\n", config[id].power);
 
 	if(config[id].frequency.type == FREQ_STATIC) {
-		chprintf(chp, "Frequency: %d Hz\r\n", config[id].frequency.hz);
+		uint32_t freq = config[id].frequency.hz;
+		if((freq/1000)*1000 == freq)
+			chprintf(chp, "Frequency: %d.%03d MHz\r\n", freq/1000000, (freq%1000000)/1000);
+		else
+			chprintf(chp, "Frequency: %d.%03d MHz\r\n", freq/1000000, (freq%1000000));
 	} else {
-		chprintf(chp, "Frequency: APRS region dependent (currently %d Hz\r\n", getFrequency(&config[id].frequency));
+		uint32_t freq = getFrequency(&config[id].frequency);
+		chprintf(chp, "Frequency: APRS region dependent (currently %d.%03d MHz)\r\n", freq/1000000, (freq%1000000)/1000);
 	}
 
 	chprintf(chp, "Protocol: %d\r\n", config[id].protocol);

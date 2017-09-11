@@ -27,11 +27,11 @@ static const struct regval_list OV5640YUV_Sensor_Dvp_Init[] =
 	{ 0x4051, 0x8f },
 
 	{ 0x3008, 0x42 }, 
-	{ 0x3103, 0x03 }, 
+	{ 0x3103, 0x03 },
 	{ 0x3017, 0x7f }, 
 	{ 0x3018, 0xff }, 		
 	{ 0x302c, 0x02 }, 		
-	{ 0x3108, 0x21 }, 	
+	{ 0x3108, 0x21 }, // PCLK root divider [5:4]	
 	{ 0x3630, 0x2e },//2e
 	{ 0x3632, 0xe2 }, 
 	{ 0x3633, 0x23 },//23 
@@ -92,12 +92,12 @@ static const struct regval_list OV5640YUV_Sensor_Dvp_Init[] =
 	{ 0x3814, 0x31 }, 
 	{ 0x3815, 0x31 },		
 
-	{ 0x3034, 0x1a }, 
-	{ 0x3035, 0x11 }, //15fps
-	{ 0x3036, 0x46 }, 
-	{ 0x3037, 0x14 }, 
-	{ 0x3038, 0x00 }, 
-	{ 0x3039, 0x00 }, 
+	{ 0x3034, 0x1a }, // PLL charge pump control [7:4]
+	{ 0x3035, 0x11 }, // System clock divider [7:4]
+	{ 0x3036, 0x46 }, // PLL multiplier [7:0]
+	{ 0x3037, 0x14 }, // PLL root divider [4], PLL pre-divider [3:0]
+	{ 0x3038, 0x00 }, // System control registers (changing not recommended)
+	{ 0x3039, 0x00 }, // PLL bypass [7]
 
 	{ 0x380c, 0x07 }, 
 	{ 0x380d, 0x68 }, 
@@ -802,7 +802,6 @@ void set6MHz(void)
   */
 static bool analyze_image(uint8_t *image, uint32_t image_len)
 {
-	return true;
 	ssdv_t ssdv;
 	uint8_t pkt[SSDV_PKT_SIZE];
 	uint8_t *b;
@@ -851,7 +850,7 @@ static bool analyze_image(uint8_t *image, uint32_t image_len)
   */
 uint32_t OV5640_Snapshot2RAM(uint8_t* buffer, uint32_t size, resolution_t res, bool enableJpegValidation)
 {
-	uint8_t cntr = 5;
+	uint8_t cntr = 10;
 	bool status;
 	bool jpegValid;
 	uint32_t size_sampled;

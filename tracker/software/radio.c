@@ -305,45 +305,48 @@ void shutdownRadio(void)
 uint32_t getAPRSRegionFrequency(void) {
 	trackPoint_t *point = getLastTrackPoint();
 
-	uint32_t freq = 0; // Position unknown
+	// Position unknown
+	if(point == NULL || (point->gps_lat == 0 && point->gps_lon == 0))
+		return 0;
 	
 	// America 144.390 MHz
 	if(isPointInAmerica(point->gps_lat, point->gps_lon))
-		freq = APRS_FREQ_AMERICA;
+		return APRS_FREQ_AMERICA;
 
 	// China 144.640 MHz
 	if(isPointInChina(point->gps_lat, point->gps_lon))
-		freq = APRS_FREQ_CHINA;
+		return APRS_FREQ_CHINA;
 
 	// Japan 144.660 MHz
 	if(isPointInJapan(point->gps_lat, point->gps_lon))
-		freq = APRS_FREQ_JAPAN;
+		return APRS_FREQ_JAPAN;
 
 	// Southkorea 144.620 MHz
 	if(isPointInSouthkorea(point->gps_lat, point->gps_lon))
-		freq = APRS_FREQ_SOUTHKOREA;
+		return APRS_FREQ_SOUTHKOREA;
 
 	// Southkorea 144.620 MHz
 	if(isPointInSoutheastAsia(point->gps_lat, point->gps_lon))
-		freq = APRS_FREQ_SOUTHEASTASIA;
+		return APRS_FREQ_SOUTHEASTASIA;
 
 	// Australia 145.175 MHz
 	if(isPointInAustralia(point->gps_lat, point->gps_lon))
-		freq = APRS_FREQ_AUSTRALIA;
+		return APRS_FREQ_AUSTRALIA;
 
 	// Australia 144.575 MHz
 	if(isPointInNewZealand(point->gps_lat, point->gps_lon))
-		freq = APRS_FREQ_NEWZEALAND;
+		return APRS_FREQ_NEWZEALAND;
 
 	// Argentina/Paraguay/Uruguay 144.930 MHz
 	if(isPointInArgentina(point->gps_lat, point->gps_lon))
-		freq = APRS_FREQ_ARGENTINA;
+		return APRS_FREQ_ARGENTINA;
 
 	// Brazil 145.575 MHz
 	if(isPointInBrazil(point->gps_lat, point->gps_lon))
-		freq = APRS_FREQ_BRAZIL;
+		return APRS_FREQ_BRAZIL;
 
-	return freq;
+	// For the rest of the world 144.800 MHz
+	return 144800000;
 }
 
 /**
@@ -420,7 +423,7 @@ uint32_t getFrequency(freq_conf_t *config)
 	switch(config->type) {
 		case FREQ_APRS_REGION:; // Dynamic frequency (determined by GPS position)
 			uint32_t freq = getAPRSRegionFrequency();
-			if(!freq) // Use default frequency (if freq is not set = position unknown)
+			if(!freq) // Use default frequency (if freq is 0 = position unknown)
 				return config->hz;
 			return freq;
 

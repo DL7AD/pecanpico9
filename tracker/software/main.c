@@ -8,16 +8,16 @@
 #include "shell.h"
 
 static const ShellCommand commands[] = {
-	{"dbgon", debugOnUSB_On},
-	{"dbgoff", debugOnUSB_Off},
+	{"debug", debugOnUSB},
 	{"picture", printPicture},
 	{"log", readLog},
-//	{"printconfig", printConfig}, FIXME: This feature is faulty at the moment
+	{"config", printConfig},
+	{"command", command2Camera},
 	{NULL, NULL}
 };
 
 static const ShellConfig shell_cfg = {
-	(BaseSequentialStream *)&SDU1,
+	(BaseSequentialStream*)&SDU1,
 	commands
 };
 
@@ -30,7 +30,7 @@ int main(void) {
 
 	// Voltage switching (1.8V <=> 3.0V)
 	#if ACTIVATE_USB || ACTIVATE_3V
-	boost_voltage(true); // Ramp up voltage to 3V
+	boost_voltage(true);		// Ramp up voltage to 3V
 	chThdSleepMilliseconds(100);
 	#endif
 
@@ -54,9 +54,8 @@ int main(void) {
 	start_essential_threads();	// Startup required modules (tracking managemer, watchdog)
 	start_user_modules();		// Startup optional modules (eg. POSITION, LOG, ...)
 
-	// Print time every 10 sec
 	while(true) {
-		if (SDU1.config->usbp->state == USB_ACTIVE) {
+		if(SDU1.config->usbp->state == USB_ACTIVE) {
 			thread_t *shelltp = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(512), "shell", NORMALPRIO+1, shellThread, (void*)&shell_cfg);
 			chThdWait(shelltp);
 		}

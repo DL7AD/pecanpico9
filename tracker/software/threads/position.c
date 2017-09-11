@@ -213,7 +213,7 @@ void start_position_thread(module_conf_t *conf)
 	if(conf->init_delay) chThdSleepMilliseconds(conf->init_delay);
 
 	// Start tracking manager (if not running yet)
-	init_tracking_manager();
+	init_tracking_manager(true);
 
 	// Start position thread
 	TRACE_INFO("POS  > Startup position thread");

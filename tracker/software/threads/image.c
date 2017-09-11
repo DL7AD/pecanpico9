@@ -273,7 +273,7 @@ const uint8_t noCameraFound[4071] = {
 	0xBD, 0xC0, 0x20, 0x00, 0x01, 0xFF, 0xD9
 };
 
-static uint8_t gimage_id; // Global image ID (for all image threads)
+uint8_t gimage_id; // Global image ID (for all image threads)
 mutex_t camera_mtx;
 bool camera_mtx_init = false;
 

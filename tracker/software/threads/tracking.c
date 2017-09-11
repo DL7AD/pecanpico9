@@ -3,7 +3,6 @@
 
 #include "tracking.h"
 #include "debug.h"
-#include "ptime.h"
 #include "config.h"
 #include "ublox.h"
 #include "bme280.h"
@@ -12,12 +11,14 @@
 #include "radio.h"
 #include "flash.h"
 #include "watchdog.h"
+#include "image.h"
 
 static trackPoint_t trackPoints[2];
 static trackPoint_t* lastTrackPoint;
 static systime_t nextLogEntryTimer;
 static module_conf_t trac_conf = {.name = "TRAC"}; // Fake config needed for watchdog tracking
 static bool threadStarted = false;
+static bool tracking_useGPS = false;
 
 /**
   * Returns most recent track point witch is complete.
@@ -27,73 +28,48 @@ trackPoint_t* getLastTrackPoint(void)
 	return lastTrackPoint;
 }
 
-/**
-  * Returns next free log entry address in memory. Returns 0 if all cells are
-  * filled with data
-  */
-static uint32_t getNextFreeLogAddress(void)
+trackPoint_t* getLogBuffer(uint16_t id)
 {
-	// Search in flash sector 10
-	for(uint32_t address = LOG_FLASH_ADDR1; address < LOG_FLASH_ADDR1+LOG_SECTOR_SIZE; address += sizeof(trackPoint_t))
+	if(sizeof(trackPoint_t)*id < LOG_SECTOR_SIZE-sizeof(trackPoint_t))
 	{
-		trackPoint_t pt;
-		flashRead(address, (char*)&pt, sizeof(trackPoint_t));
-		if(pt.id == 0xFFFFFFFF)
-			return address;
+		return (trackPoint_t*)(LOG_FLASH_ADDR1 + id * sizeof(trackPoint_t));
+	} else if((id-(LOG_SECTOR_SIZE/sizeof(trackPoint_t)))*sizeof(trackPoint_t) < LOG_SECTOR_SIZE-sizeof(trackPoint_t)) {
+		return (trackPoint_t*)(LOG_FLASH_ADDR2 + (id-(LOG_SECTOR_SIZE/sizeof(trackPoint_t))) * sizeof(trackPoint_t));
+	} else { // Outside of memory address allocation
+		return NULL;
 	}
-
-	// Search in flash sector 11
-	for(uint32_t address = LOG_FLASH_ADDR2; address < LOG_FLASH_ADDR2+LOG_SECTOR_SIZE; address += sizeof(trackPoint_t))
-	{
-		trackPoint_t pt;
-		flashRead(address, (char*)&pt, sizeof(trackPoint_t));
-		if(pt.id == 0xFFFFFFFF)
-			return address;
-	}
-	return 0;
 }
 
 /**
   * Returns next free log entry address in memory. Returns 0 if all cells are
   * filled with data
   */
-static bool getLastLog(trackPoint_t* last)
+static trackPoint_t* getNextFreeLogAddress(void)
 {
-	TRACE_INFO("TRAC > Read last track point from flash memory");
+	trackPoint_t* tp;
+	for(uint16_t i=0; (tp = getLogBuffer(i)) != NULL; i++)
+		if(tp->id == 0xFFFFFFFF)
+			return tp;
 
-	uint64_t last_time = 0;
-	uint32_t last_address = 0;
+	return NULL;
+}
 
-	// Search in flash sector 10
-	for(uint32_t address = LOG_FLASH_ADDR1; address < LOG_FLASH_ADDR1+LOG_SECTOR_SIZE; address += sizeof(trackPoint_t))
-	{
-		trackPoint_t pt;
-		flashRead(address, (char*)&pt, sizeof(trackPoint_t));
-		if(pt.id != 0xFFFFFFFF && date2UnixTimestamp(pt.time) >= last_time) {
-			last_address = address;
-			last_time = date2UnixTimestamp(pt.time);
-		}
+/**
+  * Returns next free log entry address in memory. Returns 0 if all cells are
+  * filled with data
+  */
+static trackPoint_t* getLastLog(void)
+{
+	trackPoint_t* last = NULL;
+	trackPoint_t* tp;
+	for(uint16_t i=0; (tp = getLogBuffer(i)) != NULL; i++) {
+		if(tp->id == 0xFFFFFFFF)
+			return last; // Found last entry
+		last = tp;
 	}
-
-	// Search in flash sector 11
-	for(uint32_t address = LOG_FLASH_ADDR2; address < LOG_FLASH_ADDR2+LOG_SECTOR_SIZE; address += sizeof(trackPoint_t))
-	{
-		trackPoint_t pt;
-		flashRead(address, (char*)&pt, sizeof(trackPoint_t));
-		if(pt.id != 0xFFFFFFFF && date2UnixTimestamp(pt.time) >= last_time) {
-			last_address = address;
-			last_time = date2UnixTimestamp(pt.time);
-		}
-	}
-
-	if(last_address) {
-		flashRead(last_address, (char*)last, sizeof(trackPoint_t));
-		TRACE_INFO("TRAC > Found track point in flash memory ID=%d", last->id);
-		return true;
-	} else {
-		TRACE_INFO("TRAC > No track point found in flash memory");
-		return false;
-	}
+	if(last->id != 0xFFFFFFFF)
+		return last; // All memory entries are use, so the very last one must be the most recent one.
+	return NULL; // There is no log entry in memory
 }
 
 /**
@@ -119,13 +95,13 @@ static void eraseOldestLogData(void)
 static void writeLogTrackPoint(trackPoint_t* tp)
 {
 	// Get address to write on
-	uint32_t address = getNextFreeLogAddress();
-	if(!address) // Memory completly used, erase oldest data
+	trackPoint_t* address = getNextFreeLogAddress();
+	if(address == NULL) // Memory completly used, erase oldest data
 	{
 		eraseOldestLogData();
 		address = getNextFreeLogAddress();
 	}
-	if(!address) // Something went wront at erasing the memory
+	if(address == NULL) // Something went wront at erasing the memory
 	{
 		TRACE_ERROR("TRAC > Erasing flash failed");
 		return;
@@ -133,12 +109,12 @@ static void writeLogTrackPoint(trackPoint_t* tp)
 
 	// Write data into flash
 	TRACE_INFO("TRAC > Flash write (ADDR=%08x)", address);
-	flashSectorBegin(flashSectorAt(address));
-	flashWrite(address, (char*)tp, sizeof(trackPoint_t));
-	flashSectorEnd(flashSectorAt(address));
+	flashSectorBegin(flashSectorAt((uint32_t)address));
+	flashWrite((uint32_t)address, (char*)tp, sizeof(trackPoint_t));
+	flashSectorEnd(flashSectorAt((uint32_t)address));
 
 	// Verify
-	if(flashCompare(address, (char*)tp, sizeof(trackPoint_t)))
+	if(flashCompare((uint32_t)address, (char*)tp, sizeof(trackPoint_t)))
 		TRACE_INFO("TRAC > Flash write OK")
 	else
 		TRACE_ERROR("TRAC > Flash write failed");
@@ -172,20 +148,25 @@ THD_FUNCTION(trackingThread, arg) {
 	lastTrackPoint->time.minute = rtc.minute;
 	lastTrackPoint->time.second = rtc.second;
 
-	// Get last GPS fix from memory
-	trackPoint_t lastLogPoint;
-	if(getLastLog(&lastLogPoint)) { // If there has been stored a trackpoint, then get the last know GPS fix
-		lastTrackPoint->gps_lat = lastLogPoint.gps_lat;
-		lastTrackPoint->gps_lon = lastLogPoint.gps_lon;
-		lastTrackPoint->gps_alt = lastLogPoint.gps_alt;
+	// Get last tracking point from memory
+	TRACE_INFO("TRAC > Read last track point from flash memory");
+	trackPoint_t* lastLogPoint = getLastLog();
+
+	if(lastLogPoint != NULL) { // If there has been stored a trackpoint, then get the last know GPS fix
+		TRACE_INFO("TRAC > Found track point in flash memory ID=%d", lastLogPoint->id);
+		lastTrackPoint->gps_lat = lastLogPoint->gps_lat;
+		lastTrackPoint->gps_lon = lastLogPoint->gps_lon;
+		lastTrackPoint->gps_alt = lastLogPoint->gps_alt;
+	} else {
+		TRACE_INFO("TRAC > No track point found in flash memory");
 	}
 
-	lastTrackPoint->gps_lock = GPS_LOSS; // But tell the user that there is no current lock nor any GPS sats locked
+	lastTrackPoint->gps_lock = GPS_LOG; // Tell other threads that it has been taken from log
 	lastTrackPoint->gps_sats = 0;
 	lastTrackPoint->gps_ttff = 0;
 
 	// Debug last stored GPS position
-	if(lastLogPoint.id != 0xFFFFFFFF) {
+	if(lastLogPoint != NULL) {
 		TRACE_INFO(
 			"TRAC > Last GPS position (from memory)\r\n"
 			"%s Latitude: %d.%07ddeg\r\n"
@@ -220,6 +201,14 @@ THD_FUNCTION(trackingThread, arg) {
 		lastTrackPoint->air_temp = 0;
 	}
 
+	/*
+	 * Get last image ID. This is important because Habhub does mix up different
+	 * images with the same it. So it is good to use a new image ID when the
+	 * tracker has been reset.
+	 */
+	if(lastLogPoint != NULL)
+		gimage_id = lastLogPoint->id_image;
+
 	systime_t time = chVTGetSystemTimeX();
 	while(true)
 	{
@@ -232,9 +221,9 @@ THD_FUNCTION(trackingThread, arg) {
 		// Search for GPS satellites
 		gpsFix_t gpsFix = {{0,0,0,0,0,0,0},0,0,0,0,0};
 
-		// Switch on GPS is enough power is available
+		// Switch on GPS is enough power is available and GPS is needed by any position thread
 		uint16_t batt = getBatteryVoltageMV();
-		if(batt >= gps_on_vbat)
+		if(batt >= gps_on_vbat && tracking_useGPS)
 		{
 			// Switch on GPS
 			GPS_Init();
@@ -304,8 +293,11 @@ THD_FUNCTION(trackingThread, arg) {
 			tp->gps_lon = ltp->gps_lon;
 			tp->gps_alt = ltp->gps_alt;
 
-			// Mark GPS loss (or low batt)
-			tp->gps_lock = batt < gps_off_vbat ? GPS_LOWBATT : GPS_LOSS;
+			// Mark GPS loss (or low batt,  GPS switch off)
+			if(tracking_useGPS)
+				tp->gps_lock = batt < gps_off_vbat ? GPS_LOWBATT : GPS_LOSS;
+			else
+				tp->gps_lock = GPS_OFF;
 			tp->gps_sats = 0;
 
 		}
@@ -335,23 +327,26 @@ THD_FUNCTION(trackingThread, arg) {
 			tp->air_temp = 0;
 		}
 
+		// Set last time ID
+		tp->id_image = gimage_id;
+
 		// Trace data
 		TRACE_INFO(	"TRAC > New tracking point available (ID=%d)\r\n"
 					"%s Time %04d-%02d-%02d %02d:%02d:%02d\r\n"
 					"%s Pos  %d.%05d %d.%05d Alt %dm\r\n"
 					"%s Sats %d  TTFF %dsec\r\n"
 					"%s ADC Vbat=%d.%03dV Vsol=%d.%03dV VUSB=%d.%03dV Pbat=%dmW Rbat=%dmOhm\r\n"
-					"%s AIR p=%6d.%01dPa T=%2d.%02ddegC phi=%2d.%01d%%",
+					"%s AIR p=%6d.%01dPa T=%2d.%02ddegC phi=%2d.%01d%% ImageID=%d",
 					tp->id,
 					TRACE_TAB, tp->time.year, tp->time.month, tp->time.day, tp->time.hour, tp->time.minute, tp->time.day,
 					TRACE_TAB, tp->gps_lat/10000000, (tp->gps_lat > 0 ? 1:-1)*(tp->gps_lat/100)%100000, tp->gps_lon/10000000, (tp->gps_lon > 0 ? 1:-1)*(tp->gps_lon/100)%100000, tp->gps_alt,
 					TRACE_TAB, tp->gps_sats, tp->gps_ttff,
 					TRACE_TAB, tp->adc_vbat/1000, (tp->adc_vbat%1000), tp->adc_vsol/1000, (tp->adc_vsol%1000), tp->adc_vusb/1000, (tp->adc_vusb%1000), tp->adc_pbat, tp->adc_rbat,
-					TRACE_TAB, tp->air_press/10, tp->air_press%10, tp->air_temp/100, tp->air_temp%100, tp->air_hum/10, tp->air_hum%10
+					TRACE_TAB, tp->air_press/10, tp->air_press%10, tp->air_temp/100, tp->air_temp%100, tp->air_hum/10, tp->air_hum%10, tp->id_image
 		);
 
 		// Append logging (timeout)
-		if(nextLogEntryTimer <= chVTGetSystemTimeX() && isGPSLocked(&gpsFix))
+		if(nextLogEntryTimer <= chVTGetSystemTimeX())
 		{
 			writeLogTrackPoint(tp);
 			nextLogEntryTimer += log_cycle_time;
@@ -365,8 +360,11 @@ THD_FUNCTION(trackingThread, arg) {
 	}
 }
 
-void init_tracking_manager(void)
+void init_tracking_manager(bool useGPS)
 {
+	if(useGPS)
+		tracking_useGPS = true;
+
 	if(!threadStarted)
 	{
 		threadStarted = true;

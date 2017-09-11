@@ -125,6 +125,11 @@ uint32_t aprs_encode_position(uint8_t* message, mod_t mod, const aprs_conf_t *co
 		chsnprintf(temp, sizeof(temp), "%d", ++loss_of_gps_counter);
 		ax25_send_string(&packet, temp);
 
+	} else if(trackPoint->gps_lock == GPS_LOG) { // GPS position from log (because the tracker has been just switched on)
+
+		ax25_send_string(&packet, " GPS FROM LOG");
+		loss_of_gps_counter = 0;
+
 	} else {
 		loss_of_gps_counter = 0;
 	}

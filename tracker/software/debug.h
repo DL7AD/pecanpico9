@@ -104,11 +104,11 @@ extern bool debug_on_usb;
 	TRACE_INFO("%-4s > Current time: %02d-%02d-%02d %02d:%02d:%02d:%03d", thd, dbgtime.year, dbgtime.month, dbgtime.day, dbgtime.hour, dbgtime.minute, dbgtime.second, dbgtime.millisecond); \
 }
 
-void debugOnUSB_Off(BaseSequentialStream *chp, int argc, char *argv[]);
-void debugOnUSB_On(BaseSequentialStream *chp, int argc, char *argv[]);
+void debugOnUSB(BaseSequentialStream *chp, int argc, char *argv[]);
 void printConfig(BaseSequentialStream *chp, int argc, char *argv[]);
 void printPicture(BaseSequentialStream *chp, int argc, char *argv[]);
 void readLog(BaseSequentialStream *chp, int argc, char *argv[]);
+void command2Camera(BaseSequentialStream *chp, int argc, char *argv[]);
 
 #endif
 
