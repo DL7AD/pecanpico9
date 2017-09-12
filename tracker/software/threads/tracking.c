@@ -207,7 +207,7 @@ THD_FUNCTION(trackingThread, arg) {
 	 * tracker has been reset.
 	 */
 	if(lastLogPoint != NULL)
-		gimage_id = lastLogPoint->id_image;
+		gimage_id = lastLogPoint->id_image+1;
 
 	systime_t time = chVTGetSystemTimeX();
 	while(true)
