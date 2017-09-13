@@ -60,7 +60,7 @@
 #define STM32_RTCSEL                        STM32_RTCSEL_LSI
 #define STM32_RTCPRE_VALUE                  8
 #define STM32_MCO1SEL                       STM32_MCO1SEL_PLL
-#define STM32_MCO1PRE                       STM32_MCO1PRE_DIV4
+#define STM32_MCO1PRE                       STM32_MCO1PRE_DIV2
 #define STM32_MCO2SEL                       STM32_MCO2SEL_SYSCLK
 #define STM32_MCO2PRE                       STM32_MCO2PRE_DIV5
 #define STM32_I2SSRC                        STM32_I2SSRC_CKIN

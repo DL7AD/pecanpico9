@@ -218,7 +218,7 @@ void start_position_thread(module_conf_t *conf)
 	// Start position thread
 	TRACE_INFO("POS  > Startup position thread");
 	chsnprintf(conf->name, sizeof(conf->name), "POS");
-	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(10*1024), "POS", NORMALPRIO, posThread, conf);
+	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(20*1024), "POS", NORMALPRIO, posThread, conf);
 	if(!th) {
 		// Print startup error, do not start watchdog for this thread
 		TRACE_ERROR("POS  > Could not startup thread (not enough memory available)");

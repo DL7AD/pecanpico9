@@ -463,7 +463,7 @@ void start_user_modules(void)
 	config[4].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
 	config[4].ssdv_conf.res = RES_VGA;						// Resolution VGA
 	config[4].ssdv_conf.quality = 4;						// Image quality
-	start_image_thread(&config[4]);
+	//start_image_thread(&config[4]);
 
 	// Module IMAGE, SSDV 2m 2FSK
 	config[5].power = 127;									// Transmission Power
