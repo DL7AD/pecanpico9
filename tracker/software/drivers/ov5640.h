@@ -9,7 +9,7 @@
 #include "hal.h"
 #include "types.h"
 
-#define OV5640_USE_DMA_DBM  FALSE
+#define OV5640_USE_DMA_DBM  TRUE
 
 uint32_t OV5640_Snapshot2RAM(uint8_t* buffer, uint32_t size, resolution_t resolution, bool enableJpegValidation);
 bool OV5640_Capture(uint8_t* buffer, uint32_t size);
