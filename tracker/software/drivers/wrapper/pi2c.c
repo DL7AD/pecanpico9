@@ -30,6 +30,16 @@ static bool I2C_transmit(uint8_t addr, uint8_t *txbuf, uint32_t txbytes, uint8_t
 	return i2c_status == MSG_OK;
 }
 
+void I2C_Lock(void)
+{
+	i2cAcquireBus(I2C_DRIVER);
+}
+
+void I2C_Unlock(void)
+{
+	i2cReleaseBus(I2C_DRIVER);
+}
+
 void pi2cInit(void)
 {
 	TRACE_INFO("I2C  > Initialize I2C Pins");

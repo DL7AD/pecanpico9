@@ -272,7 +272,7 @@
 
 // Camera pins
 #define LINE_CAM_XCLK               PAL_LINE(GPIOA, 8U)
-#define LINE_CAM_PCLK               PAL_LINE(GPIOC, 0U)
+#define LINE_CAM_PCLK               PAL_LINE(GPIOC, 6U)
 #define LINE_CAM_HREF               PAL_LINE(GPIOC, 2U)
 #define LINE_CAM_VSYNC              PAL_LINE(GPIOC, 1U)
 #define LINE_CAM_D2                 PAL_LINE(GPIOA, 0U)

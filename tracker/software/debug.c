@@ -55,7 +55,7 @@ void printPicture(BaseSequentialStream *chp, int argc, char *argv[])
 			// Look for APP0 instead of SOI because SOI is lost sometimes, but we can add SOI easily later on
 			if(!start_detected && conf.ram_buffer[i] == 0xFF && conf.ram_buffer[i+1] == 0xE0) {
 				start_detected = true;
-				TRACE_USB("DATA > image/jpeg,%d", conf.size_sampled-i+1); // Flag the data on serial output
+				TRACE_USB("DATA > image/jpeg,%d", conf.size_sampled-i+2); // Flag the data on serial output
 				streamPut(chp, 0xFF);
 				streamPut(chp, 0xD8);
 			}
@@ -80,7 +80,7 @@ void command2Camera(BaseSequentialStream *chp, int argc, char *argv[])
 {
 	(void)chp;
 	(void)argc;
-	I2C_write8_16bitreg(0x3C, atoi(argv[0]), atoi(argv[1]));
+	I2C_write8_16bitreg(OV5640_I2C_ADR, atoi(argv[0]), atoi(argv[1]));
 }
 
 void readLog(BaseSequentialStream *chp, int argc, char *argv[])

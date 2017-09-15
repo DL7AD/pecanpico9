@@ -23,5 +23,8 @@ bool I2C_read8_16bitreg(uint8_t address, uint16_t reg, uint8_t *val); // 16bit r
 
 bool I2C_read16_LE(uint8_t address, uint8_t reg, uint16_t *val);
 
+void I2C_Lock(void);
+void I2C_Unlock(void);
+
 #endif
 
