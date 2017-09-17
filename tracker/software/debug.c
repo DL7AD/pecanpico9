@@ -6,6 +6,7 @@
 #include "image.h"
 #include "tracking.h"
 #include "pi2c.h"
+#include "ov5640.h"
 
 const SerialConfig uart_config =
 {
