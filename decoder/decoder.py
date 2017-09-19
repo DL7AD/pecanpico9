@@ -79,7 +79,10 @@ def received_data(data):
 	try:
 		call = m.group(1)
 		aprs = m.group(3)
-		receiver = args.call
+		if len(m.group(2)) > 0:
+			receiver = m.group(2).split(',')[-1]
+		else:
+			receiver = args.call
 	except:
 		return # message format incorrect (probably no APRS message or line cut off too short)
 
