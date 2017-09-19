@@ -24,8 +24,15 @@ args = parser.parse_args()
 
 if args.device == 'I': # Connect to APRS-IS
 
-	tn = telnetlib.Telnet("rotate.aprs2.net", 14580)
-	tn.write("user DL7AD filter u/APECAN\n")
+	print('Connect to APRS-IS')
+	try:
+		tn = telnetlib.Telnet("rotate.aprs2.net", 14580, 3)
+		tn.write("user %s filter u/APECAN\n" % args.call)
+		print('Connected')
+	except Exception as e:
+		print('Could not connect to APRS-IS: %s' % str(e))
+		print('exit...')
+		sys.exit(1)
 
 elif args.device is not '-': # Use serial connection (probably TNC)
 
@@ -50,6 +57,19 @@ if args.log is not None:
 		sys.exit(1)
 
 jsons = []
+
+def decode_callsign(code):
+	callsign = ''
+	
+	while code > 0:
+		s = code % 40
+		if s == 0: callsign += '-'
+		elif s < 11: callsign += chr(47 + s)
+		elif s < 14: callsign += '-'
+		else: callsign += chr(51 + s)
+		code /= 40
+	
+	return callsign
 
 def received_data(data):
 	global jsons
@@ -84,7 +104,8 @@ def received_data(data):
 		\"receiver\": \"""" + receiver + """\"
 	}""")
 
-	print datetime.datetime.now().isoformat('T') + ' Received packet call %02x%02x%02x%02x image %d packet %d' % (data[1], data[2], data[3], data[4], data[5], data[7] + data[6] * 256)
+	call = decode_callsign(0x1000000*data[1] + 0x10000*data[2] + 0x100*data[3] + data[4])
+	print datetime.datetime.now().isoformat('T') + ' Received packet call %s image %d packet %d' % (call, data[5], 0x100*data[6]+data[7])
 
 	if len(jsons) >= args.grouping: # Enough packets collected, send them all to the server
 
@@ -97,16 +118,17 @@ def received_data(data):
 		try:
 			error = True
 			while error:
+				print('Send to SSDV data server')
 				try:
 					result = urllib2.urlopen(req, "".join(json.split(' '))) # Send packets to server
-					print 'Send to SSDV data server: OK'
+					print('Response from Server: OK')
 					error = False
 				except urllib2.URLError, error:
 					if error.code == 400:
-						print 'The SSDV server indicated a faulty packet: ' + error.read()
+						print('Response from Server: %s', error.read())
 						error = False
 					else:
-						print 'Send to SSDV data server: failed (connection error :( trying again...)'
+						print 'SSDV-Server connection error... try again'
 
 		except urllib2.HTTPError, error: # The server did not like our packets :(
 			print 'Send to SSDV data server: failed (the server did not like our packets :( )'
@@ -114,15 +136,39 @@ def received_data(data):
 
 if args.device == 'I': # APRS-IS
 
+	wdg = time.time() # Watchdog
 	buf = ''
 	while True:
 		buf += tn.read_eager()
 		if '\n' in buf:
 			pbuf = buf.split('\n')
 			for i in range(len(pbuf)-1):
+				# Separate lines handled here
+
+				# Watchdog reload
+				if '# aprsc' in pbuf[i]:
+					print('Ping from APRS-IS')
+					wdg = time.time()
+					continue
+
+				# Data handling
 				print(pbuf[i])
 				received_data(pbuf[i])
+
 			buf = pbuf[-1]
+
+		# Watchdog reconnection
+		if wdg + 30 < time.time():
+			print('APRS-IS connection lost... reconnect')
+			try:
+				tn = telnetlib.Telnet("rotate.aprs2.net", 14580, 3)
+				tn.write("user %s filter u/APECAN\n" % args.call)
+				print('Connected')
+				wdg = time.time()
+			except Exception as e:
+				print('Could not connect to APRS-IS: %s' % str(e))
+				print('Try again...')
+
 		time.sleep(0.1)
 
 else: # stdin or serial
