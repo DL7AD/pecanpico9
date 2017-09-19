@@ -8,7 +8,9 @@ import urllib2
 import io
 import sys
 import argparse
-import aprs
+import getpass
+import telnetlib
+import time
 
 # Parse arguments from terminal
 parser = argparse.ArgumentParser(description='APRS/SSDV decoder')
@@ -17,13 +19,13 @@ parser.add_argument('-l', '--log', help='Name of the logfile')
 parser.add_argument('-n', '--grouping', help='Amount packets that will be sent to the SSDV server in one request', default=1, type=int)
 parser.add_argument('-d', '--device', help='Serial device (\'-\' for stdin)', default='-')
 parser.add_argument('-b', '--baudrate', help='Baudrate for serial device', default=9600, type=int)
-parser.add_argument('-s', '--server', help='Server URL', default='https://ssdv.habhub.org/api/v0/packets')
+parser.add_argument('-s', '--server', help='SSDV server URL', default='https://ssdv.habhub.org/api/v0/packets')
 args = parser.parse_args()
 
 if args.device == 'I': # Connect to APRS-IS
 
-	aprsis = aprs.TCP('DL4MDW', aprs_filter='t/u u/APECAN')
-	aprsis.start()
+	tn = telnetlib.Telnet("rotate.aprs2.net", 14580)
+	tn.write("user DL7AD filter u/APECAN\n")
 
 elif args.device is not '-': # Use serial connection (probably TNC)
 
@@ -49,25 +51,17 @@ if args.log is not None:
 
 jsons = []
 
-def received_data(data):		
+def received_data(data):
 	global jsons
 
-	if str(type(data)) == "<class 'aprs.classes.Frame'>": # APRS-IS
-
-		call = str(data.source)
-		aprs = data.text[3:]
-		receiver = 'APRS-IS/' + str(data.path.pop())
-
-	else: # serial or stdin
-
-		# Parse line and detect data
-		m = re.search("(.*)\>APECAN(.*):\{\{I(.*)", data)
-		try:
-			call = m.group(1)
-			aprs = m.group(3)
-			receiver = 'APRS/'+m.group(2) if len(m.group(2)) > 0 else 'APRS/'+args.call
-		except:
-			return # message format incorrect (probably no APRS message or line cut off too short)
+	# Parse line and detect data
+	m = re.search("(.*)\>APECAN(.*):\{\{I(.*)", data)
+	try:
+		call = m.group(1)
+		aprs = m.group(3)
+		receiver = args.call
+	except:
+		return # message format incorrect (probably no APRS message or line cut off too short)
 
 	if args.log is not None:
 		f.write(data) # Log data to file
@@ -120,11 +114,20 @@ def received_data(data):
 
 if args.device == 'I': # APRS-IS
 
-	aprsis.receive(callback=received_data) # Register APRS callback
+	buf = ''
+	while True:
+		buf += tn.read_eager()
+		if '\n' in buf:
+			pbuf = buf.split('\n')
+			for i in range(len(pbuf)-1):
+				print(pbuf[i])
+				received_data(pbuf[i])
+			buf = pbuf[-1]
+		time.sleep(0.1)
 
 else: # stdin or serial
 
-	while 1:
+	while True:
 		data = sys.stdin.readline() if args.device is '-' else ser.readline() # Read a line
 		received_data(data)
 
