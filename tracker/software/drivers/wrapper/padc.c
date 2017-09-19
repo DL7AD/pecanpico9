@@ -5,6 +5,7 @@
 #include "padc.h"
 #include "pac1720.h"
 #include "debug.h"
+#include "pi2c.h"
 
 #define ADC_NUM_CHANNELS	4		/* Amount of channels (solar, battery, temperature) */
 #define VCC_REF_LOW			1850	/* mV */
@@ -117,6 +118,8 @@ uint16_t getSTM32Temperature(void)
 
 void boost_voltage(bool boost)
 {
+	I2C_Lock();
+
 	if(boost)
 	{
 
@@ -133,5 +136,8 @@ void boost_voltage(bool boost)
 		vcc_ref = VCC_REF_LOW;
 
 	}
+
+	chThdSleepMilliseconds(1);
+	I2C_Unlock();
 }
 

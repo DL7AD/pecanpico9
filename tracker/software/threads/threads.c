@@ -10,13 +10,9 @@
 systime_t watchdog_tracking;
 
 void start_essential_threads(void) {
-	// Init watchdog
-	init_watchdog();
-
-	// Initialize tracking manager (without GPS, GPS is initialized if needed by position thread)
-	init_tracking_manager(false);
-
-	pi2cInit();					// Initialize I2C
-	pac1720_init();				// Initialize current measurement
+	init_watchdog();				// Init watchdog
+	pi2cInit();						// Initialize I2C
+	pac1720_init();					// Initialize current measurement
+	init_tracking_manager(false);	// Initialize tracking manager (without GPS, GPS is initialized if needed by position thread)
 }
 

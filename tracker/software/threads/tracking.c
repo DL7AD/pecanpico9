@@ -134,7 +134,7 @@ THD_FUNCTION(trackingThread, arg) {
 	(void)arg;
 
 	uint32_t id = 1;
-	lastTrackPoint = &trackPoints[0]; // FIXME: That might not work
+	lastTrackPoint = &trackPoints[0];
 
 	// Fill initial values by PAC1720 and BME280 and RTC
 

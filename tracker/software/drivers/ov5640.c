@@ -10,6 +10,7 @@
 #include "board.h"
 #include "debug.h"
 #include "ssdv.h"
+#include "padc.h"
 #include <string.h>
 
 struct regval_list {
@@ -741,6 +742,7 @@ static bool analyze_image(uint8_t *image, uint32_t image_len)
 	uint8_t pkt[SSDV_PKT_SIZE];
 	uint8_t *b;
 	uint32_t bi = 0;
+	uint16_t i = 0;
 	uint8_t c = SSDV_OK;
 
 	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, "", 0, 7);
@@ -755,7 +757,7 @@ static bool analyze_image(uint8_t *image, uint32_t image_len)
 			bi += r;
 			if(r <= 0)
 			{
-				TRACE_ERROR("CAM  > Error in image");
+				TRACE_ERROR("CAM  > Error in image (Premature end of file %d)", i);
 				return false;
 			}
 			ssdv_enc_feed(&ssdv, b, r);
@@ -766,10 +768,11 @@ static bool analyze_image(uint8_t *image, uint32_t image_len)
 
 		if(c != SSDV_OK) // Error in JPEG image
 		{
-			TRACE_ERROR("CAM  > Error in image");
+			TRACE_ERROR("CAM  > Error in image (ssdv_enc_get_packet failed: %d %d)", c, i);
 			return false;
 		}
 
+		i++;
 		chThdSleepMilliseconds(5);
 	}
 }
@@ -1275,6 +1278,11 @@ void OV5640_SetResolution(resolution_t res)
 
 void OV5640_init(void)
 {
+	// The camera need 3V for communication
+	#if !ACTIVATE_3V
+	boost_voltage(true);
+	#endif
+
 	TRACE_INFO("CAM  > Init pins");
 	OV5640_InitGPIO();
 
@@ -1294,6 +1302,10 @@ void OV5640_init(void)
 
 void OV5640_deinit(void)
 {
+	#if !ACTIVATE_3V
+	boost_voltage(false);
+	#endif
+
 	// Power off OV5640
 	TRACE_INFO("CAM  > Switch off");
 
@@ -1317,6 +1329,11 @@ void OV5640_deinit(void)
 
 bool OV5640_isAvailable(void)
 {
+	// The camera need 3V for communication
+	#if !ACTIVATE_3V
+	boost_voltage(true);
+	#endif
+
 	// Configure pins
 	OV5640_InitGPIO();
 
@@ -1328,12 +1345,15 @@ bool OV5640_isAvailable(void)
 
 	uint8_t val, val2;
 	bool ret;
-
 	if(I2C_read8_16bitreg(OV5640_I2C_ADR, 0x300A, &val) && I2C_read8_16bitreg(OV5640_I2C_ADR, 0x300B, &val2)) {
 		ret = val == 0x56 && val2 == 0x40;
 	} else {
 		ret = false;
 	}
+
+	#if !ACTIVATE_3V
+	boost_voltage(false);
+	#endif
 
 	palClearLine(LINE_CAM_EN); // Switch off camera
 	palSetLineMode(LINE_CAM_RESET, PAL_MODE_INPUT);	// CAM_RESET
