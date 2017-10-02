@@ -2,7 +2,7 @@
 
 import serial,os,re,datetime
 from subprocess import call
-import base91
+import base128
 import binascii
 import urllib2
 import io
@@ -45,8 +45,6 @@ elif args.device is not '-': # Use serial connection (probably TNC)
 		sys.stderr.write('Error: Could not open serial port\n')
 		sys.exit(1)
 
-	ser = io.TextIOWrapper(io.BufferedRWPair(serr, serr, 1), newline = '\r', line_buffering = True) # Define Newline as \r
-
 
 # Open logging file
 if args.log is not None:
@@ -60,25 +58,37 @@ jsons = []
 
 def decode_callsign(code):
 	callsign = ''
-	
+
 	while code > 0:
 		s = code % 40
-		if s == 0: callsign += '-'
+		if   s == 0: callsign += '-'
 		elif s < 11: callsign += chr(47 + s)
 		elif s < 14: callsign += '-'
 		else: callsign += chr(51 + s)
 		code /= 40
-	
+
 	return callsign
+
+def encode_callsign(callsign):
+	x = 0
+	for i in range(len(callsign)-1,-1,-1):
+		x *= 40
+		c = ord(callsign[i])
+		if   c >= 65 and c <= 90:  x += c - 51
+		elif c >= 97 and c <= 122: x += c - 83
+		elif c >= 48 and c <= 57:  x += c - 47
+
+	return x
+
+
 
 def received_data(data):
 	global jsons
-
 	# Parse line and detect data
-	m = re.search("(.*)\>APECAN(.*):\{\{I(.*)", data)
+	m = re.search("(.*)\>APECAN(.*):\!(.*)", data)
 	try:
-		call = m.group(1)
-		aprs = m.group(3)
+		call = m.group(1).split(' ')[-1] # transmitter callsign
+		data128 = m.group(3) # base128 encoded SSDV data (without SYNC, PacketType, Callsign, CRC, FEC)
 		if len(m.group(2)) > 0:
 			receiver = m.group(2).split(',')[-1]
 		else:
@@ -89,10 +99,23 @@ def received_data(data):
 	if args.log is not None:
 		f.write(data) # Log data to file
 
-	data = base91.decode(aprs) # Decode Base91
+	data = base128.decode(data128) # Decode Base128
 
-	if len(data) != 219:
+	if len(data) != 214:
 		return # APRS message sampled too short
+
+	# Encode callsign (ensure callsign has no more than 6 chars)
+	bcall = call.split('-') # Split callsign and SSID
+	if len(bcall) == 1: # No SSID available, so take the callsign
+		bcall = bcall[0][0:6]
+	elif(len(bcall[0]) < 5): # Callsign has 4 chars, so take it with the SSID
+		bcall = bcall[0] + bcall[1][0:2]
+	elif(len(bcall[0]) < 6): # Callsign has 5 chars, so take it with the last digit of the SSID
+		bcall = bcall[0] + bcall[1][-1]
+	else:
+		bcall = bcall[0][0:6] # Callsign has 6 chars, so take the call without SSID
+
+	data = binascii.unhexlify('66%08x' % encode_callsign(bcall)) + data
 
 	# Calculate CRC for SSDV server
 	crc = binascii.crc32(data) & 0xffffffff
@@ -107,7 +130,6 @@ def received_data(data):
 		\"receiver\": \"""" + receiver + """\"
 	}""")
 
-	call = decode_callsign(0x1000000*data[1] + 0x10000*data[2] + 0x100*data[3] + data[4])
 	print datetime.datetime.now().isoformat('T') + ' Received packet call %s image %d packet %d' % (call, data[5], 0x100*data[6]+data[7])
 
 	if len(jsons) >= args.grouping: # Enough packets collected, send them all to the server
@@ -177,6 +199,28 @@ if args.device == 'I': # APRS-IS
 else: # stdin or serial
 
 	while True:
-		data = sys.stdin.readline() if args.device is '-' else ser.readline() # Read a line
+		# Read data
+		if args.device is '-':
+			data = sys.stdin.readline()
+		else:
+			data = ''
+			while True:
+				b = serr.read(1)
+				if b == '\r' or b == '\n':
+					break
+				data += b
+
 		received_data(data)
+
+
+
+
+
+
+
+
+
+
+
+
 

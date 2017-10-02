@@ -54,9 +54,9 @@ uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const 
 uint32_t aprs_encode_message(uint8_t* message, mod_t mod, const aprs_conf_t *config, const char *receiver, const char *text);
 uint32_t aprs_encode_experimental(char packetType, uint8_t* message, mod_t mod, const aprs_conf_t *config, uint8_t *data, size_t size);
 
-void aprs_encode_data_init(ax25_t* packet, uint8_t* message, mod_t mod);
-uint32_t aprs_encode_data_encodePacket(ax25_t* packet, char packetType, const aprs_conf_t *config, uint8_t *data, size_t size);
-uint32_t aprs_encode_data_finalize(ax25_t* packet);
+void aprs_encode_packet_init(ax25_t* packet, uint8_t* message, mod_t mod);
+uint32_t aprs_encode_packet_encodePacket(ax25_t* packet, char packetType, const aprs_conf_t *config, uint8_t *data, size_t size);
+uint32_t aprs_encode_packet_finalize(ax25_t* packet);
 
 #endif
 

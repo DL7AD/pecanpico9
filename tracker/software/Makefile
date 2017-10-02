@@ -144,6 +144,7 @@ CSRC = $(STARTUPSRC) \
        sleep.c \
        threads/threads.c \
        math/base.c \
+       math/base128.c \
        math/sgp4.c \
        math/geofence.c \
        config.c \
