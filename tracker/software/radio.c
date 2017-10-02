@@ -10,46 +10,47 @@
 #include "padc.h"
 #include <string.h>
 
+// APRS related
 #define PLAYBACK_RATE		((STM32_PCLK1) / 500)					/* Samples per second (48Mhz / 250 = 192kHz) */
 #define BAUD_RATE			1200									/* APRS AFSK baudrate */
 #define SAMPLES_PER_BAUD	(PLAYBACK_RATE / BAUD_RATE)				/* Samples per baud (192kHz / 1200baud = 160samp/baud) */
 #define PHASE_DELTA_1200	(((2 * 1200) << 16) / PLAYBACK_RATE)	/* Delta-phase per sample for 1200Hz tone */
 #define PHASE_DELTA_2200	(((2 * 2200) << 16) / PLAYBACK_RATE)	/* Delta-phase per sample for 2200Hz tone */
 
-mutex_t radio_mtx;						// Radio mutex
-bool radio_mtx_init = false;
-
-mod_t active_mod = MOD_NOT_SET;
 static uint32_t phase_delta;			// 1200/2200 for standard AX.25
 static uint32_t phase;					// Fixed point 9.7 (2PI = TABLE_SIZE)
 static uint32_t packet_pos;				// Next bit to be sent out
 static uint32_t current_sample_in_baud;	// 1 bit = SAMPLES_PER_BAUD samples
 static uint8_t current_byte;
-static radioMSG_t tim_msg;
 
+// 2FSK related
 static uint8_t txs;						// Serial maschine state
 static uint8_t txc;						// Current byte
 static uint32_t txi;					// Bitcounter of current byte
 static uint32_t txj;					// Bytecounter
+
+// Radio related
+static mutex_t radio_mtx;				// Radio mutex
+bool radio_mtx_init = false;
+static mod_t active_mod = MOD_NOT_SET;
+static radioMSG_t radio_msg;
+static uint8_t radio_buffer[8192];
+static uint32_t radio_freq;
 
 static const char *getModulation(uint8_t key) {
 	const char *val[] = {"unknown", "OOK", "2FSK", "2GFSK", "AFSK"};
 	return val[key];
 };
 
-void initAFSK(radioMSG_t *msg) {
-  (void)msg;
+static void initAFSK(void) {
 	// Initialize radio
 	Si4464_Init();
 	setModemAFSK();
 	active_mod = MOD_AFSK;
 }
 
-void sendAFSK(radioMSG_t *msg) {
-  (void)msg;
+static void sendAFSK(void) {
 	// Initialize variables for timer
-	memcpy(&tim_msg, msg, sizeof(radioMSG_t));
-
 	phase_delta = PHASE_DELTA_1200;
 	phase = 0;
 	packet_pos = 0;
@@ -57,7 +58,7 @@ void sendAFSK(radioMSG_t *msg) {
 	current_byte = 0;
 
 	// Tune
-	radioTune(msg->freq, 0, msg->power, 0);
+	radioTune(radio_freq, 0, radio_msg.power, 0);
 
 	// Initialize timer
 	RCC->APB1ENR |= RCC_APB1ENR_TIM7EN;
@@ -76,34 +77,28 @@ void sendAFSK(radioMSG_t *msg) {
 	shutdownRadio();
 }
 
-void init2GFSK(radioMSG_t *msg) {
+static void init2GFSK(void) {
 	// Initialize radio
 	Si4464_Init();
-	setModem2GFSK(msg->gfsk_conf);
+	setModem2GFSK(radio_msg.gfsk_conf);
 	active_mod = MOD_2GFSK;
 }
 
-thread_t *feeder_thd = NULL;
-
-/*
- * TODO: I'd suggest re-working the FIFO handler system.
- * Will give it some thought.
- * Meanwhile there are a few changes that are worth testing.
- */
+static thread_t *feeder_thd = NULL;
 static THD_WORKING_AREA(si_fifo_feeder_wa, 1024);
 THD_FUNCTION(si_fifo_feeder_thd, arg)
 {
 	(void)arg;
 
 	uint16_t c = 64;
-	uint16_t all = (tim_msg.bin_len+7)/8;
+	uint16_t all = (radio_msg.bin_len+7)/8;
 
 	chRegSetThreadName("radio_tx_feeder");
 	// Initial FIFO fill
-	Si4464_writeFIFO(tim_msg.msg, c);
+	Si4464_writeFIFO(radio_msg.buffer, c);
 
 	// Start transmission
-	radioTune(tim_msg.freq, 0, tim_msg.power, all);
+	radioTune(radio_freq, 0, radio_msg.power, all);
 
 	while(c < all) { // Do while bytes not written into FIFO completely
 		// Determine free memory in Si4464-FIFO
@@ -112,7 +107,7 @@ THD_FUNCTION(si_fifo_feeder_thd, arg)
 			if((more = all-c) == 0) // Calculate remainder to send
               break; // End if nothing left
 		}
-		Si4464_writeFIFO(&tim_msg.msg[c], more); // Write into FIFO
+		Si4464_writeFIFO(&radio_msg.buffer[c], more); // Write into FIFO
 		c += more;
 		chThdSleepMilliseconds(15); // That value is ok up to 38k4
 	}
@@ -123,10 +118,7 @@ THD_FUNCTION(si_fifo_feeder_thd, arg)
 	chThdExit(MSG_OK);
 }
 
-void send2GFSK(radioMSG_t *msg) {
-	// Copy data
-	memcpy(&tim_msg, msg, sizeof(radioMSG_t));
-
+static void send2GFSK(void) {
 	// Start/re-start FIFO feeder
 	feeder_thd = chThdCreateStatic(si_fifo_feeder_wa, sizeof(si_fifo_feeder_wa), HIGHPRIO+1, si_fifo_feeder_thd, NULL);
 
@@ -144,7 +136,7 @@ CH_FAST_IRQ_HANDLER(STM32_TIM7_HANDLER)
 	if(active_mod == MOD_AFSK) // AFSK
 	{
 
-		if(packet_pos == tim_msg.bin_len) { 	// Packet transmission finished
+		if(packet_pos == radio_msg.bin_len) { 	// Packet transmission finished
 			TIM7->CR1 &= ~STM32_TIM_CR1_CEN;	// Disable timer
 			TIM7->SR &= ~STM32_TIM_SR_UIF;		// Reset interrupt flag
 			return;
@@ -152,7 +144,7 @@ CH_FAST_IRQ_HANDLER(STM32_TIM7_HANDLER)
 
 		if(current_sample_in_baud == 0) {
 			if((packet_pos & 7) == 0) { // Load up next byte
-				current_byte = tim_msg.msg[packet_pos >> 3];
+				current_byte = radio_msg.buffer[packet_pos >> 3];
 			} else { // Load up next bit
 				current_byte = current_byte / 2;
 			}
@@ -177,15 +169,15 @@ CH_FAST_IRQ_HANDLER(STM32_TIM7_HANDLER)
 		{
 			case 6: // TX-delay
 				txj++;
-				if(txj > (uint32_t)(tim_msg.fsk_conf->predelay * tim_msg.fsk_conf->baud / 1000)) {
+				if(txj > (uint32_t)(radio_msg.fsk_conf->predelay * radio_msg.fsk_conf->baud / 1000)) {
 					txj = 0;
 					txs = 7;
 				}
 				break;
 
 			case 7: // Transmit a single char
-				if(txj < tim_msg.bin_len/8) {
-					txc = tim_msg.msg[txj]; // Select char
+				if(txj < radio_msg.bin_len/8) {
+					txc = radio_msg.buffer[txj]; // Select char
 					txj++;
 					RADIO_WRITE_GPIO(LOW); // Start Bit (Synchronizing)
 					txi = 0;
@@ -199,7 +191,7 @@ CH_FAST_IRQ_HANDLER(STM32_TIM7_HANDLER)
 				break;
 
 			case 8:
-				if(txi < tim_msg.fsk_conf->bits) {
+				if(txi < radio_msg.fsk_conf->bits) {
 					txi++;
 					RADIO_WRITE_GPIO(txc & 1);
 					txc = txc >> 1;
@@ -211,7 +203,7 @@ CH_FAST_IRQ_HANDLER(STM32_TIM7_HANDLER)
 				break;
 
 			case 9:
-				if(tim_msg.fsk_conf->stopbits == 2)
+				if(radio_msg.fsk_conf->stopbits == 2)
 					RADIO_WRITE_GPIO(HIGH); // Stop Bit
 				txs = 7;
 		}
@@ -223,8 +215,7 @@ CH_FAST_IRQ_HANDLER(STM32_TIM7_HANDLER)
 	TIM7->SR &= ~STM32_TIM_SR_UIF; // Reset interrupt flag
 }
 
-void initOOK(radioMSG_t *msg) {
-  (void)msg;
+static void initOOK(void) {
 	// Initialize radio
 	Si4464_Init();
 	setModemOOK();
@@ -234,45 +225,41 @@ void initOOK(radioMSG_t *msg) {
 /**
   * Transmits binary OOK message. One bit = 20ms (1: TONE, 0: NO TONE)
   */
-void sendOOK(radioMSG_t *msg) {
+static void sendOOK(void) {
 	// Tune
-	radioTune(msg->freq, 0, msg->power, 0);
+	radioTune(radio_freq, 0, radio_msg.power, 0);
 
 	// Transmit data
 	uint32_t bit = 0;
 	systime_t time = chVTGetSystemTimeX();
-	while(bit < msg->bin_len) {
-		RADIO_WRITE_GPIO((msg->msg[bit/8] >> (bit%8)) & 0x1);
+	while(bit < radio_msg.bin_len) {
+		RADIO_WRITE_GPIO((radio_msg.buffer[bit/8] >> (bit%8)) & 0x1);
 		bit++;
 
-		time = chThdSleepUntilWindowed(time, time + MS2ST(1200 / msg->ook_conf->speed));
+		time = chThdSleepUntilWindowed(time, time + MS2ST(1200 / radio_msg.ook_conf->speed));
 	}
 	shutdownRadio();
 }
 
-void init2FSK(radioMSG_t *msg) {
-  (void)msg;
+static void init2FSK(void) {
 	// Initialize radio and tune
 	Si4464_Init();
 	setModem2FSK();
 }
 
-void send2FSK(radioMSG_t *msg) {
-	// Initialize variables for timer
-	memcpy(&tim_msg, msg, sizeof(radioMSG_t));
-
+static void send2FSK(void) {
 	txs = 6;
 	txc = 0;
 	txi = 0;
 	txj = 0;
 
 	// Tune
-	radioTune(msg->freq, msg->fsk_conf->shift, msg->power, 0);
+	radioTune(radio_freq, radio_msg.fsk_conf->shift, radio_msg.power, 0);
 
 	// Initialize timer
 	RCC->APB1ENR |= RCC_APB1ENR_TIM7EN;
 	nvicEnableVector(TIM7_IRQn, 1);
-	TIM7->ARR = STM32_PCLK1 / 16 / msg->fsk_conf->baud; // FIXME: 5625000 should be actually STM32_PCLK1
+	TIM7->ARR = STM32_PCLK1 / 16 / radio_msg.fsk_conf->baud;
 	TIM7->PSC = 15;
 	TIM7->CR1 &= ~STM32_TIM_CR1_ARPE;
 	TIM7->DIER |= STM32_TIM_DIER_UIE;
@@ -355,14 +342,21 @@ uint32_t getAPRSRegionFrequency(void) {
 bool transmitOnRadio(radioMSG_t *msg, bool shutdown)
 {
  	(void)shutdown;
-	if(inRadioBand(msg->freq)) // Frequency in radio radio band
+	uint32_t freq = getFrequency(msg->freq); // Get transmission frequency
+	if(inRadioBand(freq)) // Frequency in radio radio band
 	{
-		if(inRadioBand(msg->freq)) // Frequency in radio radio band
+		if(msg->bin_len > 0) // Message length is not zero
 		{
 			lockRadio(); // Lock radio
 
+			// Copy data
+			memcpy(&radio_msg, msg, sizeof(radioMSG_t));
+			memcpy(&radio_buffer, msg->buffer, msg->buffer_len);
+			radio_msg.buffer = radio_buffer;
+			radio_freq = freq;
+
 			TRACE_INFO(	"RAD  > Transmit %d.%03d MHz, Pwr %d, %s, %d bits",
-						msg->freq/1000000, (msg->freq%1000000)/1000, msg->power,
+						freq/1000000, (freq%1000000)/1000, msg->power,
 						getModulation(msg->mod), msg->bin_len
 			);
 		
@@ -370,39 +364,35 @@ bool transmitOnRadio(radioMSG_t *msg, bool shutdown)
 			{
 				case MOD_2FSK:
 					if(active_mod != msg->mod)
-						init2FSK(msg);
-					send2FSK(msg);
+						init2FSK();
+					send2FSK();
 					break;
 				case MOD_2GFSK:
 					if(active_mod != msg->mod)
-						init2GFSK(msg);
-					send2GFSK(msg);
+						init2GFSK();
+					send2GFSK();
 					break;
 				case MOD_AFSK:
 					if(active_mod != msg->mod)
-						initAFSK(msg);
-					sendAFSK(msg);
+						initAFSK();
+					sendAFSK();
 					break;
 				case MOD_OOK:
 					if(active_mod != msg->mod)
-						initOOK(msg);
-					sendOOK(msg);
+						initOOK();
+					sendOOK();
 					break;
 				case MOD_NOT_SET:
 					TRACE_ERROR("RAD  > Modulation not set");
 					break;
 			}
-			/*
-			 * FIXME: send2GFSK will return as soon as the radio enter TX state.
-			 * So the radio lock will be removed and then ssdv analysis can run.
-			 * If ssdv analysis finishes before TX is done then tim.buf gets clobbered
-			 */
+
 			unlockRadio(); // Unlock radio
 
 		} else {
 
 			TRACE_ERROR("RAD  > It is nonsense to transmit 0 bits, %d.%03d MHz, Pwr dBm, %s, %d bits",
-						msg->freq/1000000, (msg->freq%1000000)/1000, msg->power, getModulation(msg->mod), msg->bin_len
+						freq/1000000, (freq%1000000)/1000, msg->power, getModulation(msg->mod), msg->bin_len
 			);
 
 		}
@@ -410,7 +400,7 @@ bool transmitOnRadio(radioMSG_t *msg, bool shutdown)
 	} else { // Frequency out of radio band
 
 		TRACE_ERROR("RAD  > Radio cant transmit on this frequency, %d.%03d MHz, Pwr dBm, %s, %d bits",
-					msg->freq/1000000, (msg->freq%1000000)/1000, msg->power, getModulation(msg->mod), msg->bin_len
+					freq/1000000, (freq%1000000)/1000, msg->power, getModulation(msg->mod), msg->bin_len
 		);
 
 	}

@@ -2,7 +2,7 @@
 
 import serial,os,re,datetime
 from subprocess import call
-import base128
+import base91
 import binascii
 import urllib2
 import io
@@ -88,7 +88,7 @@ def received_data(data):
 	m = re.search("(.*)\>APECAN(.*):\!(.*)", data)
 	try:
 		call = m.group(1).split(' ')[-1] # transmitter callsign
-		data128 = m.group(3) # base128 encoded SSDV data (without SYNC, PacketType, Callsign, CRC, FEC)
+		data91 = m.group(3) # base91 encoded SSDV data (without SYNC, PacketType, Callsign, CRC, FEC)
 		if len(m.group(2)) > 0:
 			receiver = m.group(2).split(',')[-1]
 		else:
@@ -99,7 +99,7 @@ def received_data(data):
 	if args.log is not None:
 		f.write(data) # Log data to file
 
-	data = base128.decode(data128) # Decode Base128
+	data = base91.decode(data91) # Decode Base91
 
 	if len(data) != 214:
 		return # APRS message sampled too short

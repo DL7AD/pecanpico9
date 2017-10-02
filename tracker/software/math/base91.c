@@ -32,10 +32,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ch.h"
-#include "hal.h"
-#include "base.h"
-#include "debug.h"
+#include "base91.h"
 
 static char b64_table[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
                                 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
@@ -83,9 +80,6 @@ void base64_encode(const uint8_t *in, uint8_t *out, uint16_t input_length) {
 
 	out[BASE64LEN(input_length)] = '\0';
 }
-
-
-
 
 void basE91_init(base91_t *b)
 {
@@ -150,12 +144,4 @@ void base91_encode(const uint8_t *in, uint8_t *out, uint16_t input_length) {
 	ototal += basE91_encode(&handle, in, input_length, out);
 	ototal += basE91_encode_end(&handle, out + ototal);
 }
-
-
-
-
-
-
-
-
 

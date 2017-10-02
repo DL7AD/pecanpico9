@@ -8,7 +8,7 @@
 
 #include "debug.h"
 #include "threads.h"
-#include "base.h"
+#include "base91.h"
 #include "aprs.h"
 #include "flash.h"
 #include "watchdog.h"
@@ -168,7 +168,10 @@ THD_FUNCTION(logThread, arg)
 
 			// Encode radio message
 			radioMSG_t msg;
-			msg.freq = getFrequency(&conf->frequency);
+			uint8_t buffer[256];
+			msg.buffer = buffer;
+			msg.buffer_len = sizeof(buffer);
+			msg.freq = &conf->frequency;
 			msg.power = conf->power;
 
 			switch(conf->protocol) {
@@ -179,7 +182,7 @@ THD_FUNCTION(logThread, arg)
 					msg.gfsk_conf = &(conf->gfsk_conf);
 
 					base91_encode((uint8_t*)pkt, pkt_base91, sizeof(pkt)); // Encode base 91
-					msg.bin_len = aprs_encode_experimental('L', msg.msg, msg.mod, &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91)); // Encode APRS
+					msg.bin_len = aprs_encode_experimental('L', msg.buffer, msg.mod, &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91)); // Encode APRS
 
 					transmitOnRadio(&msg, true); // Transmit packet
 					break;

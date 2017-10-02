@@ -19,8 +19,6 @@
 #define APRS_FREQ_ARGENTINA			144930000
 #define APRS_FREQ_BRAZIL			145575000
 
-extern mutex_t radio_mtx;
-
 bool transmitOnRadio(radioMSG_t *msg, bool shutdown);
 void shutdownRadio(void);
 uint32_t getFrequency(freq_conf_t *config);

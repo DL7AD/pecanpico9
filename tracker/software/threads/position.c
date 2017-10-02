@@ -125,10 +125,13 @@ THD_FUNCTION(posThread, arg) {
 		if(!p_sleep(&conf->sleep_conf))
 		{
 
-			TRACE_INFO("POS  > Transmit GPS position");
+			TRACE_INFO("POS  > Transmit position");
 
 			radioMSG_t msg;
-			msg.freq = getFrequency(&conf->frequency);
+			uint8_t buffer[256];
+			msg.buffer = buffer;
+			msg.buffer_len = sizeof(buffer);
+			msg.freq = &conf->frequency;
 			msg.power = conf->power;
 
 			switch(conf->protocol) {
@@ -140,7 +143,7 @@ THD_FUNCTION(posThread, arg) {
 					msg.gfsk_conf = &(conf->gfsk_conf);
 					msg.afsk_conf = &(conf->afsk_conf);
 
-					msg.bin_len = aprs_encode_position(msg.msg, msg.mod, &(conf->aprs_conf), trackPoint); // Encode packet
+					msg.bin_len = aprs_encode_position(msg.buffer, msg.mod, &(conf->aprs_conf), trackPoint); // Encode packet
 					transmitOnRadio(&msg, true);
 
 					// Telemetry encoding parameter transmission
@@ -159,7 +162,7 @@ THD_FUNCTION(posThread, arg) {
 							chThdSleepMilliseconds(5000); // Take a litte break between the package transmissions
 
 							const telemetry_conf_t tel_conf[] = {CONF_PARM, CONF_UNIT, CONF_EQNS, CONF_BITS};
-							msg.bin_len = aprs_encode_telemetry_configuration(msg.msg, msg.mod, &(conf->aprs_conf), tel_conf[current_conf_count]); // Encode packet
+							msg.bin_len = aprs_encode_telemetry_configuration(msg.buffer, msg.mod, &(conf->aprs_conf), tel_conf[current_conf_count]); // Encode packet
 							transmitOnRadio(&msg, true);
 
 							current_conf_count++;
@@ -177,7 +180,7 @@ THD_FUNCTION(posThread, arg) {
 					memcpy(fskmsg, conf->ukhas_conf.format, sizeof(conf->ukhas_conf.format));
 					replace_placeholders(fskmsg, sizeof(fskmsg), trackPoint);
 					str_replace(fskmsg, sizeof(fskmsg), "<CALL>", conf->ukhas_conf.callsign);
-					msg.bin_len = 8*chsnprintf((char*)msg.msg, sizeof(fskmsg), "$$$$$%s*%04X\n", fskmsg, crc16(fskmsg));
+					msg.bin_len = 8*chsnprintf((char*)msg.buffer, sizeof(fskmsg), "$$$$$%s*%04X\n", fskmsg, crc16(fskmsg));
 
 					// Transmit message
 					transmitOnRadio(&msg, true);
@@ -194,7 +197,7 @@ THD_FUNCTION(posThread, arg) {
 					str_replace(morse, sizeof(morse), "<CALL>", conf->morse_conf.callsign);
 
 					// Transmit message
-					msg.bin_len = morse_encode(msg.msg, morse); // Convert message to binary stream
+					msg.bin_len = morse_encode(msg.buffer, morse); // Convert message to binary stream
 					transmitOnRadio(&msg, true);
 					break;
 

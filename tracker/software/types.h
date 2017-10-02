@@ -86,12 +86,24 @@ typedef struct {
 	uint32_t speed;
 } gfsk_conf_t;
 
+typedef enum {
+	FREQ_STATIC,			// Fixed frequency
+	FREQ_APRS_REGION		// APRS region dependent (it changes it frequency automatically depending on which APRS frequency is used in this region)
+} freq_type_t;
+
+typedef struct {
+	freq_type_t type;
+	uint32_t hz;
+} freq_conf_t;
+
 typedef struct { // Radio message type
-	uint8_t 		msg[8191];		// Message (data)
-	uint32_t		bin_len;		// Binary length
-	uint32_t		freq;			// Frequency
+	uint8_t* 		buffer;			// Message (data)
+	uint16_t 		buffer_len;		// Buffer size (in bytes)
+	uint32_t		bin_len;		// Binary length (it bits)
 	int8_t			power;			// Power in dBm
 	mod_t			mod;			// Modulation
+
+	freq_conf_t*	freq;			// Frequency
 
 	ook_conf_t*		ook_conf;		// OOK config
 	fsk_conf_t*		fsk_conf;		// 2FSK config
@@ -117,16 +129,6 @@ typedef struct {
 	uint32_t size_sampled;	// Actual image data size (do not set in config)
 	bool redundantTx;		// Redundand packet transmission (APRS only)
 } ssdv_conf_t;
-
-typedef enum {
-	FREQ_STATIC,			// Fixed frequency
-	FREQ_APRS_REGION		// APRS region dependent (it changes it frequency automatically depending on which APRS frequency is used in this region)
-} freq_type_t;
-
-typedef struct {
-	freq_type_t type;
-	uint32_t hz;
-} freq_conf_t;
 
 typedef enum {
 	TRIG_ONCE,				// Trigger once and never again (e.g. transmit specific position packet only at startup)

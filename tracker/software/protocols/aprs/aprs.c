@@ -20,7 +20,6 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
-#include "base.h"
 #include "debug.h"
 
 #define METER_TO_FEET(m) (((m)*26876) / 8192)

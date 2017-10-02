@@ -8,7 +8,7 @@
 #include "ssdv.h"
 #include "aprs.h"
 #include "radio.h"
-#include "base128.h"
+#include "base91.h"
 #include <string.h>
 #include "types.h"
 #include "sleep.h"
@@ -283,7 +283,7 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 {
 	ssdv_t ssdv;
 	uint8_t pkt[SSDV_PKT_SIZE];
-	uint8_t pkt_base128[256];
+	uint8_t pkt_base91[270];
 	const uint8_t *b;
 	uint32_t bi = 0;
 	uint8_t c = SSDV_OK;
@@ -296,8 +296,11 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 
 	// Init transmission packet
 	radioMSG_t msg;
+	uint8_t buffer[conf->packet_spacing ? 8192 : 512];
+	msg.buffer = buffer;
+	msg.buffer_len = sizeof(buffer);
 	msg.bin_len = 0;
-	msg.freq = getFrequency(&conf->frequency);
+	msg.freq = &conf->frequency;
 	msg.power = conf->power;
 
 	ax25_t ax25_handle;
@@ -306,7 +309,7 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 		msg.mod = conf->protocol == PROT_APRS_AFSK ? MOD_AFSK : MOD_2GFSK;
 		msg.afsk_conf = &(conf->afsk_conf);
 		msg.gfsk_conf = &(conf->gfsk_conf);
-		aprs_encode_packet_init(&ax25_handle, msg.msg, msg.mod);
+		aprs_encode_packet_init(&ax25_handle, msg.buffer, msg.mod);
 	}
 
 	while(true)
@@ -326,7 +329,7 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 				if(msg.bin_len > 0) transmitOnRadio(&msg, false); // Empty buffer
 				if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK)
 				{
-					aprs_encode_packet_init(&ax25_handle, msg.msg, msg.mod);
+					aprs_encode_packet_init(&ax25_handle, msg.buffer, msg.mod);
 					msg.bin_len = 0;
 				}
 				break;
@@ -341,7 +344,7 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 			if(msg.bin_len > 0) transmitOnRadio(&msg, false); // Empty buffer
 			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK)
 			{
-				aprs_encode_packet_init(&ax25_handle, msg.msg, msg.mod);
+				aprs_encode_packet_init(&ax25_handle, msg.buffer, msg.mod);
 				msg.bin_len = 0;
 			}
 			break;
@@ -351,7 +354,7 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 			if(msg.bin_len > 0) transmitOnRadio(&msg, false); // Empty buffer
 			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK)
 			{
-				aprs_encode_packet_init(&ax25_handle, msg.msg, msg.mod);
+				aprs_encode_packet_init(&ax25_handle, msg.buffer, msg.mod);
 				msg.bin_len = 0;
 			}
 			return;
@@ -362,11 +365,11 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 			case PROT_APRS_AFSK:
 				// Encode packet
 				TRACE_INFO("IMG  > Encode APRS/SSDV packet");
-				b128_encode(&pkt[6], pkt_base128, sizeof(pkt)-42); // Sync byte, CRC and FEC of SSDV not transmitted (because its not neccessary inside an APRS packet)
+				base91_encode(&pkt[6], pkt_base91, sizeof(pkt)-42); // Sync byte, CRC and FEC of SSDV not transmitted (because its not neccessary inside an APRS packet)
 
-				msg.bin_len = aprs_encode_packet_encodePacket(&ax25_handle, '!', &conf->aprs_conf, pkt_base128, strlen((char*)pkt_base128));
+				msg.bin_len = aprs_encode_packet_encodePacket(&ax25_handle, '!', &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91));
 				if(redudantTx)
-					msg.bin_len = aprs_encode_packet_encodePacket(&ax25_handle, '!', &conf->aprs_conf, pkt_base128, strlen((char*)pkt_base128));
+					msg.bin_len = aprs_encode_packet_encodePacket(&ax25_handle, '!', &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91));
 
 				// Transmit
 				if(msg.bin_len >= 58000 || conf->packet_spacing) // Transmit if buffer is almost full or if single packet transmission is activated (packet_spacing != 0)
@@ -376,7 +379,7 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 					transmitOnRadio(&msg, false);
 
 					// Initialize new packet buffer
-					aprs_encode_packet_init(&ax25_handle, msg.msg, msg.mod);
+					aprs_encode_packet_init(&ax25_handle, msg.buffer, msg.mod);
 					msg.bin_len = 0;
 				}
 				break;
@@ -387,11 +390,11 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 
 				// Encode packet
 				TRACE_INFO("IMG  > Encode 2FSK/SSDV packet");
-				memcpy(&msg.msg[msg.bin_len/8], pkt, sizeof(pkt));
+				memcpy(&msg.buffer[msg.bin_len/8], pkt, sizeof(pkt));
 				msg.bin_len += 8*sizeof(pkt);
 				if(redudantTx)
 				{
-					memcpy(&msg.msg[msg.bin_len/8], pkt, sizeof(pkt));
+					memcpy(&msg.buffer[msg.bin_len/8], pkt, sizeof(pkt));
 					msg.bin_len += 8*sizeof(pkt);
 				}
 
@@ -503,7 +506,7 @@ void start_image_thread(module_conf_t *conf)
 	if(conf->init_delay) chThdSleepMilliseconds(conf->init_delay);
 	TRACE_INFO("IMG  > Startup image thread");
 	chsnprintf(conf->name, sizeof(conf->name), "IMG");
-	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(30*1024), "IMG", NORMALPRIO, imgThread, conf);
+	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(conf->packet_spacing ? 20*1024 : 5*1024), "IMG", NORMALPRIO, imgThread, conf);
 	if(!th) {
 		// Print startup error, do not start watchdog for this thread
 		TRACE_ERROR("IMG  > Could not startup thread (not enough memory available)");
