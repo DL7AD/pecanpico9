@@ -89,15 +89,15 @@ void readLog(BaseSequentialStream *chp, int argc, char *argv[])
 	(void)argc;
 	(void)argv;
 
-	chprintf(chp, "id,date,time,lat,lon,alt,sats,ttff,vbat,vsol,vsub,pbat,rbat,press,temp,hum,idimg\r\n");
+	chprintf(chp, "addr,id,date,time,lat,lon,alt,sats,ttff,vbat,vsol,vsub,pbat,rbat,press,temp,hum,idimg\r\n");
 
 	trackPoint_t *tp;
 	for(uint16_t i=0; (tp = getLogBuffer(i)) != NULL; i++)
 		if(tp->id != 0xFFFFFFFF)
 		{
 			chprintf(	chp,
-						"%d,%04d-%02d-%02d,%02d:%02d:%02d,%d.%05d,%d.%05d,%d,%d,%d,%d.%03d,%d.%03d,%d.%03d,%d,%d,%d.%01d,%2d.%02d,%2d.%01d,%d\r\n",
-						tp->id,tp->time.year, tp->time.month, tp->time.day, tp->time.hour, tp->time.minute, tp->time.day,
+						"%08x,%d,%04d-%02d-%02d,%02d:%02d:%02d,%d.%05d,%d.%05d,%d,%d,%d,%d.%03d,%d.%03d,%d.%03d,%d,%d,%d.%01d,%2d.%02d,%2d.%01d,%d\r\n",
+						tp, tp->id,tp->time.year, tp->time.month, tp->time.day, tp->time.hour, tp->time.minute, tp->time.day,
 						tp->gps_lat/10000000, (tp->gps_lat > 0 ? 1:-1)*(tp->gps_lat/100)%100000, tp->gps_lon/10000000, (tp->gps_lon > 0 ? 1:-1)*(tp->gps_lon/100)%100000, tp->gps_alt,
 						tp->gps_sats, tp->gps_ttff,
 						tp->adc_vbat/1000, (tp->adc_vbat%1000), tp->adc_vsol/1000, (tp->adc_vsol%1000), tp->adc_vusb/1000, (tp->adc_vusb%1000), tp->adc_pbat, tp->adc_rbat,

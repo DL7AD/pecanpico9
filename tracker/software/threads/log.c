@@ -145,8 +145,8 @@ THD_FUNCTION(logThread, arg)
 		{
 			// Get log from memory
 
-			uint16_t pkt[64]; // 16 PositionPoints each 10 bytes
-			uint8_t pkt_base91[BASE91LEN(128)];
+			uint16_t pkt[80]; // 16 PositionPoints each 10 bytes
+			uint8_t pkt_base91[BASE91LEN(160)];
 			for(uint16_t t=0; t<sizeof(pkt_base91); t++) pkt_base91[t] = 0; // Deleting buffer
 
 			TRACE_INFO("LOG  > Encode 16 log points")
@@ -156,21 +156,26 @@ THD_FUNCTION(logThread, arg)
 				trackPoint_t log;
 				getNextLogTrackPoint(&log);
 
-				TRACE_INFO("date=%02d.%02d. time=%02d:%02d lat=%d lon=%d alt=%d", log.time.day, log.time.month, log.time.hour, log.time.minute, log.gps_lat, log.gps_lon, log.gps_alt);
+				TRACE_INFO("id=%d date=%04d-%02d-%02d time=%02d:%02d:%02d lat=%d lon=%d alt=%d", log.id, log.time.year, log.time.month, log.time.day, log.time.hour, log.time.minute,log.time.second, log.gps_lat, log.gps_lon, log.gps_alt);
+				int64_t lat = (int64_t)log.gps_lat + (int64_t)900000000 + 13733;
+				lat <<= 16;
+				lat /= 1800000000;
+				int64_t lon = (int64_t)log.gps_lon + (int64_t)1800000000 + 27466;
+				lon <<= 16;
+				lon /= 3600000000;
 
-				pkt[i*4+0] = (log.time.minute/10) + (6*log.time.hour) + (144*(log.time.day-1)) + (4464*(log.time.month-1)); // Time/Date of year (1 = 5min, all monthes have 31days, day and month starts at 0)
-				pkt[i*4+1] = (((uint64_t)((uint64_t)log.gps_lat +  900000000)) * 65535) / 1800000000; // Latitude (get full 16bit resolution over 180°)
-				pkt[i*4+2] = (((uint64_t)((uint64_t)log.gps_lon + 1800000000)) * 65535) / 3600000000; // Longitude (get full 16bit resolution over 360°)
-				pkt[i*4+3] = log.gps_alt; // Altitude in meters	 (cut off first two MSB bytes)
-
-				TRACE_INFO("%04x %04x %04x %04x", pkt[i*4+0], pkt[i*4+1], pkt[i*4+2], pkt[i*4+3]);
+				uint32_t time = date2UnixTimestamp(log.time) / 1000;
+				pkt[i*5+0] = time & 0xFFFF;
+				pkt[i*5+1] = time >> 16;
+				pkt[i*5+2] = lat; // Latitude (get full 16bit resolution over 180°)
+				pkt[i*5+3] = lon; // Longitude (get full 16bit resolution over 360°)
+				pkt[i*5+4] = log.gps_alt; // Altitude in meters	 (cut off first two MSB bytes)
 			}
 
 			// Encode radio message
 			radioMSG_t msg;
-			uint8_t buffer[256];
+			uint8_t buffer[512];
 			msg.buffer = buffer;
-			msg.buffer_len = sizeof(buffer);
 			msg.freq = &conf->frequency;
 			msg.power = conf->power;
 
@@ -181,10 +186,18 @@ THD_FUNCTION(logThread, arg)
 					msg.afsk_conf = &(conf->afsk_conf);
 					msg.gfsk_conf = &(conf->gfsk_conf);
 
-					base91_encode((uint8_t*)pkt, pkt_base91, sizeof(pkt)); // Encode base 91
-					msg.bin_len = aprs_encode_experimental('L', msg.buffer, msg.mod, &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91)); // Encode APRS
+					ax25_t ax25_handle;
 
-					transmitOnRadio(&msg, true); // Transmit packet
+					// Encode Base91
+					base91_encode((uint8_t*)pkt, pkt_base91, sizeof(pkt));
+
+					// Encode and transmit log packet
+					aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
+					aprs_encode_data_packet(&ax25_handle, 'L', &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91), getLastTrackPoint()); // Encode packet
+					msg.bin_len = aprs_encode_finalize(&ax25_handle);
+
+					// Transmit packet
+					transmitOnRadio(&msg, true);
 					break;
 
 				default:

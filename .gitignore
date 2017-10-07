@@ -2,3 +2,5 @@ build
 .dep
 *.pyc
 __pycache__
+*.sqlite
+decoder/html/images/

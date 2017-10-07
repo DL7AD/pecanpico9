@@ -366,7 +366,7 @@ uint8_t ssdv_buffer[128*1024] __attribute__((aligned(32)));	// Image buffer
 
 systime_t track_cycle_time = S2ST(60);						// Tracking cycle (all peripheral data [airpressure, GPS, temperature, ...] is collected each 60 seconds
 systime_t log_cycle_time = S2ST(60);						// Log cycle time in seconds (600 seconds)
-bool keep_cam_switched_on =	true;							// Keep camera switched on and initialized, this makes image capturing faster but takes a lot of power over long time
+bool keep_cam_switched_on =	false;							// Keep camera switched on and initialized, this makes image capturing faster but takes a lot of power over long time
 uint16_t gps_on_vbat = 3000;								// Battery voltage threshold at which GPS is switched on
 uint16_t gps_off_vbat = 2500;								// Battery voltage threshold at which GPS is switched off
 
@@ -385,19 +385,19 @@ void start_user_modules(void)
 	config[0].frequency.hz = 144800000;						// Default frequency 144.800 MHz
 	config[0].trigger.type = TRIG_NEW_POINT;				// Transmit when tracking manager samples new tracking point
 	chsnprintf(config[0].aprs_conf.callsign, 16, "DL7AD");	// APRS Callsign
-	config[0].aprs_conf.ssid = 12;							// APRS SSID
+	config[0].aprs_conf.ssid = 13;							// APRS SSID
 	config[0].aprs_conf.symbol = SYM_BALLOON;				// APRS Symbol
 	chsnprintf(config[0].aprs_conf.path, 16, "WIDE1-1");	// APRS Path
 	config[0].aprs_conf.preamble = 300;						// APRS Preamble (300ms)
 	config[0].aprs_conf.tel[0] = TEL_VBAT;					// APRS Telemetry parameter 1: Battery voltage
-	config[0].aprs_conf.tel[1] = TEL_PBAT;					// APRS Telemetry parameter 2: Battery charge/discharge power
-	config[0].aprs_conf.tel[2] = TEL_RBAT;					// APRS Telemetry parameter 3: Battery impedance
+	config[0].aprs_conf.tel[1] = TEL_VSOL;					// APRS Telemetry parameter 2: Solar voltage
+	config[0].aprs_conf.tel[2] = TEL_PBAT;					// APRS Telemetry parameter 3: Battery charge/discharge power
 	config[0].aprs_conf.tel[3] = TEL_TEMP;					// APRS Telemetry parameter 4: Temperature
 	config[0].aprs_conf.tel[4] = TEL_PRESS;					// APRS Telemetry parameter 5: Airpressuse
 	config[0].aprs_conf.tel_enc = TRUE;						// Transmit Telemetry encoding information activated
 	config[0].aprs_conf.tel_enc_cycle = 3600;				// Transmit Telemetry encoding information every 3600sec
 	chsnprintf(config[0].aprs_conf.tel_comment, 30, "http://ssdv.habhub.org/DL7AD");// Telemetry comment
-	//start_position_thread(&config[0]);
+	start_position_thread(&config[0]);
 
 	// Module POSITION, UKHAS 2m 2FSK
 	config[1].power = 127;									// Transmission Power
@@ -438,15 +438,15 @@ void start_user_modules(void)
 	config[3].packet_spacing = 20000;						// Packet spacing in ms
 	config[3].trigger.type = TRIG_CONTINUOUSLY;				// Transmit continuously
 	chsnprintf(config[3].aprs_conf.callsign, 16, "DL7AD");	// APRS Callsign
-	config[3].aprs_conf.ssid = 12;							// APRS SSID
+	config[3].aprs_conf.ssid = 14;							// APRS SSID
+	config[3].aprs_conf.symbol = SYM_BALLOON;				// APRS Symbol
 	config[3].aprs_conf.preamble = 300;						// APRS Preamble (300ms)
-	chsnprintf(config[3].ssdv_conf.callsign, 7, "DL7AD1");	// SSDV Callsign
 	config[3].ssdv_conf.ram_buffer = ssdv_buffer;			// Camera buffer
 	config[3].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
 	config[3].ssdv_conf.res = RES_QVGA;						// Resolution QVGA
 	config[3].ssdv_conf.redundantTx = true;					// Redundant transmission (transmit packets twice)
 	config[3].ssdv_conf.quality = 4;						// Image quality
-	//start_image_thread(&config[3]);
+	start_image_thread(&config[3]);
 
 	// Module IMAGE, APRS 2m 2GFSK
 	config[4].power = 127;									// Transmission Power
@@ -456,9 +456,9 @@ void start_user_modules(void)
 	config[4].frequency.hz = 144860000;						// Transmission frequency 144.860 MHz
 	config[4].trigger.type = TRIG_CONTINUOUSLY;				// Transmit continuously
 	chsnprintf(config[4].aprs_conf.callsign, 16, "DL7AD");	// APRS Callsign
-	config[4].aprs_conf.ssid = 12;							// APRS SSID
+	config[4].aprs_conf.ssid = 13;							// APRS SSID
+	config[4].aprs_conf.symbol = SYM_BALLOON;				// APRS Symbol
 	config[4].aprs_conf.preamble = 100;						// APRS Preamble (100ms)
-	chsnprintf(config[4].ssdv_conf.callsign, 7, "DL7AD2");	// SSDV Callsign
 	config[4].ssdv_conf.ram_buffer = ssdv_buffer;			// Camera buffer
 	config[4].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
 	config[4].ssdv_conf.res = RES_VGA;						// Resolution VGA
@@ -476,7 +476,7 @@ void start_user_modules(void)
 	config[5].fsk_conf.predelay = 1000;						// Preamble (1000ms)
 	config[5].fsk_conf.baud = 600;							// Baudrate (600baud)
 	config[5].fsk_conf.shift = 1000;						// Frequency shift (1000Hz)
-	chsnprintf(config[5].ssdv_conf.callsign, 7, "DL7AD3");	// SSDV Callsign
+	chsnprintf(config[5].ssdv_conf.callsign, 7, "DL7AD");	// SSDV Callsign
 	config[5].ssdv_conf.ram_buffer = ssdv_buffer;			// Camera buffer
 	config[5].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
 	config[5].ssdv_conf.res = RES_QVGA;						// Resolution QVGA
@@ -491,14 +491,15 @@ void start_user_modules(void)
 	config[6].protocol = PROT_APRS_AFSK;					// Protocol APRS (AFSK)
 	config[6].frequency.type = FREQ_APRS_REGION;			// Dynamic frequency allocation
 	config[6].frequency.hz = 144800000;						// Default frequency 144.800 MHz
-	config[6].init_delay = 60000;							// Module startup delay (60 seconds)
+	config[6].init_delay = 5000;							// Module startup delay (5 seconds)
 	config[6].trigger.type = TRIG_TIMEOUT;					// Periodic cycling (every 180 seconds)
-	config[6].trigger.timeout = 180;						// Timeout 180 sec
+	config[6].trigger.timeout = 60;							// Timeout 180 sec
 	chsnprintf(config[6].aprs_conf.callsign, 16, "DL7AD");	// APRS Callsign
-	config[6].aprs_conf.ssid = 12;							// APRS SSID
+	config[6].aprs_conf.ssid = 13;							// APRS SSID
+	config[6].aprs_conf.symbol = SYM_BALLOON;				// APRS Symbol
 	chsnprintf(config[6].aprs_conf.path, 16, "WIDE1-1");	// APRS Path
 	config[6].aprs_conf.preamble = 300;						// APRS Preamble (300ms)
-	//start_logging_thread(&config[6]);
+	start_logging_thread(&config[6]);
 }
 
 

@@ -351,7 +351,7 @@ bool transmitOnRadio(radioMSG_t *msg, bool shutdown)
 
 			// Copy data
 			memcpy(&radio_msg, msg, sizeof(radioMSG_t));
-			memcpy(&radio_buffer, msg->buffer, msg->buffer_len);
+			memcpy(&radio_buffer, msg->buffer, sizeof(radio_buffer));
 			radio_msg.buffer = radio_buffer;
 			radio_freq = freq;
 

@@ -154,6 +154,7 @@ THD_FUNCTION(trackingThread, arg) {
 
 	if(lastLogPoint != NULL) { // If there has been stored a trackpoint, then get the last know GPS fix
 		TRACE_INFO("TRAC > Found track point in flash memory ID=%d", lastLogPoint->id);
+		id = lastLogPoint->id+1;
 		lastTrackPoint->gps_lat = lastLogPoint->gps_lat;
 		lastTrackPoint->gps_lon = lastLogPoint->gps_lon;
 		lastTrackPoint->gps_alt = lastLogPoint->gps_alt;
@@ -295,7 +296,7 @@ THD_FUNCTION(trackingThread, arg) {
 
 			// Mark GPS loss (or low batt,  GPS switch off)
 			if(tracking_useGPS)
-				tp->gps_lock = batt < gps_off_vbat ? GPS_LOWBATT : GPS_LOSS;
+				tp->gps_lock = batt < gps_off_vbat || batt < gps_on_vbat ? GPS_LOWBATT : GPS_LOSS;
 			else
 				tp->gps_lock = GPS_OFF;
 			tp->gps_sats = 0;

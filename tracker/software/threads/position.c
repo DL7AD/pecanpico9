@@ -130,7 +130,6 @@ THD_FUNCTION(posThread, arg) {
 			radioMSG_t msg;
 			uint8_t buffer[256];
 			msg.buffer = buffer;
-			msg.buffer_len = sizeof(buffer);
 			msg.freq = &conf->frequency;
 			msg.power = conf->power;
 
@@ -143,7 +142,12 @@ THD_FUNCTION(posThread, arg) {
 					msg.gfsk_conf = &(conf->gfsk_conf);
 					msg.afsk_conf = &(conf->afsk_conf);
 
-					msg.bin_len = aprs_encode_position(msg.buffer, msg.mod, &(conf->aprs_conf), trackPoint); // Encode packet
+					ax25_t ax25_handle;
+
+					// Encode and transmit position packet
+					aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
+					aprs_encode_position(&ax25_handle, &(conf->aprs_conf), trackPoint); // Encode packet
+					msg.bin_len = aprs_encode_finalize(&ax25_handle);
 					transmitOnRadio(&msg, true);
 
 					// Telemetry encoding parameter transmission
@@ -162,7 +166,11 @@ THD_FUNCTION(posThread, arg) {
 							chThdSleepMilliseconds(5000); // Take a litte break between the package transmissions
 
 							const telemetry_conf_t tel_conf[] = {CONF_PARM, CONF_UNIT, CONF_EQNS, CONF_BITS};
-							msg.bin_len = aprs_encode_telemetry_configuration(msg.buffer, msg.mod, &(conf->aprs_conf), tel_conf[current_conf_count]); // Encode packet
+
+							// Encode and transmit telemetry config packet
+							aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
+							aprs_encode_telemetry_configuration(&ax25_handle, &conf->aprs_conf, tel_conf[current_conf_count]);
+							msg.bin_len = aprs_encode_finalize(&ax25_handle);
 							transmitOnRadio(&msg, true);
 
 							current_conf_count++;

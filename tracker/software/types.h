@@ -98,7 +98,6 @@ typedef struct {
 
 typedef struct { // Radio message type
 	uint8_t* 		buffer;			// Message (data)
-	uint16_t 		buffer_len;		// Buffer size (in bytes)
 	uint32_t		bin_len;		// Binary length (it bits)
 	int8_t			power;			// Power in dBm
 	mod_t			mod;			// Modulation

@@ -49,14 +49,13 @@
 #define SYM_CAR                         0x2F3E
 #define SYM_SHIP                        0x2F73
 
-uint32_t aprs_encode_position(uint8_t* message, mod_t mod, const aprs_conf_t *config, trackPoint_t *trackPoint);
-uint32_t aprs_encode_telemetry_configuration(uint8_t* message, mod_t mod, const aprs_conf_t *config, const telemetry_conf_t type);
-uint32_t aprs_encode_message(uint8_t* message, mod_t mod, const aprs_conf_t *config, const char *receiver, const char *text);
-uint32_t aprs_encode_experimental(char packetType, uint8_t* message, mod_t mod, const aprs_conf_t *config, uint8_t *data, size_t size);
+void aprs_encode_position(ax25_t* packet, const aprs_conf_t *config, trackPoint_t *trackPoint);
+void aprs_encode_telemetry_configuration(ax25_t* packet, const aprs_conf_t *config, const telemetry_conf_t type);
+void aprs_encode_message(ax25_t* packet, const aprs_conf_t *config, const char *receiver, const char *text);
 
-void aprs_encode_packet_init(ax25_t* packet, uint8_t* message, mod_t mod);
-uint32_t aprs_encode_packet_encodePacket(ax25_t* packet, char packetType, const aprs_conf_t *config, uint8_t *data, size_t size);
-uint32_t aprs_encode_packet_finalize(ax25_t* packet);
+void aprs_encode_init(ax25_t* packet, uint8_t* buffer, uint16_t size, mod_t mod);
+void aprs_encode_data_packet(ax25_t* packet, char packetType, const aprs_conf_t *config, uint8_t *data, size_t size, trackPoint_t *trackPoint);
+uint32_t aprs_encode_finalize(ax25_t* packet);
 
 #endif
 

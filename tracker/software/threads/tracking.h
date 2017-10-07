@@ -21,7 +21,7 @@ typedef struct {
 	gpsLock_t gps_lock;		// 0: locked, 1: GPS loss, 2: low power (switched off), 3: taken from log, 4: GPS switch off permanently
 	int32_t gps_lat;		// Latitude in °*10^7
 	int32_t gps_lon;		// Longitude in °*10^7
-	int32_t gps_alt;		// Altitude in meter
+	uint16_t gps_alt;		// Altitude in meter
 	uint8_t gps_sats;		// Satellites used for solution
 	uint8_t gps_ttff;		// Time to first fix in seconds
 
@@ -37,7 +37,7 @@ typedef struct {
 	uint16_t air_hum;		// Rel. humidity in %*10 (in 0.1%)
 	int16_t air_temp;		// Temperature in degC*100 (in 0.01°C)
 
-	int8_t id_image;		// Last image ID (this is important because it will set the image counter at reset so the last image wont get overwritten with the same image ID)
+	uint8_t id_image;		// Last image ID (this is important because it will set the image counter at reset so the last image wont get overwritten with the same image ID)
 } trackPoint_t;
 
 void waitForNewTrackPoint(void);

@@ -279,7 +279,7 @@ uint8_t gimage_id; // Global image ID (for all image threads)
 mutex_t camera_mtx;
 bool camera_mtx_init = false;
 
-void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_t image_id, bool redudantTx)
+void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_t image_id, trackPoint_t* captureLocation, bool redudantTx)
 {
 	ssdv_t ssdv;
 	uint8_t pkt[SSDV_PKT_SIZE];
@@ -298,7 +298,6 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 	radioMSG_t msg;
 	uint8_t buffer[conf->packet_spacing ? 8192 : 512];
 	msg.buffer = buffer;
-	msg.buffer_len = sizeof(buffer);
 	msg.bin_len = 0;
 	msg.freq = &conf->frequency;
 	msg.power = conf->power;
@@ -309,7 +308,7 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 		msg.mod = conf->protocol == PROT_APRS_AFSK ? MOD_AFSK : MOD_2GFSK;
 		msg.afsk_conf = &(conf->afsk_conf);
 		msg.gfsk_conf = &(conf->gfsk_conf);
-		aprs_encode_packet_init(&ax25_handle, msg.buffer, msg.mod);
+		aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
 	}
 
 	while(true)
@@ -325,12 +324,11 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 			if(r <= 0)
 			{
 				TRACE_ERROR("SSDV > Premature end of file");
-				if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) msg.bin_len = aprs_encode_packet_finalize(&ax25_handle);
-				if(msg.bin_len > 0) transmitOnRadio(&msg, false); // Empty buffer
+				if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) msg.bin_len = aprs_encode_finalize(&ax25_handle);
+				if(ax25_handle.size > 0) transmitOnRadio(&msg, false); // Empty buffer
 				if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK)
 				{
-					aprs_encode_packet_init(&ax25_handle, msg.buffer, msg.mod);
-					msg.bin_len = 0;
+					aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
 				}
 				break;
 			}
@@ -340,22 +338,20 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 		if(c == SSDV_EOI)
 		{
 			TRACE_INFO("SSDV > ssdv_enc_get_packet said EOI");
-			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) msg.bin_len = aprs_encode_packet_finalize(&ax25_handle);
-			if(msg.bin_len > 0) transmitOnRadio(&msg, false); // Empty buffer
+			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) msg.bin_len = aprs_encode_finalize(&ax25_handle);
+			if(ax25_handle.size > 0) transmitOnRadio(&msg, false); // Empty buffer
 			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK)
 			{
-				aprs_encode_packet_init(&ax25_handle, msg.buffer, msg.mod);
-				msg.bin_len = 0;
+				aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
 			}
 			break;
 		} else if(c != SSDV_OK) {
 			TRACE_ERROR("SSDV > ssdv_enc_get_packet failed: %i", c);
-			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) msg.bin_len = aprs_encode_packet_finalize(&ax25_handle);
-			if(msg.bin_len > 0) transmitOnRadio(&msg, false); // Empty buffer
+			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) msg.bin_len = aprs_encode_finalize(&ax25_handle);
+			if(ax25_handle.size > 0) transmitOnRadio(&msg, false); // Empty buffer
 			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK)
 			{
-				aprs_encode_packet_init(&ax25_handle, msg.buffer, msg.mod);
-				msg.bin_len = 0;
+				aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
 			}
 			return;
 		}
@@ -367,20 +363,19 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 				TRACE_INFO("IMG  > Encode APRS/SSDV packet");
 				base91_encode(&pkt[6], pkt_base91, sizeof(pkt)-42); // Sync byte, CRC and FEC of SSDV not transmitted (because its not neccessary inside an APRS packet)
 
-				msg.bin_len = aprs_encode_packet_encodePacket(&ax25_handle, '!', &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91));
+				aprs_encode_data_packet(&ax25_handle, 'I', &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91), captureLocation);
 				if(redudantTx)
-					msg.bin_len = aprs_encode_packet_encodePacket(&ax25_handle, '!', &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91));
+					aprs_encode_data_packet(&ax25_handle, 'I', &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91), captureLocation);
 
 				// Transmit
-				if(msg.bin_len >= 58000 || conf->packet_spacing) // Transmit if buffer is almost full or if single packet transmission is activated (packet_spacing != 0)
+				if(ax25_handle.size >= 58000 || conf->packet_spacing) // Transmit if buffer is almost full or if single packet transmission is activated (packet_spacing != 0)
 				{
 					// Transmit packets
-					msg.bin_len = aprs_encode_packet_finalize(&ax25_handle);
+					msg.bin_len = aprs_encode_finalize(&ax25_handle);
 					transmitOnRadio(&msg, false);
 
 					// Initialize new packet buffer
-					aprs_encode_packet_init(&ax25_handle, msg.buffer, msg.mod);
-					msg.bin_len = 0;
+					aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
 				}
 				break;
 
@@ -487,13 +482,17 @@ THD_FUNCTION(imgThread, arg) {
 			bool camera_found = takePicture(&conf->ssdv_conf, true);
 			gimage_id++; // Increase SSDV image counter
 
+			// Get capture location
+			trackPoint_t captureLocation;
+			memcpy(&captureLocation, getLastTrackPoint(), sizeof(trackPoint_t));
+
 			// Radio transmission
 			if(camera_found) {
 				TRACE_INFO("IMG  > Encode/Transmit SSDV ID=%d", gimage_id-1);
-				encode_ssdv(conf->ssdv_conf.ram_buffer, conf->ssdv_conf.size_sampled, conf, gimage_id-1, conf->ssdv_conf.redundantTx);
+				encode_ssdv(conf->ssdv_conf.ram_buffer, conf->ssdv_conf.size_sampled, conf, gimage_id-1, &captureLocation, conf->ssdv_conf.redundantTx);
 			} else { // No camera found
 				TRACE_INFO("IMG  > Encode/Transmit SSDV (no cam found) ID=%d", gimage_id-1);
-				encode_ssdv(noCameraFound, sizeof(noCameraFound), conf, gimage_id-1, conf->ssdv_conf.redundantTx);
+				encode_ssdv(noCameraFound, sizeof(noCameraFound), conf, gimage_id-1, &captureLocation, conf->ssdv_conf.redundantTx);
 			}
 		}
 
