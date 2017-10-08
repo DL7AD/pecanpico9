@@ -85,8 +85,8 @@ function drawItems() {
 }
 function initMap() {
 	map = new google.maps.Map(document.getElementById('map'), {
-		zoom: 9,
-		center: new google.maps.LatLng(53.2,7.1),
+		zoom: 12,
+		center: new google.maps.LatLng(52.45,13.5),
 		gestureHandling: 'greedy'
 	});
 
@@ -97,15 +97,4 @@ function initMap() {
 <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCrrxJc6mu5DjFZVHiFqhFMO7JJg2g89Y8&callback=initMap"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
 

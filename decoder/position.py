@@ -49,10 +49,14 @@ def decode_position(tim, posi, tel):
 	z = pow(1.002, ze) / 3.281
 
 	# Decode time
-	timd = datetime.now()
+	timd = datetime.now(timezone.utc)
 	timd = timd.replace(hour = int(tim[0:2]), minute = int(tim[2:4]), second = int(tim[4:6]), microsecond=0)
-	if datetime.utcnow() < timd: # Packet was sampled yesterday
+	now = datetime.now(timezone.utc)
+	if now < timd: # Packet was sampled yesterday
 		timd -= timedelta(1)
+
+	# Decode GPS Fix Type
+	new = ((ord(posi[12])-33) >> 5) & 0x1
 
 	# Decode telemetry
 	teld = [0]*6
@@ -62,22 +66,22 @@ def decode_position(tim, posi, tel):
 			t0 = ord(tel[i*2+1]) - 33
 			teld.append(t0 + t1*91)
 
-	return timd,x,y,z,teld
+	return timd,x,y,z,teld,new
 
 def insert_position(sqlite, call, tim, posi, comm, tel): #sqlite, call, data
 	# Decode
-	timd,x,y,z,teld = decode_position(tim, posi, tel)
+	timd,x,y,z,teld,new = decode_position(tim, posi, tel)
 
 	# Insert
 	sqlite.cursor().execute("""
-		INSERT OR REPLACE INTO position (call,time,org,lat,lon,alt,comment,sequ,tel1,tel2,tel3,tel4,tel5)
-		VALUES (?,?,'pos',?,?,?,?,?,?,?,?,?,?)""",
-		(call, int(timd.timestamp()), y, x, int(z), comm, teld[0], teld[1], teld[2], teld[3], teld[4], teld[5])
+		INSERT OR REPLACE INTO position (call,time,org,lat,lon,alt,new,comment,sequ,tel1,tel2,tel3,tel4,tel5)
+		VALUES (?,?,'pos',?,?,?,?,?,?,?,?,?,?,?)""",
+		(call, int(timd.timestamp()), y, x, int(z), new, comm, teld[0], teld[1], teld[2], teld[3], teld[4], teld[5])
 	)
 	sqlite.commit()
 
 	# Debug
 	tim_stringified = timd.strftime("%Y-%m-%d %H:%M:%S")
-	print("Decoded position from %s time %s => lat=%f lon=%f alt=%d comment=%s, sequ=%d tel=[%d,%d,%d,%d,%d]"
-		% (call, tim_stringified, y, x, z, comm, teld[0], teld[1], teld[2], teld[3], teld[4], teld[5]))
+	print("Decoded position from %s time %s => lat=%f lon=%f alt=%d new=%d comment=%s, sequ=%d tel=[%d,%d,%d,%d,%d]"
+		% (call, tim_stringified, y, x, int(z), new, comm, teld[0], teld[1], teld[2], teld[3], teld[4], teld[5]))
 

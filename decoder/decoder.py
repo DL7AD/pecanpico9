@@ -30,6 +30,7 @@ sqlite.cursor().execute("""
 		lat FLOAT,
 		lon FLOAT,
 		alt INTEGER,
+		new INTEGER,
 		comment TEXT,
 		sequ INTEGER,
 		tel1 INTEGER,
@@ -50,7 +51,9 @@ sqlite.cursor().execute("""
 		lat FLOAT,
 		lon FLOAT,
 		alt INTEGER,
-		data TEXT,
+		data1 TEXT,
+		data2 TEXT,
+		crc TEXT,
 		PRIMARY KEY (call, time, imageID, packetID)
 	)
 """)
@@ -70,7 +73,7 @@ def received_data(data):
 
 	all = re.search("(.*)\>APECAN(.*?):\/([0-9]{6}h)(.{13})", data)
 	pos = re.search("(.*)\>APECAN(.*?):\/([0-9]{6}h)(.{13})(.*?)\|(.*)\|", data)
-	dat = re.search("(.*)\>APECAN(.*?):\/([0-9]{6}h)(.{13})(I|L)(.*)", data)
+	dat = re.search("(.*)\>APECAN(.*?):\/([0-9]{6}h)(.{13})(I|J|L)(.*)", data)
 
 	if all:
 		call = all.group(1)
@@ -90,8 +93,8 @@ def received_data(data):
 			data_b91 = dat.group(6)
 			data = base91.decode(data_b91) # Decode Base91
 
-			if typ is 'I': # Image packet
-				image.insert_image(sqlite, rxer, call, tim, posi, data, args.server, args.grouping)
+			if typ is 'I' or typ is 'J': # Image packet
+				image.insert_image(sqlite, rxer, call, tim, posi, data, typ, args.server, args.grouping)
 			elif typ is 'L': # Log packet
 				position.insert_log(sqlite, call, data)
 

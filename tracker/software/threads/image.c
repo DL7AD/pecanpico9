@@ -283,7 +283,8 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 {
 	ssdv_t ssdv;
 	uint8_t pkt[SSDV_PKT_SIZE];
-	uint8_t pkt_base91[270];
+	uint8_t pkt_base91i[150];
+	uint8_t pkt_base91j[150];
 	const uint8_t *b;
 	uint32_t bi = 0;
 	uint8_t c = SSDV_OK;
@@ -361,11 +362,24 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 			case PROT_APRS_AFSK:
 				// Encode packet
 				TRACE_INFO("IMG  > Encode APRS/SSDV packet");
-				base91_encode(&pkt[6], pkt_base91, sizeof(pkt)-42); // Sync byte, CRC and FEC of SSDV not transmitted (because its not neccessary inside an APRS packet)
 
-				aprs_encode_data_packet(&ax25_handle, 'I', &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91), captureLocation);
+				// Sync byte, CRC and FEC of SSDV not transmitted (because its not neccessary inside an APRS packet)
+				pkt[3] = pkt[6];
+				pkt[4] = pkt[7];
+				pkt[5] = pkt[8];
+				base91_encode(&pkt[3    ], pkt_base91i, 110);
+				pkt[110] = pkt[6];
+				pkt[111] = pkt[7];
+				pkt[112] = pkt[8];
+				base91_encode(&pkt[3+107], pkt_base91j, 110);
+
+				aprs_encode_data_packet(&ax25_handle, 'I', &conf->aprs_conf, pkt_base91i, strlen((char*)pkt_base91i), captureLocation);
+				aprs_encode_data_packet(&ax25_handle, 'J', &conf->aprs_conf, pkt_base91j, strlen((char*)pkt_base91j), captureLocation);
 				if(redudantTx)
-					aprs_encode_data_packet(&ax25_handle, 'I', &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91), captureLocation);
+				{
+					aprs_encode_data_packet(&ax25_handle, 'I', &conf->aprs_conf, pkt_base91i, strlen((char*)pkt_base91i), captureLocation);
+					aprs_encode_data_packet(&ax25_handle, 'J', &conf->aprs_conf, pkt_base91j, strlen((char*)pkt_base91j), captureLocation);
+				}
 
 				// Transmit
 				if(ax25_handle.size >= 58000 || conf->packet_spacing) // Transmit if buffer is almost full or if single packet transmission is activated (packet_spacing != 0)

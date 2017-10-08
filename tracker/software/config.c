@@ -364,8 +364,8 @@ module_conf_t config[7];
 
 uint8_t ssdv_buffer[128*1024] __attribute__((aligned(32)));	// Image buffer
 
-systime_t track_cycle_time = S2ST(60);						// Tracking cycle (all peripheral data [airpressure, GPS, temperature, ...] is collected each 60 seconds
-systime_t log_cycle_time = S2ST(60);						// Log cycle time in seconds (600 seconds)
+systime_t track_cycle_time = S2ST(30);						// Tracking cycle (all peripheral data [airpressure, GPS, temperature, ...] is collected each 60 seconds
+systime_t log_cycle_time = S2ST(30);						// Log cycle time in seconds (600 seconds)
 bool keep_cam_switched_on =	false;							// Keep camera switched on and initialized, this makes image capturing faster but takes a lot of power over long time
 uint16_t gps_on_vbat = 3000;								// Battery voltage threshold at which GPS is switched on
 uint16_t gps_off_vbat = 2500;								// Battery voltage threshold at which GPS is switched off
