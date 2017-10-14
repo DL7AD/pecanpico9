@@ -120,7 +120,7 @@ void ax25_init(ax25_t *packet)
 
 void ax25_send_header(ax25_t *packet, const char *callsign, uint8_t ssid, const char *path, uint16_t preamble)
 {
-	uint8_t i, j;
+	uint16_t i, j;
 	uint8_t tmp[8];
 	packet->ones_in_a_row = 0;
 	packet->crc = 0xffff;

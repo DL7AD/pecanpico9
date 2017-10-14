@@ -55,11 +55,13 @@ int main(void) {
 	start_user_modules();		// Startup optional modules (eg. POSITION, LOG, ...)
 
 	while(true) {
+		#if ACTIVATE_USB
 		if(SDU1.config->usbp->state == USB_ACTIVE) {
 			thread_t *shelltp = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(512), "shell", NORMALPRIO+1, shellThread, (void*)&shell_cfg);
 			chThdWait(shelltp);
 		}
-		chThdSleepMilliseconds(1000);
+		#endif
+		chThdSleepMilliseconds(10000);
 	}
 }
 

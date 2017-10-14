@@ -105,15 +105,25 @@ void replace_placeholders(char* fskmsg, uint16_t size, trackPoint_t *tp) {
 	str_replace(fskmsg, size, "<LOC>", buf);
 }
 
-THD_FUNCTION(posThread, arg) {
+THD_FUNCTION(posThread, arg)
+{
 	module_conf_t* conf = (module_conf_t*)arg;
 
-	trackPoint_t *trackPoint = getLastTrackPoint();
-	systime_t time = chVTGetSystemTimeX();
+	// Wait
+	if(conf->init_delay) chThdSleepMilliseconds(conf->init_delay);
 
+	// Start tracking manager (if not running yet)
+	init_tracking_manager(true);
+
+	// Start position thread
+	TRACE_INFO("POS  > Startup position thread");
+
+	// Set telemetry configuration transmission variables
 	systime_t last_conf_transmission = chVTGetSystemTimeX();
 	uint32_t current_conf_count = 0;
 
+	trackPoint_t *trackPoint;
+	systime_t time = chVTGetSystemTimeX();
 	while(true)
 	{
 		TRACE_INFO("POS  > Do module POSITION cycle");
@@ -128,7 +138,7 @@ THD_FUNCTION(posThread, arg) {
 			TRACE_INFO("POS  > Transmit position");
 
 			radioMSG_t msg;
-			uint8_t buffer[256];
+			uint8_t buffer[512];
 			msg.buffer = buffer;
 			msg.freq = &conf->frequency;
 			msg.power = conf->power;
@@ -188,7 +198,7 @@ THD_FUNCTION(posThread, arg) {
 					memcpy(fskmsg, conf->ukhas_conf.format, sizeof(conf->ukhas_conf.format));
 					replace_placeholders(fskmsg, sizeof(fskmsg), trackPoint);
 					str_replace(fskmsg, sizeof(fskmsg), "<CALL>", conf->ukhas_conf.callsign);
-					msg.bin_len = 8*chsnprintf((char*)msg.buffer, sizeof(fskmsg), "$$$$$%s*%04X\n", fskmsg, crc16(fskmsg));
+					msg.bin_len = 8*chsnprintf((char*)buffer, sizeof(buffer), "$$$$$%s*%04X\n", fskmsg, crc16(fskmsg));
 
 					// Transmit message
 					transmitOnRadio(&msg, true);
@@ -205,7 +215,7 @@ THD_FUNCTION(posThread, arg) {
 					str_replace(morse, sizeof(morse), "<CALL>", conf->morse_conf.callsign);
 
 					// Transmit message
-					msg.bin_len = morse_encode(msg.buffer, morse); // Convert message to binary stream
+					msg.bin_len = morse_encode(buffer, sizeof(buffer), morse); // Convert message to binary stream
 					transmitOnRadio(&msg, true);
 					break;
 
@@ -220,16 +230,8 @@ THD_FUNCTION(posThread, arg) {
 
 void start_position_thread(module_conf_t *conf)
 {
-	// Wait
-	if(conf->init_delay) chThdSleepMilliseconds(conf->init_delay);
-
-	// Start tracking manager (if not running yet)
-	init_tracking_manager(true);
-
-	// Start position thread
-	TRACE_INFO("POS  > Startup position thread");
 	chsnprintf(conf->name, sizeof(conf->name), "POS");
-	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(20*1024), "POS", NORMALPRIO, posThread, conf);
+	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(5*1024), "POS", NORMALPRIO, posThread, conf);
 	if(!th) {
 		// Print startup error, do not start watchdog for this thread
 		TRACE_ERROR("POS  > Could not startup thread (not enough memory available)");
@@ -238,3 +240,4 @@ void start_position_thread(module_conf_t *conf)
 		conf->wdg_timeout = chVTGetSystemTimeX() + S2ST(1);
 	}
 }
+

@@ -27,17 +27,19 @@ bool initialized = false;
  * @param mv Oscillator voltage in mv
  */
 void Si4464_Init(void) {
-	// Reset radio)
-	Si4464_shutdown();
-	chThdSleepMilliseconds(10);
-
-	// Configure SPI pins
+	// Configure Radio pins
 	palSetLineMode(LINE_SPI_SCK, PAL_MODE_ALTERNATE(6) | PAL_STM32_OSPEED_HIGHEST);		// SCK
 	palSetLineMode(LINE_SPI_MISO, PAL_MODE_ALTERNATE(6) | PAL_STM32_OSPEED_HIGHEST);	// MISO
 	palSetLineMode(LINE_SPI_MOSI, PAL_MODE_ALTERNATE(6) | PAL_STM32_OSPEED_HIGHEST);	// MOSI
 	palSetLineMode(LINE_RADIO_CS, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);	// RADIO CS
 	palSetLineMode(LINE_RADIO_SDN, PAL_MODE_OUTPUT_PUSHPULL);							// RADIO SDN
+	palSetLineMode(LINE_OSC_EN, PAL_MODE_OUTPUT_PUSHPULL);								// Oscillator
 	palSetLine(LINE_RADIO_CS);
+
+	// Reset radio
+	Si4464_shutdown();
+	palSetLine(LINE_OSC_EN); // Activate Oscillator
+	chThdSleepMilliseconds(10);
 
 	// Power up transmitter
 	palClearLine(LINE_RADIO_SDN);	// Radio SDN low (power up transmitter)
@@ -51,6 +53,55 @@ void Si4464_Init(void) {
 	uint8_t init_command[] = {0x02, 0x01, 0x01, x3, x2, x1, x0};
 	Si4464_write(init_command, 7);
 	chThdSleepMilliseconds(25);
+
+	// Set transmitter GPIOs
+	uint8_t gpio_pin_cfg_command[] = {
+		0x13,	// Command type = GPIO settings
+		0x00,	// GPIO0        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x23,	// GPIO1        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x00,	// GPIO2        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x00,	// GPIO3        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
+		0x00,	// NIRQ
+		0x00,	// SDO
+		0x00	// GEN_CONFIG
+	};
+	Si4464_write(gpio_pin_cfg_command, 8);
+	chThdSleepMilliseconds(25);
+
+	// Set FIFO empty interrupt threshold (32 byte)
+	uint8_t set_fifo_irq[] = {0x11, 0x12, 0x01, 0x0B, 0x20};
+	Si4464_write(set_fifo_irq, 5);
+
+	// Set FIFO to 129 byte
+	uint8_t set_129byte[] = {0x11, 0x00, 0x01, 0x03, 0x10};
+	Si4464_write(set_129byte, 5);
+
+	// Reset FIFO
+	uint8_t reset_fifo[] = {0x15, 0x01};
+	Si4464_write(reset_fifo, 2);
+	uint8_t unreset_fifo[] = {0x15, 0x00};
+	Si4464_write(unreset_fifo, 2);
+
+	// Disable preamble
+	uint8_t disable_preamble[] = {0x11, 0x10, 0x01, 0x00, 0x00};
+	Si4464_write(disable_preamble, 5);
+
+	// Do not transmit sync word
+	uint8_t no_sync_word[] = {0x11, 0x11, 0x01, 0x00, (0x01 << 7)};
+	Si4464_write(no_sync_word, 5);
+
+	// Setup the NCO modulo and oversampling mode
+	uint32_t s = RADIO_CLK / 10;
+	uint8_t f3 = (s >> 24) & 0xFF;
+	uint8_t f2 = (s >> 16) & 0xFF;
+	uint8_t f1 = (s >>  8) & 0xFF;
+	uint8_t f0 = (s >>  0) & 0xFF;
+	uint8_t setup_oversampling[] = {0x11, 0x20, 0x04, 0x06, f3, f2, f1, f0};
+	Si4464_write(setup_oversampling, 8);
+
+	// transmit LSB first
+	uint8_t use_lsb_first[] = {0x11, 0x12, 0x01, 0x06, 0x01};
+	Si4464_write(use_lsb_first, 5);
 
 	// Temperature readout
 	TRACE_INFO("SI   > Transmitter temperature %d degC", Si4464_getTemperature());
@@ -173,44 +224,12 @@ void setShift(uint16_t shift) {
 }
 
 void setModemAFSK(void) {
-	// Set transmitter GPIOs
-	palSetLineMode(LINE_RADIO_GPIO, PAL_MODE_OUTPUT_PUSHPULL); // GPIO1
-	uint8_t gpio_pin_cfg_command[] = {
-		0x13,	// Command type = GPIO settings
-		0x00,	// GPIO0        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x44,	// GPIO1        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x00,	// GPIO2        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x00,	// GPIO3        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x00,	// NIRQ
-		0x00,	// SDO
-		0x00	// GEN_CONFIG
-	};
-	Si4464_write(gpio_pin_cfg_command, 8);
-	chThdSleepMilliseconds(25);
-
-	// Disable preamble
-	uint8_t disable_preamble[] = {0x11, 0x10, 0x01, 0x00, 0x00};
-	Si4464_write(disable_preamble, 5);
-
-	// Do not transmit sync word
-	uint8_t no_sync_word[] = {0x11, 0x11, 0x01, 0x00, (0x01 << 7)};
-	Si4464_write(no_sync_word, 5);
-
-	// Setup the NCO modulo and oversampling mode
-	uint32_t s = RADIO_CLK / 10;
-	uint8_t f3 = (s >> 24) & 0xFF;
-	uint8_t f2 = (s >> 16) & 0xFF;
-	uint8_t f1 = (s >>  8) & 0xFF;
-	uint8_t f0 = (s >>  0) & 0xFF;
-	uint8_t setup_oversampling[] = {0x11, 0x20, 0x04, 0x06, f3, f2, f1, f0};
-	Si4464_write(setup_oversampling, 8);
-
 	// Setup the NCO data rate for APRS
-	uint8_t setup_data_rate[] = {0x11, 0x20, 0x03, 0x03, 0x00, 0x11, 0x30};
+	uint8_t setup_data_rate[] = {0x11, 0x20, 0x03, 0x03, 0x00, 0x33, 0x90};
 	Si4464_write(setup_data_rate, 7);
 
-	// Use 2GFSK from async GPIO1
-	uint8_t use_2gfsk[] = {0x11, 0x20, 0x01, 0x00, 0x2B};
+	// Use 2GFSK from FIFO (PH)
+	uint8_t use_2gfsk[] = {0x11, 0x20, 0x01, 0x00, 0x03};
 	Si4464_write(use_2gfsk, 5);
 
 	// Set AFSK filter
@@ -222,109 +241,35 @@ void setModemAFSK(void) {
 	}
 }
 
-void setModemOOK(void) {
-	// Set transmitter GPIOs
-	palSetLineMode(LINE_RADIO_GPIO, PAL_MODE_OUTPUT_PUSHPULL); // GPIO1
-	uint8_t gpio_pin_cfg_command[] = {
-		0x13,	// Command type = GPIO settings
-		0x00,	// GPIO0        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x44,	// GPIO1        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x00,	// GPIO2        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x00,	// GPIO3        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x00,	// NIRQ
-		0x00,	// SDO
-		0x00	// GEN_CONFIG
-	};
-	Si4464_write(gpio_pin_cfg_command, 8);
-	chThdSleepMilliseconds(25);
+void setModemOOK(ook_conf_t* conf) {
+	// Setup the NCO data rate for 2FSK
+	uint16_t speed = conf->speed * 5 / 6;
+	uint8_t setup_data_rate[] = {0x11, 0x20, 0x03, 0x03, 0x00, 0x00, (uint8_t)speed};
+	Si4464_write(setup_data_rate, 7);
 
-	// Use OOK from async GPIO1
-	uint8_t use_ook[] = {0x11, 0x20, 0x01, 0x00, 0xA9};
+	// Use 2FSK from FIFO (PH)
+	uint8_t use_ook[] = {0x11, 0x20, 0x01, 0x00, 0x01};
 	Si4464_write(use_ook, 5);
 }
 
-void setModem2FSK(void) {
-	// Set transmitter GPIOs
-	palSetLineMode(LINE_RADIO_GPIO, PAL_MODE_OUTPUT_PUSHPULL); // GPIO1
-	uint8_t gpio_pin_cfg_command[] = {
-		0x13,	// Command type = GPIO settings
-		0x00,	// GPIO0        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x44,	// GPIO1        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x00,	// GPIO2        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x00,	// GPIO3        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x00,	// NIRQ
-		0x00,	// SDO
-		0x00	// GEN_CONFIG
-	};
-	Si4464_write(gpio_pin_cfg_command, 8);
-	chThdSleepMilliseconds(25);
+void setModem2FSK(fsk_conf_t* conf) {
+	// Setup the NCO data rate for 2FSK
+	uint8_t setup_data_rate[] = {0x11, 0x20, 0x03, 0x03, (uint8_t)(conf->baud >> 16), (uint8_t)(conf->baud >> 8), (uint8_t)conf->baud};
+	Si4464_write(setup_data_rate, 7);
 
-	// Initialize high tone
-	RADIO_WRITE_GPIO(HIGH);
-
-	// use 2FSK from async GPIO1
-	uint8_t use_2fsk[] = {0x11, 0x20, 0x01, 0x00, 0xAA};
+	// Use 2FSK from FIFO (PH)
+	uint8_t use_2fsk[] = {0x11, 0x20, 0x01, 0x00, 0x02};
 	Si4464_write(use_2fsk, 5);
 }
 
 void setModem2GFSK(gfsk_conf_t* conf) {
-	// Set transmitter GPIOs
-	palSetLineMode(LINE_RADIO_GPIO, PAL_MODE_INPUT); // GPIO1
-	uint8_t gpio_pin_cfg_command[] = {
-		0x13,	// Command type = GPIO settings
-		0x00,	// GPIO0        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x23,	// GPIO1        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x00,	// GPIO2        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x00,	// GPIO3        0 - PULL_CTL[1bit] - GPIO_MODE[6bit]
-		0x00,	// NIRQ
-		0x00,	// SDO
-		0x00	// GEN_CONFIG
-	};
-	Si4464_write(gpio_pin_cfg_command, 8);
-	chThdSleepMilliseconds(25);
-
-	// Set FIFO empty interrupt threshold (32 byte)
-	uint8_t set_fifo_irq[] = {0x11, 0x12, 0x01, 0x0B, 0x20};
-	Si4464_write(set_fifo_irq, 5);
-
-	// Set FIFO to 129 byte
-	uint8_t set_129byte[] = {0x11, 0x00, 0x01, 0x03, 0x10};
-	Si4464_write(set_129byte, 5);
-
-	// Reset FIFO
-	uint8_t reset_fifo[] = {0x15, 0x01};
-	Si4464_write(reset_fifo, 2);
-	uint8_t unreset_fifo[] = {0x15, 0x00};
-	Si4464_write(unreset_fifo, 2);
-
-	// Disable preamble
-	uint8_t disable_preamble[] = {0x11, 0x10, 0x01, 0x00, 0x00};
-	Si4464_write(disable_preamble, 5);
-
-	// Do not transmit sync word
-	uint8_t no_sync_word[] = {0x11, 0x11, 0x01, 0x00, (0x01 << 7)};
-	Si4464_write(no_sync_word, 5);
-
-	// Setup the NCO modulo and oversampling mode
-	uint32_t s = RADIO_CLK / 10;
-	uint8_t f3 = (s >> 24) & 0xFF;
-	uint8_t f2 = (s >> 16) & 0xFF;
-	uint8_t f1 = (s >>  8) & 0xFF;
-	uint8_t f0 = (s >>  0) & 0xFF;
-	uint8_t setup_oversampling[] = {0x11, 0x20, 0x04, 0x06, f3, f2, f1, f0};
-	Si4464_write(setup_oversampling, 8);
-
 	// Setup the NCO data rate for 2GFSK
 	uint8_t setup_data_rate[] = {0x11, 0x20, 0x03, 0x03, (uint8_t)(conf->speed >> 16), (uint8_t)(conf->speed >> 8), (uint8_t)conf->speed};
 	Si4464_write(setup_data_rate, 7);
 
 	// Use 2GFSK from FIFO (PH)
-	uint8_t use_2gfsk[] = {0x11, 0x20, 0x01, 0x00, 0x23};
+	uint8_t use_2gfsk[] = {0x11, 0x20, 0x01, 0x00, 0x03};
 	Si4464_write(use_2gfsk, 5);
-
-	// transmit LSB first
-	uint8_t use_lsb_first[] = {0x11, 0x12, 0x01, 0x06, 0x01};
-	Si4464_write(use_lsb_first, 5);
 }
 
 void setPowerLevel(int8_t level) {
@@ -350,7 +295,8 @@ void stopTx(void) {
 void Si4464_shutdown(void) {
 	palSetLine(LINE_RADIO_SDN);	// Power down chip
 	palSetLine(LINE_IO_LED1);	// Set indication LED
-	RADIO_WRITE_GPIO(false);		// Set GPIO1 low
+	palClearLine(LINE_OSC_EN);	// Shutdown oscillator
+	RADIO_WRITE_GPIO(false);	// Set GPIO1 low
 	initialized = false;
 }
 
@@ -416,3 +362,4 @@ int8_t Si4464_getTemperature(void) {
 bool isRadioInitialized(void) {
 	return initialized;
 }
+

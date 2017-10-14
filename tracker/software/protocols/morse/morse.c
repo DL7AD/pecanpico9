@@ -1,265 +1,259 @@
-#include "ch.h"
-#include "hal.h"
-#include "morse.h"
-#include "debug.h"
+#include <stdint.h>
+#include <string.h>
 
-static uint8_t *buffer;
 static uint32_t c;
-#define ADDB(bit) { \
+#define ADDB(buffer, bit) { \
 	buffer[c/8] |= ((bit & 0x1) << (c % 8)); \
 	c++; \
 }
 
-void dah(void)
+void dah(uint8_t *buffer)
 {
-	ADDB(1);
-	ADDB(1);
-	ADDB(1);
-	ADDB(0);
+	ADDB(buffer, 1);
+	ADDB(buffer, 1);
+	ADDB(buffer, 1);
+	ADDB(buffer, 0);
 }
-void dit(void)
+void dit(uint8_t *buffer)
 {
-	ADDB(1);
-	ADDB(0);
+	ADDB(buffer, 1);
+	ADDB(buffer, 0);
 }
-void blank(uint32_t ticks) {
+void blank(uint8_t *buffer, uint32_t ticks) {
 	for(uint32_t i=0; i<ticks; i++)
-		ADDB(0);
+		ADDB(buffer, 0);
 }
 
-void morse_encode_char(char letter)
+void morse_encode_char(uint8_t *buffer, char letter)
 {
 	switch(letter) {
 		case 'A':
-			dit();
-			dah();
+			dit(buffer);
+			dah(buffer);
 		break;
 		case 'B':
-			dah();
-			dit();
-			dit();
-			dit();
+			dah(buffer);
+			dit(buffer);
+			dit(buffer);
+			dit(buffer);
 		break;
 		case 'C':
-			dah();
-			dit();
-			dah();
-			dit();
+			dah(buffer);
+			dit(buffer);
+			dah(buffer);
+			dit(buffer);
 		break;
 		case 'D':
-			dah();
-			dit();
-			dit();
+			dah(buffer);
+			dit(buffer);
+			dit(buffer);
 		break;
 		case 'E':
-			dit();
+			dit(buffer);
 		break;
 		case 'F':
-			dit();
-			dit();
-			dah();
-			dit();
+			dit(buffer);
+			dit(buffer);
+			dah(buffer);
+			dit(buffer);
 		break;
 		case 'G':
-			dah();
-			dah();
-			dit();
+			dah(buffer);
+			dah(buffer);
+			dit(buffer);
 		break;
 		case 'H':
-			dit();
-			dit();
-			dit();
-			dit();
+			dit(buffer);
+			dit(buffer);
+			dit(buffer);
+			dit(buffer);
 		break;
 		case 'I':
-			dit();
-			dit();
+			dit(buffer);
+			dit(buffer);
 		break;
 		case 'J':
-			dit();
-			dah();
-			dah();
-			dah();
+			dit(buffer);
+			dah(buffer);
+			dah(buffer);
+			dah(buffer);
 		break;
 		case 'K':
-			dah();
-			dit();
-			dah();
+			dah(buffer);
+			dit(buffer);
+			dah(buffer);
 		break;
 		case 'L':
-			dit();
-			dah();
-			dit();
-			dit();
+			dit(buffer);
+			dah(buffer);
+			dit(buffer);
+			dit(buffer);
 		break;
 		case 'M':
-			dah();
-			dah();
+			dah(buffer);
+			dah(buffer);
 		break;
 		case 'N':
-			dah();
-			dit();
+			dah(buffer);
+			dit(buffer);
 		break;
 		case 'O':
-			dah();
-			dah();
-			dah();
+			dah(buffer);
+			dah(buffer);
+			dah(buffer);
 		break;
 		case 'P':
-			dit();
-			dah();
-			dah();
-			dit();
+			dit(buffer);
+			dah(buffer);
+			dah(buffer);
+			dit(buffer);
 		break;
 		case 'Q':
-			dah();
-			dah();
-			dit();
-			dah();
+			dah(buffer);
+			dah(buffer);
+			dit(buffer);
+			dah(buffer);
 		break;
 		case 'R':
-			dit();
-			dah();
-			dit();
+			dit(buffer);
+			dah(buffer);
+			dit(buffer);
 		break;
 		case 'S':
-			dit();
-			dit();
-			dit();
+			dit(buffer);
+			dit(buffer);
+			dit(buffer);
 		break;
 		case 'T':
-			dah();
+			dah(buffer);
 		break;
 		case 'U':
-			dit();
-			dit();
-			dah();
+			dit(buffer);
+			dit(buffer);
+			dah(buffer);
 		break;
 		case 'V':
-			dit();
-			dit();
-			dit();
-			dah();
+			dit(buffer);
+			dit(buffer);
+			dit(buffer);
+			dah(buffer);
 		break;
 		case 'W':
-			dit();
-			dah();
-			dah();
+			dit(buffer);
+			dah(buffer);
+			dah(buffer);
 		break;
 		case 'X':
-			dah();
-			dit();
-			dit();
-			dah();
+			dah(buffer);
+			dit(buffer);
+			dit(buffer);
+			dah(buffer);
 		break;
 		case 'Y':
-			dah();
-			dit();
-			dah();
-			dah();
+			dah(buffer);
+			dit(buffer);
+			dah(buffer);
+			dah(buffer);
 		break;
 		case 'Z':
-			dah();
-			dah();
-			dit();
-			dit();
+			dah(buffer);
+			dah(buffer);
+			dit(buffer);
+			dit(buffer);
 		break;
 		case '1':
-			dit();
-			dah();
-			dah();
-			dah();
-			dah();
+			dit(buffer);
+			dah(buffer);
+			dah(buffer);
+			dah(buffer);
+			dah(buffer);
 		break;
 		case '2':
-			dit();
-			dit();
-			dah();
-			dah();
-			dah();
+			dit(buffer);
+			dit(buffer);
+			dah(buffer);
+			dah(buffer);
+			dah(buffer);
 		break;
 		case '3':
-			dit();
-			dit();
-			dit();
-			dah();
-			dah();
+			dit(buffer);
+			dit(buffer);
+			dit(buffer);
+			dah(buffer);
+			dah(buffer);
 		break;
 		case '4':
-			dit();
-			dit();
-			dit();
-			dit();
-			dah();
+			dit(buffer);
+			dit(buffer);
+			dit(buffer);
+			dit(buffer);
+			dah(buffer);
 		break;
 		case '5':
-			dit();
-			dit();
-			dit();
-			dit();
-			dit();
+			dit(buffer);
+			dit(buffer);
+			dit(buffer);
+			dit(buffer);
+			dit(buffer);
 		break;
 		case '6':
-			dah();
-			dit();
-			dit();
-			dit();
-			dit();
+			dah(buffer);
+			dit(buffer);
+			dit(buffer);
+			dit(buffer);
+			dit(buffer);
 		break;
 		case '7':
-			dah();
-			dah();
-			dit();
-			dit();
-			dit();
+			dah(buffer);
+			dah(buffer);
+			dit(buffer);
+			dit(buffer);
+			dit(buffer);
 		break;
 		case '8':
-			dah();
-			dah();
-			dah();
-			dit();
-			dit();
+			dah(buffer);
+			dah(buffer);
+			dah(buffer);
+			dit(buffer);
+			dit(buffer);
 		break;
 		case '9':
-			dah();
-			dah();
-			dah();
-			dah();
-			dit();
+			dah(buffer);
+			dah(buffer);
+			dah(buffer);
+			dah(buffer);
+			dit(buffer);
 		break;
 		case '0':
-			dah();
-			dah();
-			dah();
-			dah();
-			dah();
+			dah(buffer);
+			dah(buffer);
+			dah(buffer);
+			dah(buffer);
+			dah(buffer);
 		break;
 		case ' ':
-			blank(3);
+			blank(buffer, 3);
 		break;
 		case '.':
-			dit();
-			dah();
-			dit();
-			dah();
-			dit();
-			dah();
+			dit(buffer);
+			dah(buffer);
+			dit(buffer);
+			dah(buffer);
+			dit(buffer);
+			dah(buffer);
 		break;
 	}
-	blank(4);
+	blank(buffer, 4);
 }
 
-uint32_t morse_encode(uint8_t* data, const char* letter)
+uint32_t morse_encode(uint8_t* buffer, uint32_t length, const char* in)
 {
-	// Blanking bits TODO: Replace this
-	for(uint32_t i=0; i<256; i++)
-		data[i] = 0;
+	memset(buffer, 0, length); // Tidy up
+	c = 0; // Bitlength
 
 	// Encode morse
-	buffer = data; // Buffer
-	c = 0; // Bitlength
-	for(uint32_t i=0; letter[i]!=0; i++)
-		morse_encode_char(letter[i]);
+	for(uint32_t i=0; in[i] != 0 && c < length*8-16; i++)
+		morse_encode_char(buffer, in[i]);
 
 	return c;
 }

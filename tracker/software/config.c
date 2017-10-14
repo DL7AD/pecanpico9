@@ -397,7 +397,7 @@ void start_user_modules(void)
 	config[0].aprs_conf.tel_enc = TRUE;						// Transmit Telemetry encoding information activated
 	config[0].aprs_conf.tel_enc_cycle = 3600;				// Transmit Telemetry encoding information every 3600sec
 	chsnprintf(config[0].aprs_conf.tel_comment, 30, "http://ssdv.habhub.org/DL7AD");// Telemetry comment
-	start_position_thread(&config[0]);
+	//start_position_thread(&config[0]);
 
 	// Module POSITION, UKHAS 2m 2FSK
 	config[1].power = 127;									// Transmission Power
@@ -407,7 +407,7 @@ void start_user_modules(void)
 	config[1].trigger.type = TRIG_CONTINUOUSLY;				// Transmit continuously
 	config[1].fsk_conf.bits = 8;							// 8 bit
 	config[1].fsk_conf.stopbits = 2;						// 2 stopbits
-	config[1].fsk_conf.predelay = 1000;						// Preamble (1000ms)
+	config[1].fsk_conf.predelay = 3000;						// Preamble (1000ms)
 	config[1].fsk_conf.baud = 50;							// Baudrate
 	config[1].fsk_conf.shift = 425;							// Frequency shift in Hz
 	chsnprintf(config[1].ukhas_conf.callsign, 16, "DL7AD");	// UKHAS Callsign
@@ -446,7 +446,7 @@ void start_user_modules(void)
 	config[3].ssdv_conf.res = RES_QVGA;						// Resolution QVGA
 	config[3].ssdv_conf.redundantTx = true;					// Redundant transmission (transmit packets twice)
 	config[3].ssdv_conf.quality = 4;						// Image quality
-	start_image_thread(&config[3]);
+	//start_image_thread(&config[3]);
 
 	// Module IMAGE, APRS 2m 2GFSK
 	config[4].power = 127;									// Transmission Power
@@ -473,9 +473,9 @@ void start_user_modules(void)
 	config[5].trigger.type = TRIG_CONTINUOUSLY;				// Transmit continuously
 	config[5].fsk_conf.bits = 8;							// 8bit
 	config[5].fsk_conf.stopbits = 2;						// 2 Stopbits
-	config[5].fsk_conf.predelay = 1000;						// Preamble (1000ms)
-	config[5].fsk_conf.baud = 600;							// Baudrate (600baud)
-	config[5].fsk_conf.shift = 1000;						// Frequency shift (1000Hz)
+	config[5].fsk_conf.predelay = 3000;						// Preamble (1000ms)
+	config[5].fsk_conf.baud = 300;							// Baudrate (600baud)
+	config[5].fsk_conf.shift = 425;						// Frequency shift (1000Hz)
 	chsnprintf(config[5].ssdv_conf.callsign, 7, "DL7AD");	// SSDV Callsign
 	config[5].ssdv_conf.ram_buffer = ssdv_buffer;			// Camera buffer
 	config[5].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
@@ -499,7 +499,6 @@ void start_user_modules(void)
 	config[6].aprs_conf.symbol = SYM_BALLOON;				// APRS Symbol
 	chsnprintf(config[6].aprs_conf.path, 16, "WIDE1-1");	// APRS Path
 	config[6].aprs_conf.preamble = 300;						// APRS Preamble (300ms)
-	start_logging_thread(&config[6]);
+	//start_logging_thread(&config[6]);
 }
-
 

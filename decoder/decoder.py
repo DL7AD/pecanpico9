@@ -12,7 +12,7 @@ import position
 
 # Parse arguments from terminal
 parser = argparse.ArgumentParser(description='APRS/SSDV decoder')
-parser.add_argument('-c', '--call', help='Callsign of the station', required=True)
+parser.add_argument('-c', '--call', help='Callsign of the station', default='N0CALL')
 parser.add_argument('-n', '--grouping', help='Amount packets that will be sent to the SSDV server in one request', default=1, type=int)
 parser.add_argument('-d', '--device', help='Serial device (\'-\' for stdin)', default='-')
 parser.add_argument('-b', '--baudrate', help='Baudrate for serial device', default=9600, type=int)
@@ -30,7 +30,7 @@ sqlite.cursor().execute("""
 		lat FLOAT,
 		lon FLOAT,
 		alt INTEGER,
-		new INTEGER,
+		isnew INTEGER,
 		comment TEXT,
 		sequ INTEGER,
 		tel1 INTEGER,
@@ -61,11 +61,6 @@ sqlite.cursor().execute("""
 
 """ Packet handler for received APRS packets"""
 def received_data(data):
-	# Debug
-	print('====================================================================================================')
-	print(data)
-	print('----------------------------------------------------------------------------------------------------')
-
 	# Parse line and detect data
 	# Position	(.*)\>APECAN(.*?):\/([0-9]{6}h)(.{13})(.*?)\|(.*)\|
 	# Image		(.*)\>APECAN(.*?):\/([0-9]{6}h)(.{13})I(.*)
@@ -76,8 +71,14 @@ def received_data(data):
 	dat = re.search("(.*)\>APECAN(.*?):\/([0-9]{6}h)(.{13})(I|J|L)(.*)", data)
 
 	if all:
-		call = all.group(1)
+		# Debug
+		print('='*100)
+		print(data)
+		print('-'*100)
+
+		call = all.group(1).split(' ')[-1]
 		rxer = all.group(2).split(',')[-1]
+		if not len(rxer): rxer = args.call
 		tim  = all.group(3)
 		posi = all.group(4)
 

@@ -135,6 +135,9 @@ THD_FUNCTION(logThread, arg)
 {
 	module_conf_t* conf = (module_conf_t*)arg;
 
+	if(conf->init_delay) chThdSleepMilliseconds(conf->init_delay);
+	TRACE_INFO("LOG  > Startup logging thread");
+
 	systime_t time = chVTGetSystemTimeX();
 	while(true)
 	{
@@ -211,8 +214,6 @@ THD_FUNCTION(logThread, arg)
 
 void start_logging_thread(module_conf_t *conf)
 {
-	if(conf->init_delay) chThdSleepMilliseconds(conf->init_delay);
-	TRACE_INFO("LOG  > Startup logging thread");
 	chsnprintf(conf->name, sizeof(conf->name), "LOG");
 	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(2*1024), "LOG", NORMALPRIO, logThread, conf);
 	if(!th) {

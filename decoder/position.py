@@ -18,7 +18,7 @@ def insert_log(sqlite, call, data):
 
 		tim_stringified = datetime.utcfromtimestamp(tim).strftime("%Y-%m-%d %H:%M:%S")
 		try:
-			sqlite.cursor().execute("INSERT OR FAIL INTO position (call,time,org,lat,lon,alt) VALUES (?,?,'log',?,?,?)", (call, tim, lat, lon, alt))
+			sqlite.cursor().execute("INSERT OR FAIL INTO position (call,time,org,lat,lon,alt,isnew) VALUES (?,?,'log',?,?,?,1)", (call, tim, lat, lon, alt))
 			print("Decoded log from %s time %s => lat=%06.3f lon=%07.3f alt=%05d" % (call, tim_stringified, lat, lon, alt))
 		except sqlite3.IntegrityError:
 			print("Decoded log from %s time %s => lat=%06.3f lon=%07.3f alt=%05d already in db" % (call, tim_stringified, lat, lon, alt))
@@ -56,7 +56,7 @@ def decode_position(tim, posi, tel):
 		timd -= timedelta(1)
 
 	# Decode GPS Fix Type
-	new = ((ord(posi[12])-33) >> 5) & 0x1
+	isnew = ((ord(posi[12])-33) >> 5) & 0x1
 
 	# Decode telemetry
 	teld = [0]*6
@@ -66,22 +66,22 @@ def decode_position(tim, posi, tel):
 			t0 = ord(tel[i*2+1]) - 33
 			teld.append(t0 + t1*91)
 
-	return timd,x,y,z,teld,new
+	return timd,x,y,z,teld,isnew
 
 def insert_position(sqlite, call, tim, posi, comm, tel): #sqlite, call, data
 	# Decode
-	timd,x,y,z,teld,new = decode_position(tim, posi, tel)
+	timd,x,y,z,teld,isnew = decode_position(tim, posi, tel)
 
 	# Insert
 	sqlite.cursor().execute("""
-		INSERT OR REPLACE INTO position (call,time,org,lat,lon,alt,new,comment,sequ,tel1,tel2,tel3,tel4,tel5)
+		INSERT OR REPLACE INTO position (call,time,org,lat,lon,alt,isnew,comment,sequ,tel1,tel2,tel3,tel4,tel5)
 		VALUES (?,?,'pos',?,?,?,?,?,?,?,?,?,?,?)""",
-		(call, int(timd.timestamp()), y, x, int(z), new, comm, teld[0], teld[1], teld[2], teld[3], teld[4], teld[5])
+		(call, int(timd.timestamp()), y, x, int(z), isnew, comm, teld[0], teld[1], teld[2], teld[3], teld[4], teld[5])
 	)
 	sqlite.commit()
 
 	# Debug
 	tim_stringified = timd.strftime("%Y-%m-%d %H:%M:%S")
 	print("Decoded position from %s time %s => lat=%f lon=%f alt=%d new=%d comment=%s, sequ=%d tel=[%d,%d,%d,%d,%d]"
-		% (call, tim_stringified, y, x, int(z), new, comm, teld[0], teld[1], teld[2], teld[3], teld[4], teld[5]))
+		% (call, tim_stringified, y, x, int(z), isnew, comm, teld[0], teld[1], teld[2], teld[3], teld[4], teld[5]))
 

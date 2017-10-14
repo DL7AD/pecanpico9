@@ -279,12 +279,36 @@ uint8_t gimage_id; // Global image ID (for all image threads)
 mutex_t camera_mtx;
 bool camera_mtx_init = false;
 
+/**
+  * At EOI or if picture is cut prematurely, when buffer has to be flushed
+  * so all packets are transmitted.
+  */
+static void flush_ssdv_buffer(prot_t protocol, ax25_t *ax25_handle, radioMSG_t *msg)
+{
+	switch(protocol) {
+		case PROT_APRS_2GFSK:
+		case PROT_APRS_AFSK:
+			if(protocol == PROT_APRS_2GFSK || protocol == PROT_APRS_AFSK)
+				msg->bin_len = aprs_encode_finalize(ax25_handle);
+
+			transmitOnRadio(msg, false);
+			break;
+
+		case PROT_SSDV_2FSK:
+			transmitOnRadio(msg, false);
+			msg->bin_len = 0;
+			break;
+
+		default: break;
+	}
+}
+
 void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_t image_id, trackPoint_t* captureLocation, bool redudantTx)
 {
 	ssdv_t ssdv;
 	uint8_t pkt[SSDV_PKT_SIZE];
-	uint8_t pkt_base91i[150];
-	uint8_t pkt_base91j[150];
+	uint8_t pkt_base91i[160];
+	uint8_t pkt_base91j[160];
 	const uint8_t *b;
 	uint32_t bi = 0;
 	uint8_t c = SSDV_OK;
@@ -292,12 +316,12 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 
 	// Init SSDV (FEC at 2FSK, non FEC at APRS)
 	bi = 0;
-	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, conf->ssdv_conf.callsign, image_id, conf->ssdv_conf.quality);
+	ssdv_enc_init(&ssdv, conf->protocol == PROT_SSDV_2FSK ? SSDV_TYPE_NORMAL : SSDV_TYPE_NOFEC, conf->ssdv_conf.callsign, image_id, conf->ssdv_conf.quality);
 	ssdv_enc_set_buffer(&ssdv, pkt);
 
 	// Init transmission packet
 	radioMSG_t msg;
-	uint8_t buffer[conf->packet_spacing ? 8192 : 512];
+	uint8_t buffer[conf->packet_spacing ? 2048 : 8192];
 	msg.buffer = buffer;
 	msg.bin_len = 0;
 	msg.freq = &conf->frequency;
@@ -325,12 +349,7 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 			if(r <= 0)
 			{
 				TRACE_ERROR("SSDV > Premature end of file");
-				if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) msg.bin_len = aprs_encode_finalize(&ax25_handle);
-				if(ax25_handle.size > 0) transmitOnRadio(&msg, false); // Empty buffer
-				if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK)
-				{
-					aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
-				}
+				flush_ssdv_buffer(conf->protocol, &ax25_handle, &msg);
 				break;
 			}
 			ssdv_enc_feed(&ssdv, b, r);
@@ -339,21 +358,11 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 		if(c == SSDV_EOI)
 		{
 			TRACE_INFO("SSDV > ssdv_enc_get_packet said EOI");
-			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) msg.bin_len = aprs_encode_finalize(&ax25_handle);
-			if(ax25_handle.size > 0) transmitOnRadio(&msg, false); // Empty buffer
-			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK)
-			{
-				aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
-			}
+			flush_ssdv_buffer(conf->protocol, &ax25_handle, &msg);
 			break;
 		} else if(c != SSDV_OK) {
 			TRACE_ERROR("SSDV > ssdv_enc_get_packet failed: %i", c);
-			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK) msg.bin_len = aprs_encode_finalize(&ax25_handle);
-			if(ax25_handle.size > 0) transmitOnRadio(&msg, false); // Empty buffer
-			if(conf->protocol == PROT_APRS_2GFSK || conf->protocol == PROT_APRS_AFSK)
-			{
-				aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
-			}
+			flush_ssdv_buffer(conf->protocol, &ax25_handle, &msg);
 			return;
 		}
 
@@ -364,29 +373,34 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 				TRACE_INFO("IMG  > Encode APRS/SSDV packet");
 
 				// Sync byte, CRC and FEC of SSDV not transmitted (because its not neccessary inside an APRS packet)
-				pkt[3] = pkt[6];
-				pkt[4] = pkt[7];
-				pkt[5] = pkt[8];
-				base91_encode(&pkt[3    ], pkt_base91i, 110);
-				pkt[110] = pkt[6];
-				pkt[111] = pkt[7];
-				pkt[112] = pkt[8];
-				base91_encode(&pkt[3+107], pkt_base91j, 110);
+				base91_encode(&pkt[6  ], pkt_base91i, 109+16);
+				pkt[112+16] = pkt[6];
+				pkt[113+16] = pkt[7];
+				pkt[114+16] = pkt[8];
+				base91_encode(&pkt[112+16], pkt_base91j, 108+16);
 
 				aprs_encode_data_packet(&ax25_handle, 'I', &conf->aprs_conf, pkt_base91i, strlen((char*)pkt_base91i), captureLocation);
 				aprs_encode_data_packet(&ax25_handle, 'J', &conf->aprs_conf, pkt_base91j, strlen((char*)pkt_base91j), captureLocation);
 				if(redudantTx)
 				{
+					if(conf->protocol == PROT_APRS_AFSK) // AFSK can handle max. 2 packets in the buffer
+					{
+						// Transmit packets
+						flush_ssdv_buffer(conf->protocol, &ax25_handle, &msg);
+
+						// Initialize new packet buffer
+						aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
+					}
 					aprs_encode_data_packet(&ax25_handle, 'I', &conf->aprs_conf, pkt_base91i, strlen((char*)pkt_base91i), captureLocation);
 					aprs_encode_data_packet(&ax25_handle, 'J', &conf->aprs_conf, pkt_base91j, strlen((char*)pkt_base91j), captureLocation);
 				}
 
-				// Transmit
-				if(ax25_handle.size >= 58000 || conf->packet_spacing) // Transmit if buffer is almost full or if single packet transmission is activated (packet_spacing != 0)
+				// Transmit if buffer is almost full or if single packet transmission is activated (packet_spacing != 0)
+				// or if AFSK is selected (because the encoding takes a lot of buffer)
+				if(ax25_handle.size >= 58000 || conf->packet_spacing || conf->protocol == PROT_APRS_AFSK)
 				{
 					// Transmit packets
-					msg.bin_len = aprs_encode_finalize(&ax25_handle);
-					transmitOnRadio(&msg, false);
+					flush_ssdv_buffer(conf->protocol, &ax25_handle, &msg);
 
 					// Initialize new packet buffer
 					aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
@@ -408,13 +422,9 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 				}
 
 				// Transmit
-				if(msg.bin_len >= 61440 || conf->packet_spacing) { // Transmit if buffer is full or if single packet transmission activation (packet_spacing != 0)
-					// Transmit packets
-					transmitOnRadio(&msg, false);
+				if(msg.bin_len >= 32768 || conf->packet_spacing) // Transmit if buffer is full or if single packet transmission activation (packet_spacing != 0)
+					flush_ssdv_buffer(conf->protocol, NULL, &msg);
 
-					// Initialize new packet buffer
-					msg.bin_len = 0;
-				}
 				break;
 
 			default:
@@ -450,6 +460,9 @@ bool takePicture(ssdv_conf_t *conf, bool enableJpegValidation)
 		TRACE_INFO("IMG  > OV5640 found");
 		camera_found = true;
 
+		// Lock Radio (The radio uses the same DMA for SPI as the camera)
+		lockRadio(); // Lock radio
+
 		// Init camera
 		if(!camInitialized) {
 			OV5640_init();
@@ -457,9 +470,10 @@ bool takePicture(ssdv_conf_t *conf, bool enableJpegValidation)
 		}
 
 		// Sample data from pseudo DCMI through DMA into RAM
-		lockRadio(); // Lock radio
 		conf->size_sampled = OV5640_Snapshot2RAM(conf->ram_buffer, conf->ram_size, conf->res, enableJpegValidation);
-		unlockRadio(); // Unlock radio
+
+		// Unlock radio
+		unlockRadio();
 
 		// Switch off camera
 		if(!keep_cam_switched_on) {
@@ -481,8 +495,12 @@ bool takePicture(ssdv_conf_t *conf, bool enableJpegValidation)
 	return camera_found;
 }
 
-THD_FUNCTION(imgThread, arg) {
+THD_FUNCTION(imgThread, arg)
+{
 	module_conf_t* conf = (module_conf_t*)arg;
+
+	if(conf->init_delay) chThdSleepMilliseconds(conf->init_delay);
+	TRACE_INFO("IMG  > Startup image thread");
 
 	systime_t time = chVTGetSystemTimeX();
 	while(true)
@@ -516,10 +534,8 @@ THD_FUNCTION(imgThread, arg) {
 
 void start_image_thread(module_conf_t *conf)
 {
-	if(conf->init_delay) chThdSleepMilliseconds(conf->init_delay);
-	TRACE_INFO("IMG  > Startup image thread");
 	chsnprintf(conf->name, sizeof(conf->name), "IMG");
-	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(conf->packet_spacing ? 20*1024 : 5*1024), "IMG", NORMALPRIO, imgThread, conf);
+	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(conf->packet_spacing ? 6*1024 : 12*1024), "IMG", NORMALPRIO, imgThread, conf);
 	if(!th) {
 		// Print startup error, do not start watchdog for this thread
 		TRACE_ERROR("IMG  > Could not startup thread (not enough memory available)");

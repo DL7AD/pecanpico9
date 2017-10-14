@@ -19,6 +19,7 @@ void register_thread_at_wdg(module_conf_t *thread_config)
 THD_FUNCTION(wdgThread, arg) {
 	(void)arg;
 
+	uint8_t counter = 0;
 	while(true)
 	{
 		bool healthy = true;
@@ -34,8 +35,13 @@ THD_FUNCTION(wdgThread, arg) {
 			wdgReset(&WDGD1);	// Reset hardware watchdog at no error
 
 		// Switch LEDs
-		palToggleLine(LINE_IO_LED2);					// Show I'M ALIVE
-		chThdSleepMilliseconds(healthy ? 500 : 100);	// Blink faster (less delay) in case of an error
+		if(counter++ % (4*healthy) == 0)
+		{
+			palClearLine(LINE_IO_LED2);
+			chThdSleepMilliseconds(50);
+			palSetLine(LINE_IO_LED2);
+		}
+		chThdSleepMilliseconds(1000);
 	}
 }
 

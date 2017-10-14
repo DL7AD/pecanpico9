@@ -41,18 +41,17 @@ data - Binary data
 def insert_image(sqlite, receiver, call, tim, posi, data, typ, server, grouping):
 	global jsons
 
-	if len(data) != 110:
-		return # APRS message sampled too short
+	if not (typ is 'I' and len(data) == 125) and not (typ is 'J' and len(data) == 124):
+		return # APRS message has invalid type or length (or both)
 
 	# Decode various meta data
 	timd,x,y,z,teld,new = decode_position(tim, posi, None)
 	imageID  = data[0]
 	packetID = (data[1] << 8) | data[2]
 	data = binascii.hexlify(data[3:]).decode("ascii")
-	print(len(data))
 
 	# Debug
-	print('Received packet from %s image %d packet %d' % (call, imageID, packetID))
+	print('Received %s-Packet Image %d Packet %d' % (typ, imageID, packetID))
 
 	# Insert
 	sqlite.cursor().execute("""
@@ -75,7 +74,7 @@ def insert_image(sqlite, receiver, call, tim, posi, data, typ, server, grouping)
 		else:
 			bcall = bcall[0][0:6] # Callsign has 6 chars, so take the call without SSID
 
-		data = '66%08x' % encode_callsign(bcall) + data
+		data = ('67%08x%02x%04x' % (encode_callsign(bcall), imageID, packetID)) + data
 
 		sqlite.cursor().execute("""
 			UPDATE image
@@ -100,7 +99,6 @@ def insert_image(sqlite, receiver, call, tim, posi, data, typ, server, grouping)
 		)
 
 	sqlite.commit()
-
 
 	# Get both data entries
 	cur = sqlite.cursor()
@@ -136,7 +134,7 @@ def insert_image(sqlite, receiver, call, tim, posi, data, typ, server, grouping)
 
 		# SSDV decode
 		cur = sqlite.cursor()
-		cur.execute("SELECT GROUP_CONCAT('55' || data1 || data2 || crc || '0000000000000000000000000000000000000000000000000000000000000000', '') FROM image WHERE call = ? AND imageID = ? AND time = ? GROUP BY imageID ORDER BY packetID", (call, imageID, int(timd.timestamp())))
+		cur.execute("SELECT GROUP_CONCAT('55' || data1 || data2 || crc, '') FROM image WHERE call = ? AND imageID = ? AND time = ? GROUP BY imageID ORDER BY packetID", (call, imageID, int(timd.timestamp())))
 		name = 'html/images/%s-%d-%d.jpg' % (call.replace('-',''), int(timd.timestamp()), imageID)
 		f = open(name, 'wb')
 		process = Popen(['./ssdv', '-d'], stdin=PIPE, stdout=f, stderr=PIPE)
@@ -145,7 +143,7 @@ def insert_image(sqlite, receiver, call, tim, posi, data, typ, server, grouping)
 		f.close()
 
 		# Create message for SSDV server (and save to array)
-		ssdv = '55' + data + ('%08x' % crc) + (64*'0')
+		ssdv = '55' + data + ('%08x' % crc)
 		jsons.append("""{
 			\"type\": \"packet\",
 			\"packet\": \"""" + ssdv + """\",
@@ -168,11 +166,13 @@ def insert_image(sqlite, receiver, call, tim, posi, data, typ, server, grouping)
 					print('Send to SSDV data server')
 					try:
 						result = urllib.request.urlopen(req, "".join(json.split(' ')).encode("ascii")) # Send packets to server
-						print('Response from Server: OK')
+						print('Response from SSDV-Server: OK')
 						err = False
 					except urllib.error.URLError as error:
-						if error.code == 400:
-							print('Response from Server: %s', error.read())
+						if not hasattr(error, 'code'): # (Bug in urllib) most likely network not available
+							print('Error: Could not connect to SSDV-Server')
+						elif error.code == 400:
+							print('Response from SSDV-Server: %s' % error.read().decode('ascii').replace('\n',''))
 							err = False
 						else:
 							print('SSDV-Server connection error... try again')
