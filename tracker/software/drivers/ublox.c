@@ -10,6 +10,7 @@
 #include "debug.h"
 #include "config.h"
 
+#if defined(UBLOX_USE_UART)
 // Serial driver configuration for GPS
 const SerialConfig gps_config =
 {
@@ -18,39 +19,48 @@ const SerialConfig gps_config =
 	0,		// CR2 register
 	0		// CR3 register
 };
+#endif
 
-/* 
- * gps_transmit_string
- *
- * transmits a command to the GPS
- */
+/**
+  * Transmits a string of bytes to the GPS
+  */
 void gps_transmit_string(uint8_t *cmd, uint8_t length)
 {
+	#if defined(UBLOX_USE_I2C)
 	I2C_writeN(UBLOX_MAX_ADDRESS, cmd, length);
+	#elif defined(UBLOX_USE_UART)
+	sdWrite(&SD5, cmd, length);
+	#endif
 }
 
+/**
+  * Receives a single byte from the GPS. Returns 0x00 is there is no byte available
+  */
 uint8_t gps_receive_byte(void)
 {
-	uint8_t val;
-	I2C_read8(UBLOX_MAX_ADDRESS, 0xFF, &val);
+	uint8_t val = 0x00;
+
+	#if defined(UBLOX_USE_I2C)
+	uint16_t len;
+	I2C_read16(UBLOX_MAX_ADDRESS, 0xFD, &len);
+	if(len) {
+		I2C_read8(UBLOX_MAX_ADDRESS, 0xFF, &val);
+	#elif defined(UBLOX_USE_UART)
+	val = sdGetTimeout(&SD5, TIME_IMMEDIATE);
+	if(val == 0xFF) val = 0x00;
+	#endif
+
 	return val;
 }
 
-uint16_t gps_bytes_avail(void)
-{
-	uint16_t val;
-	I2C_read16(UBLOX_MAX_ADDRESS, 0xFD, &val);
-	return val;
-}
-
-/* 
- * gps_receive_ack
- *
- * waits for transmission of an ACK/NAK message from the GPS.
- *
- * returns 1 if ACK was received, 0 if NAK was received
- *
- */
+/**
+  * gps_receive_ack
+  *
+  * waits for transmission of an ACK/NAK message from the GPS.
+  *
+  * returns 1 if ACK was received, 0 if NAK was received
+  *
+  */
 uint8_t gps_receive_ack(uint8_t class_id, uint8_t msg_id, uint16_t timeout) {
 	int match_count = 0;
 	int msg_ack = 0;
@@ -67,9 +77,8 @@ uint8_t gps_receive_ack(uint8_t class_id, uint8_t msg_id, uint16_t timeout) {
 	while(sTimeout >= chVTGetSystemTimeX()) {
 
 		// Receive one byte
-		if(gps_bytes_avail()) {
-			rx_byte = gps_receive_byte();
-		} else {
+		rx_byte = gps_receive_byte();
+		if(!rx_byte) {
 			chThdSleepMilliseconds(10);
 			continue;
 		}
@@ -96,15 +105,15 @@ uint8_t gps_receive_ack(uint8_t class_id, uint8_t msg_id, uint16_t timeout) {
 	return false;
 }
 
-/*
- * gps_receive_payload
- *
- * retrieves the payload of a packet with a given class and message-id with the retrieved length.
- * the caller has to ensure suitable buffer length!
- *
- * returns the length of the payload
- *
- */
+/**
+  * gps_receive_payload
+  *
+  * retrieves the payload of a packet with a given class and message-id with the retrieved length.
+  * the caller has to ensure suitable buffer length!
+  *
+  * returns the length of the payload
+  *
+  */
 uint16_t gps_receive_payload(uint8_t class_id, uint8_t msg_id, unsigned char *payload, uint16_t timeout) {
 	uint8_t rx_byte;
 	enum {UBX_A, UBX_B, CLASSID, MSGID, LEN_A, LEN_B, PAYLOAD} state = UBX_A;
@@ -115,9 +124,8 @@ uint16_t gps_receive_payload(uint8_t class_id, uint8_t msg_id, unsigned char *pa
 	while(sTimeout >= chVTGetSystemTimeX()) {
 
 		// Receive one byte
-		if(gps_bytes_avail()) {
-			rx_byte = gps_receive_byte();
-		} else {
+		rx_byte = gps_receive_byte();
+		if(!rx_byte) {
 			chThdSleepMilliseconds(10);
 			continue;
 		}
@@ -162,20 +170,20 @@ uint16_t gps_receive_payload(uint8_t class_id, uint8_t msg_id, unsigned char *pa
 	return 0;
 }
 
-/* 
- * gps_get_fix
- *
- * retrieves a GPS fix from the module. if validity flag is not set, date/time and position/altitude are 
- * assumed not to be reliable!
- *
- * This method divides MAX7/8 and MAX6 modules since the protocol changed at MAX7 series. MAX6 requires
- * NAV-POSLLH NAV-TIMEUTC and NAV-SOL to get all information about the GPS. With implementation of the
- * NAV-PVT message at the MAX7 series, all information can be aquired by only one message. Although
- * MAX7 is backward compatible, MAX7/8 will use NAV-PVT rather than the old protocol.
- *
- * argument is call by reference to avoid large stack allocations
- *
- */
+/**
+  * gps_get_fix
+  *
+  * retrieves a GPS fix from the module. if validity flag is not set, date/time and position/altitude are 
+  * assumed not to be reliable!
+  *
+  * This method divides MAX7/8 and MAX6 modules since the protocol changed at MAX7 series. MAX6 requires
+  * NAV-POSLLH NAV-TIMEUTC and NAV-SOL to get all information about the GPS. With implementation of the
+  * NAV-PVT message at the MAX7 series, all information can be aquired by only one message. Although
+  * MAX7 is backward compatible, MAX7/8 will use NAV-PVT rather than the old protocol.
+  *
+  * argument is call by reference to avoid large stack allocations
+  *
+  */
 bool gps_get_fix(gpsFix_t *fix) {
 	static uint8_t response[92];
 
@@ -184,7 +192,7 @@ bool gps_get_fix(gpsFix_t *fix) {
 	gps_transmit_string(pvt, sizeof(pvt));
 
 	if(!gps_receive_payload(0x01, 0x07, response, 5000)) { // Receive request
-		TRACE_INFO("GPS  > PVT Polling FAILED");
+		TRACE_ERROR("GPS  > PVT Polling FAILED");
 		return false;
 	}
 
@@ -224,16 +232,16 @@ bool gps_get_fix(gpsFix_t *fix) {
 	return true;
 }
 
-/* 
- * gps_disable_nmea_output
- *
- * disables all NMEA messages to be output from the GPS.
- * even though the parser can cope with NMEA messages and ignores them, it 
- * may save power to disable them completely.
- *
- * returns if ACKed by GPS
- *
- */
+/**
+  * gps_disable_nmea_output
+  *
+  * disables all NMEA messages to be output from the GPS.
+  * even though the parser can cope with NMEA messages and ignores them, it 
+  * may save power to disable them completely.
+  *
+  * returns if ACKed by GPS
+  *
+  */
 uint8_t gps_disable_nmea_output(void) {
 	uint8_t nonmea[] = {
 		0xB5, 0x62, 0x06, 0x00, 20, 0x00,	// UBX-CFG-PRT
@@ -251,17 +259,17 @@ uint8_t gps_disable_nmea_output(void) {
 	return gps_receive_ack(0x06, 0x00, 1000);
 }
 
-/*
- * gps_set_airborne_model
- *
- * tells the GPS to use the airborne positioning model. Should be used to
- * get stable lock up to 50km altitude
- *
- * working uBlox MAX-M8Q
- *
- * returns if ACKed by GPS
- *
- */
+/**
+  * gps_set_airborne_model
+  *
+  * tells the GPS to use the airborne positioning model. Should be used to
+  * get stable lock up to 50km altitude
+  *
+  * working uBlox MAX-M8Q
+  *
+  * returns if ACKed by GPS
+  *
+  */
 uint8_t gps_set_airborne_model(void) {
 	uint8_t model6[] = {
 		0xB5, 0x62, 0x06, 0x24, 0x24, 0x00, 	// UBX-CFG-NAV5
@@ -290,14 +298,14 @@ uint8_t gps_set_airborne_model(void) {
 	return gps_receive_ack(0x06, 0x24, 1000);
 }
 
-/*
- * gps_set_power_save
- *
- * enables cyclic tracking on the uBlox M8Q
- *
- * returns if ACKed by GPS
- *
- */
+/**
+  * gps_set_power_save
+  *
+  * enables cyclic tracking on the uBlox M8Q
+  *
+  * returns if ACKed by GPS
+  *
+  */
 uint8_t gps_set_power_save(void) {
 	uint8_t powersave[] = {
 		0xB5, 0x62, 0x06, 0x3B, 44, 0,		// UBX-CFG-PM2
@@ -320,11 +328,11 @@ uint8_t gps_set_power_save(void) {
 	return gps_receive_ack(0x06, 0x3B, 1000);
 }
 
-/*
- * gps_power_save
- *
- * enables or disables the power save mode (which was configured before)
- */
+/**
+  * gps_power_save
+  *
+  * enables or disables the power save mode (which was configured before)
+  */
 uint8_t gps_power_save(int on) {
 	uint8_t recvmgmt[] = {
 		0xB5, 0x62, 0x06, 0x11, 2, 0,	// UBX-CFG-RXM
@@ -346,12 +354,12 @@ bool GPS_Init(void) {
 	TRACE_INFO("GPS  > Init pins");
 	palSetLineMode(LINE_GPS_RESET, PAL_MODE_OUTPUT_PUSHPULL);	// GPS reset
 	palSetLineMode(LINE_GPS_EN, PAL_MODE_OUTPUT_PUSHPULL);		// GPS off
-	palSetLineMode(LINE_GPS_RXD, PAL_MODE_ALTERNATE(8));		// UART RXD
-	palSetLineMode(LINE_GPS_TXD, PAL_MODE_ALTERNATE(8));		// UART TXD
+	palSetLineMode(LINE_GPS_RXD, PAL_MODE_ALTERNATE(11));		// UART RXD
+	palSetLineMode(LINE_GPS_TXD, PAL_MODE_ALTERNATE(11));		// UART TXD
 
 	// Init UART
-	//TRACE_INFO("GPS  > Init GPS UART");
-	//sdStart(&SD6, &gps_config);
+	TRACE_INFO("GPS  > Init GPS UART");
+	sdStart(&SD5, &gps_config);
 
 	// Switch MOSFET
 	TRACE_INFO("GPS  > Switch on");
@@ -359,39 +367,31 @@ bool GPS_Init(void) {
 	palSetLine(LINE_GPS_EN);	// Switch on GPS
 	
 	// Wait for GPS startup
-	chThdSleepMilliseconds(3000);
-
-	uint8_t status = 1;
+	chThdSleepMilliseconds(1000);
 
 	// Configure GPS
-	TRACE_INFO("GPS  > Initialize GPS");
-	if(gps_disable_nmea_output()) {
-		TRACE_INFO("GPS  > Disable NMEA output OK");
+	TRACE_INFO("GPS  > Transmit config to GPS");
+
+	uint8_t cntr = 3;
+	bool status;
+	while((status = gps_disable_nmea_output()) == false && cntr--);
+	if(status) {
+		TRACE_INFO("GPS  > ... Disable NMEA output OK");
 	} else {
-		TRACE_ERROR("GPS  > Disable NMEA output FAILED");
-		status = 0;
+		TRACE_ERROR("GPS  > Communication Eror");
+		return false;
 	}
 
-	if(gps_set_airborne_model()) {
-		TRACE_INFO("GPS  > Set airborne model OK");
+	cntr = 5;
+	while((status = gps_set_airborne_model()) == false && cntr--);
+	if(status) {
+		TRACE_INFO("GPS  > ... Set airborne model OK");
 	} else {
-		TRACE_ERROR("GPS  > Set airborne model FAILED");
-		status = 0;
-	}
-	if(gps_set_power_save()) {
-		TRACE_INFO("GPS  > Configure power save OK");
-	} else {
-		TRACE_ERROR("GPS  > Configure power save FAILED");
-		status = 0;
-	}
-	if(gps_power_save(0)) {
-		TRACE_INFO("GPS  > Disable power save OK");
-	} else {
-		TRACE_ERROR("GPS  > Disable power save FAILED");
-		status = 0;
+		TRACE_ERROR("GPS  > Communication Eror");
+		return false;
 	}
 
-	return status;
+	return true;
 }
 
 void GPS_Deinit(void)

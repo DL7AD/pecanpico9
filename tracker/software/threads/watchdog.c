@@ -16,12 +16,20 @@ void register_thread_at_wdg(module_conf_t *thread_config)
 	registered_threads[threads_cnt++] = thread_config;
 }
 
+static void flash_led(void) {
+	palClearLine(LINE_IO_LED2);
+	chThdSleepMilliseconds(50);
+	palSetLine(LINE_IO_LED2);
+}
+
 THD_FUNCTION(wdgThread, arg) {
 	(void)arg;
 
 	uint8_t counter = 0;
 	while(true)
 	{
+		chThdSleepMilliseconds(1000);
+
 		bool healthy = true;
 		for(uint8_t i=0; i<threads_cnt; i++) {
 			if(registered_threads[i]->wdg_timeout < chVTGetSystemTimeX())
@@ -37,11 +45,8 @@ THD_FUNCTION(wdgThread, arg) {
 		// Switch LEDs
 		if(counter++ % (4*healthy) == 0)
 		{
-			palClearLine(LINE_IO_LED2);
-			chThdSleepMilliseconds(50);
-			palSetLine(LINE_IO_LED2);
+			flash_led();
 		}
-		chThdSleepMilliseconds(1000);
 	}
 }
 
@@ -51,6 +56,8 @@ void init_watchdog(void)
 	TRACE_INFO("WDG  > Initialize Watchdog");
 	wdgStart(&WDGD1, &wdgcfg);
 	wdgReset(&WDGD1);
+
+	flash_led();
 
 	TRACE_INFO("WDG  > Startup Watchdog thread");
 	thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(256), "WDG", NORMALPRIO, wdgThread, NULL);

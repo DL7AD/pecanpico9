@@ -13,7 +13,7 @@
 
 #define OV5640_USE_DMA_DBM  TRUE
 
-uint32_t OV5640_Snapshot2RAM(uint8_t* buffer, uint32_t size, resolution_t resolution, bool enableJpegValidation);
+uint32_t OV5640_Snapshot2RAM(uint8_t* buffer, uint32_t size, resolution_t resolution);
 bool OV5640_Capture(uint8_t* buffer, uint32_t size);
 void OV5640_InitGPIO(void);
 void OV5640_TransmitConfig(void);

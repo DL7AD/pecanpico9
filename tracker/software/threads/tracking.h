@@ -6,11 +6,13 @@
 #include "ptime.h"
 
 typedef enum {
-	GPS_LOCKED,		// GPS is locked and could aquire a fix
-	GPS_LOSS,		// GPS was switched on all time but it couln't aquire a fix
-	GPS_LOWBATT,	// GPS was switched on but had to be switched off prematurely while the battery is almost empty (or is too cold)
+	GPS_LOCKED,		// The GPS is locked and could aquire a fix
+	GPS_LOSS,		// The GPS was switched on all time but it couln't aquire a fix
+	GPS_LOWBATT1,	// The GPS wasnt switched on because the battery has not enough energy
+	GPS_LOWBATT2,	// The GPS was switched on but has been switched off prematurely while the battery has not enough energy (or is too cold)
 	GPS_LOG,		// The tracker has been just switched on and the position has been taken from the log
 	GPS_OFF,		// There is no active position thread so the GPS was never switched on (in oder to save power)
+	GPS_ERROR		// The GPS has a communication error
 } gpsLock_t;
 
 typedef struct {

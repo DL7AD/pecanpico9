@@ -273,8 +273,6 @@ const uint8_t noCameraFound[4071] = {
 	0xBD, 0xC0, 0x20, 0x00, 0x01, 0xFF, 0xD9
 };
 
-#include <string.h>
-
 uint8_t gimage_id; // Global image ID (for all image threads)
 mutex_t camera_mtx;
 bool camera_mtx_init = false;
@@ -404,6 +402,9 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 
 					// Initialize new packet buffer
 					aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
+
+					if(!conf->packet_spacing)
+						chThdSleepMilliseconds(8000); // Leave a little break because it will overflow some devices
 				}
 				break;
 
@@ -439,6 +440,59 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 	}
 }
 
+/**
+  * Analyzes the image for JPEG errors. Returns true if the image is error free.
+  */
+static bool analyze_image(uint8_t *image, uint32_t image_len)
+{
+	#if !OV5640_USE_DMA_DBM
+	if(image_len >= 65535)
+	{
+		TRACE_ERROR("CAM  > Camera has %d bytes allocated but DMA DBM not activated", image_len);
+		TRACE_ERROR("CAM  > DMA can only use 65535 bytes only");
+		image_len = 65535;
+	}
+	#endif
+
+	ssdv_t ssdv;
+	uint8_t pkt[SSDV_PKT_SIZE];
+	uint8_t *b;
+	uint32_t bi = 0;
+	uint16_t i = 0;
+	uint8_t c = SSDV_OK;
+
+	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, "", 0, 7);
+	ssdv_enc_set_buffer(&ssdv, pkt);
+
+	while(true) // FIXME: I get caught in these loops occasionally and never return
+	{
+		while((c = ssdv_enc_get_packet(&ssdv)) == SSDV_FEED_ME)
+		{
+			b = &image[bi];
+			uint8_t r = bi < image_len-128 ? 128 : image_len - bi;
+			bi += r;
+			if(r <= 0)
+			{
+				TRACE_ERROR("CAM  > Error in image (Premature end of file %d)", i);
+				return false;
+			}
+			ssdv_enc_feed(&ssdv, b, r);
+		}
+
+		if(c == SSDV_EOI) // End of image
+			return true;
+
+		if(c != SSDV_OK) // Error in JPEG image
+		{
+			TRACE_ERROR("CAM  > Error in image (ssdv_enc_get_packet failed: %d %d)", c, i);
+			return false;
+		}
+
+		i++;
+		chThdSleepMilliseconds(5);
+	}
+}
+
 static bool camInitialized = false;
 
 bool takePicture(ssdv_conf_t *conf, bool enableJpegValidation)
@@ -463,23 +517,37 @@ bool takePicture(ssdv_conf_t *conf, bool enableJpegValidation)
 		// Lock Radio (The radio uses the same DMA for SPI as the camera)
 		lockRadio(); // Lock radio
 
-		// Init camera
-		if(!camInitialized) {
-			OV5640_init();
-			camInitialized = true;
-		}
+		uint8_t cntr = 5;
+		bool jpegValid;
+		do {
+			// Init camera
+			if(!camInitialized) {
+				OV5640_init();
+				camInitialized = true;
+			}
 
-		// Sample data from pseudo DCMI through DMA into RAM
-		conf->size_sampled = OV5640_Snapshot2RAM(conf->ram_buffer, conf->ram_size, conf->res, enableJpegValidation);
+			// Sample data from pseudo DCMI through DMA into RAM
+			conf->size_sampled = OV5640_Snapshot2RAM(conf->ram_buffer, conf->ram_size, conf->res);
+
+			// Switch off camera
+			if(!keep_cam_switched_on) {
+				OV5640_deinit();
+				camInitialized = false;
+			}
+
+			// Validate JPEG image
+			if(enableJpegValidation)
+			{
+				TRACE_INFO("CAM  > Validate integrity of JPEG");
+				jpegValid = analyze_image(conf->ram_buffer, conf->ram_size);
+				TRACE_INFO("CAM  > JPEG image %s", jpegValid ? "valid" : "invalid");
+			} else {
+				jpegValid = true;
+			}
+		} while(!jpegValid && cntr--);
 
 		// Unlock radio
 		unlockRadio();
-
-		// Switch off camera
-		if(!keep_cam_switched_on) {
-			OV5640_deinit();
-			camInitialized = false;
-		}
 
 	} else { // Camera not found
 

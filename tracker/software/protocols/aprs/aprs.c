@@ -24,7 +24,7 @@
 
 #define METER_TO_FEET(m) (((m)*26876) / 8192)
 
-static uint16_t loss_of_gps_counter = 0;
+static uint16_t loss_of_gps_counter;
 static uint16_t msg_id;
 
 /**
@@ -99,34 +99,44 @@ void aprs_encode_position(ax25_t* packet, const aprs_conf_t *config, trackPoint_
 	chsnprintf(temp, sizeof(temp), "%d", trackPoint->gps_sats);
 	ax25_send_string(packet, temp);
 
-	if(trackPoint->gps_lock == GPS_LOCKED) // GPS is locked
-	{
-		// TTFF (Time to first fix)
-		ax25_send_string(packet, " TTFF ");
-		chsnprintf(temp, sizeof(temp), "%d", trackPoint->gps_ttff);
-		ax25_send_string(packet, temp);
-		ax25_send_string(packet, "sec");
-	}
+	switch(trackPoint->gps_lock) {
+		case GPS_LOCKED: // GPS is locked
+			// TTFF (Time to first fix)
+			ax25_send_string(packet, " TTFF ");
+			chsnprintf(temp, sizeof(temp), "%d", trackPoint->gps_ttff);
+			ax25_send_string(packet, temp);
+			ax25_send_string(packet, "sec");
+			loss_of_gps_counter = 0;
+			break;
 
-	if(trackPoint->gps_lock == GPS_LOSS) { // No GPS lock
+		case GPS_LOSS: // No GPS lock
+			ax25_send_string(packet, " GPS LOSS ");
+			chsnprintf(temp, sizeof(temp), "%d", ++loss_of_gps_counter);
+			ax25_send_string(packet, temp);
+			break;
 
-		ax25_send_string(packet, " GPS LOSS ");
-		chsnprintf(temp, sizeof(temp), "%d", ++loss_of_gps_counter);
-		ax25_send_string(packet, temp);
+		case GPS_LOWBATT1: // GPS switched off prematurely
+			ax25_send_string(packet, " GPS LOWBATT1 ");
+			chsnprintf(temp, sizeof(temp), "%d", ++loss_of_gps_counter);
+			ax25_send_string(packet, temp);
+			break;
 
-	} else if(trackPoint->gps_lock == GPS_LOWBATT) { // GPS switched off prematurely
+		case GPS_LOWBATT2: // GPS switched off prematurely
+			ax25_send_string(packet, " GPS LOWBATT2 ");
+			chsnprintf(temp, sizeof(temp), "%d", ++loss_of_gps_counter);
+			ax25_send_string(packet, temp);
+			break;
 
-		ax25_send_string(packet, " GPS LOWBATT ");
-		chsnprintf(temp, sizeof(temp), "%d", ++loss_of_gps_counter);
-		ax25_send_string(packet, temp);
+		case GPS_ERROR: // GPS error
+			ax25_send_string(packet, " GPS ERROR ");
+			chsnprintf(temp, sizeof(temp), "%d", ++loss_of_gps_counter);
+			ax25_send_string(packet, temp);
+			break;
 
-	} else if(trackPoint->gps_lock == GPS_LOG) { // GPS position from log (because the tracker has been just switched on)
-
-		ax25_send_string(packet, " GPS FROM LOG");
-		loss_of_gps_counter = 0;
-
-	} else {
-		loss_of_gps_counter = 0;
+		case GPS_LOG: // GPS position from log (because the tracker has been just switched on)
+			ax25_send_string(packet, " GPS FROM LOG");
+			loss_of_gps_counter = 0;
+			break;
 	}
 
 	ax25_send_byte(packet, '|');

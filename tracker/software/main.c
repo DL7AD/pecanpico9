@@ -34,6 +34,25 @@ int main(void) {
 	chThdSleepMilliseconds(100);
 	#endif
 
+
+
+	/*// Clear Wakeup flag
+	PWR->CR |= PWR_CR_CWUF;
+
+	// Select STANDBY mode
+	PWR->CR |= PWR_CR_PDDS;
+
+	// Set SLEEPDEEP bit of Cortex System Control Register
+	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
+
+	// This option is used to ensure that store operations are completed
+	#if defined ( __CC_ARM   )
+	__force_stores();
+	#endif
+	// Request Wait For Interrupt
+	__WFI();
+	while(1);*/
+
 	// Init debugging (Serial debug port, LEDs)
 	DEBUG_INIT();
 	TRACE_INFO("MAIN > Startup");

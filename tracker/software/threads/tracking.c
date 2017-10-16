@@ -224,62 +224,76 @@ THD_FUNCTION(trackingThread, arg) {
 
 		// Switch on GPS is enough power is available and GPS is needed by any position thread
 		uint16_t batt = getBatteryVoltageMV();
-		if(batt >= gps_on_vbat && tracking_useGPS)
-		{
+		if(!tracking_useGPS) { // No position thread running
+			tp->gps_lock = GPS_OFF;
+		} else if(batt < gps_on_vbat) {
+			tp->gps_lock = GPS_LOWBATT1;
+		} else {
+
 			// Switch on GPS
-			GPS_Init();
+			bool status = GPS_Init();
 
-			// Search for lock as long enough power is available
-			do {
-				batt = getBatteryVoltageMV();
-				gps_get_fix(&gpsFix);
-			} while(!isGPSLocked(&gpsFix) && batt >= gps_off_vbat && chVTGetSystemTimeX() <= time + track_cycle_time - S2ST(3)); // Do as long no GPS lock and within timeout, timeout=cycle-1sec (-3sec in order to keep synchronization)
+			if(status) {
 
-			if(batt < gps_off_vbat) // Switch off GPS at low batt
+				// Search for lock as long enough power is available
+				do {
+					batt = getBatteryVoltageMV();
+					gps_get_fix(&gpsFix);
+				} while(!isGPSLocked(&gpsFix) && batt >= gps_off_vbat && chVTGetSystemTimeX() <= time + track_cycle_time - S2ST(3)); // Do as long no GPS lock and within timeout, timeout=cycle-1sec (-3sec in order to keep synchronization)
+
+				if(batt < gps_off_vbat) { // GPS was switched on but prematurely switched off because the battery is low on power, switch off GPS
+
+					GPS_Deinit();
+					TRACE_WARN("TRAC > GPS sampling finished GPS LOW BATT");
+					tp->gps_lock = GPS_LOWBATT2;
+
+				} else if(!isGPSLocked(&gpsFix)) { // GPS was switched on but it failed to get a lock, keep GPS switched on
+
+					TRACE_WARN("TRAC > GPS sampling finished GPS LOSS");
+					tp->gps_lock = GPS_LOSS;
+
+				} else { // GPS locked successfully, switch off GPS (unless cycle is less than 60 seconds)
+
+					// Switch off GPS (if cycle time is more than 60 seconds)
+					if(track_cycle_time >= S2ST(60)) {
+						TRACE_INFO("TRAC > Switch off GPS");
+						GPS_Deinit();
+					} else {
+						TRACE_INFO("TRAC > Keep GPS switched of because cycle < 60sec");
+					}
+
+					// Debug
+					TRACE_INFO("TRAC > GPS sampling finished GPS LOCK");
+
+					// Calibrate RTC
+					setTime(gpsFix.time);
+
+					// Take time from GPS
+					tp->time.year = gpsFix.time.year;
+					tp->time.month = gpsFix.time.month;
+					tp->time.day = gpsFix.time.day;
+					tp->time.hour = gpsFix.time.hour;
+					tp->time.minute = gpsFix.time.minute;
+					tp->time.second = gpsFix.time.second;
+
+					// Set new GPS fix
+					tp->gps_lat = gpsFix.lat;
+					tp->gps_lon = gpsFix.lon;
+					tp->gps_alt = gpsFix.alt;
+
+					tp->gps_lock = GPS_LOCKED;
+					tp->gps_sats = gpsFix.num_svs;
+				}
+
+			} else { // GPS communication error
+
 				GPS_Deinit();
+				tp->gps_lock = GPS_ERROR;
+
+			}
 		}
 
-		if(isGPSLocked(&gpsFix)) { // GPS locked
-
-			// Switch off GPS (if cycle time is more than 60 seconds)
-			if(track_cycle_time >= S2ST(60)) {
-				TRACE_INFO("TRAC > Switch off GPS");
-				GPS_Deinit();
-			} else {
-				TRACE_INFO("TRAC > Keep GPS switched of because cycle < 60sec");
-			}
-
-			// Debug
-			TRACE_INFO("TRAC > GPS sampling finished GPS LOCK");
-
-			// Calibrate RTC
-			setTime(gpsFix.time);
-
-			// Take time from GPS
-			tp->time.year = gpsFix.time.year;
-			tp->time.month = gpsFix.time.month;
-			tp->time.day = gpsFix.time.day;
-			tp->time.hour = gpsFix.time.hour;
-			tp->time.minute = gpsFix.time.minute;
-			tp->time.second = gpsFix.time.second;
-
-			// Set new GPS fix
-			tp->gps_lat = gpsFix.lat;
-			tp->gps_lon = gpsFix.lon;
-			tp->gps_alt = gpsFix.alt;
-
-			tp->gps_lock = GPS_LOCKED;
-			tp->gps_sats = gpsFix.num_svs;
-
-		} else { // GPS lost (keep GPS switched on)
-
-			// Debug
-			if(batt < gps_off_vbat) {
-				TRACE_WARN("TRAC > GPS sampling finished GPS LOW BATT");
-			} else {
-				TRACE_WARN("TRAC > GPS sampling finished GPS LOSS");
-			}
-
+		if(tp->gps_lock != GPS_LOCKED) { // We have no valid GPS fix
 			// Take time from internal RTC
 			getTime(&rtc);
 			tp->time.year = rtc.year;
@@ -293,14 +307,6 @@ THD_FUNCTION(trackingThread, arg) {
 			tp->gps_lat = ltp->gps_lat;
 			tp->gps_lon = ltp->gps_lon;
 			tp->gps_alt = ltp->gps_alt;
-
-			// Mark GPS loss (or low batt,  GPS switch off)
-			if(tracking_useGPS)
-				tp->gps_lock = batt < gps_off_vbat || batt < gps_on_vbat ? GPS_LOWBATT : GPS_LOSS;
-			else
-				tp->gps_lock = GPS_OFF;
-			tp->gps_sats = 0;
-
 		}
 
 		tp->id = id; // Serial ID

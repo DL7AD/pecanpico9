@@ -359,7 +359,3 @@ int8_t Si4464_getTemperature(void) {
 	return (899*adc)/4096 - 293;
 }
 
-bool isRadioInitialized(void) {
-	return initialized;
-}
-

@@ -9,7 +9,6 @@
 #include "pi2c.h"
 #include "board.h"
 #include "debug.h"
-#include "ssdv.h"
 #include "padc.h"
 #include <string.h>
 
@@ -713,7 +712,7 @@ void set48MHz(void)
 /**
   * Reduce AHB clock back to the old speed which has been saved by set48MHz()
   */
-void set6MHz(void)
+void setSlowFreq(void)
 {
 	uint32_t new = (RCC->CFGR & ~RCC_CFGR_HPRE_Msk) | oldSpeed;
 	RCC->CFGR = new;
@@ -722,59 +721,6 @@ void set6MHz(void)
 	new = (FLASH->ACR & ~FLASH_ACR_LATENCY_Msk) | oldWS;
 	FLASH->ACR = new;
 	while(FLASH->ACR != new);
-}
-
-/**
-  * Analyzes the image for JPEG errors. Returns true if the image is error free.
-  */
-static bool analyze_image(uint8_t *image, uint32_t image_len)
-{
-	#if !OV5640_USE_DMA_DBM
-	if(image_len >= 65535)
-	{
-		TRACE_ERROR("CAM  > Camera has %d bytes allocated but DMA DBM not activated", image_len);
-		TRACE_ERROR("CAM  > DMA can only use 65535 bytes only");
-		image_len = 65535;
-	}
-	#endif
-
-	ssdv_t ssdv;
-	uint8_t pkt[SSDV_PKT_SIZE];
-	uint8_t *b;
-	uint32_t bi = 0;
-	uint16_t i = 0;
-	uint8_t c = SSDV_OK;
-
-	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, "", 0, 7);
-	ssdv_enc_set_buffer(&ssdv, pkt);
-
-	while(true) // FIXME: I get caught in these loops occasionally and never return
-	{
-		while((c = ssdv_enc_get_packet(&ssdv)) == SSDV_FEED_ME)
-		{
-			b = &image[bi];
-			uint8_t r = bi < image_len-128 ? 128 : image_len - bi;
-			bi += r;
-			if(r <= 0)
-			{
-				TRACE_ERROR("CAM  > Error in image (Premature end of file %d)", i);
-				return false;
-			}
-			ssdv_enc_feed(&ssdv, b, r);
-		}
-
-		if(c == SSDV_EOI) // End of image
-			return true;
-
-		if(c != SSDV_OK) // Error in JPEG image
-		{
-			TRACE_ERROR("CAM  > Error in image (ssdv_enc_get_packet failed: %d %d)", c, i);
-			return false;
-		}
-
-		i++;
-		chThdSleepMilliseconds(5);
-	}
 }
 
 /**
@@ -787,16 +733,14 @@ static bool analyze_image(uint8_t *image, uint32_t image_len)
   * that could lead to different resolutions on different method calls.
   * The method returns the size of the image.
   */
-uint32_t OV5640_Snapshot2RAM(uint8_t* buffer, uint32_t size, resolution_t res, bool enableJpegValidation)
+uint32_t OV5640_Snapshot2RAM(uint8_t* buffer, uint32_t size, resolution_t res)
 {
-	uint8_t cntr = 10;
+	uint8_t cntr = 5;
 	bool status;
-	bool jpegValid;
 	uint32_t size_sampled;
 
 	// Set resoultion
-	if(res == RES_MAX)
-	{
+	if(res == RES_MAX) {
 		OV5640_SetResolution(RES_UXGA); // FIXME: We actually have to choose the resolution which fits in the memory
 	} else {
 		OV5640_SetResolution(res);
@@ -818,18 +762,7 @@ uint32_t OV5640_Snapshot2RAM(uint8_t* buffer, uint32_t size, resolution_t res, b
 			size_sampled--;
 
 		TRACE_INFO("CAM  > Image size: %d bytes", size_sampled);
-
-		// Validate JPEG image
-		if(enableJpegValidation)
-		{
-			TRACE_INFO("CAM  > Validate integrity of JPEG");
-			jpegValid = analyze_image(buffer, size);
-			TRACE_INFO("CAM  > JPEG image %s", jpegValid ? "valid" : "invalid");
-		} else {
-			jpegValid = true;
-		}
-
-	} while((!jpegValid || !status) && cntr--);
+	} while(!status && cntr--);
 
 	return size_sampled;
 }
@@ -1003,7 +936,7 @@ CH_IRQ_HANDLER(Vector5C) {
 		vsync = true;
 	} else {
 		// Reduce AHB clock to 6 MHz
-		set6MHz();
+		setSlowFreq();
 
 		/* VSYNC leading with vsync true.
 		 * This means end of capture for the frame.

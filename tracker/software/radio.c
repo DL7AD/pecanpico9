@@ -175,7 +175,6 @@ THD_FUNCTION(si_fifo_feeder_thd2, arg)
 		c += more;
 		chThdSleepMilliseconds(15);
 	}
-
 	// Shutdown radio (and wait for Si4464 to finish transmission)
 	shutdownRadio();
 
@@ -325,6 +324,7 @@ void shutdownRadio(void)
 	while(Si4464_getState() == SI4464_STATE_TX)
 		chThdSleepMilliseconds(10);
 
+	TRACE_INFO("RAD  > Shutdown radio");
 	Si4464_shutdown();
 	active_mod = MOD_NOT_SET;
 }
