@@ -172,9 +172,9 @@ else: # Source Serial connection
 		data = ''
 		while True:
 			b = serr.read(1)
-			if b == '\r' or b == '\n':
+			if chr(b[0]) == '\r' or chr(b[0]) == '\n':
 				break
-			data += b
+			data += chr(b[0])
 
 		received_data(data)
 
