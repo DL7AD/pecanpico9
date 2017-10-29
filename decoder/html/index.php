@@ -57,7 +57,7 @@ function drawItems() {
 				// Image Info Window
 
 				var infowindow = new google.maps.InfoWindow({
-					content: '<img src="' + value.img + '" />'
+					content: '<img src="' + value.img + '" width="512" height="384" />'
 				});
 				marker.addListener('mouseover', function() {
 					infowindow.open(map, marker);

@@ -119,6 +119,8 @@ if args.device == 'I': # Source APRS-IS
 			buf += tn.read_eager().decode('ascii')
 		except EOFError: # Server has connection closed
 			wdg = 0 # Tell watchdog to restart connection
+		except UnicodeDecodeError:
+			pass
 
 		# Line handler
 		if '\n' in buf:
