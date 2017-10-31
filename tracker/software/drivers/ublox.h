@@ -12,8 +12,8 @@
 #define UBLOX_MAX_ADDRESS	0x42
 
 // You can either use I2C or UART
-#define UBLOX_USE_UART
-//#define UBLOX_USE_I2C
+//#define UBLOX_USE_UART
+#define UBLOX_USE_I2C
 
 #define isGPSLocked(pos) ((pos)->type == 3 && (pos)->num_svs >= 5)
 

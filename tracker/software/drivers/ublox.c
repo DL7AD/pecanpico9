@@ -43,7 +43,7 @@ uint8_t gps_receive_byte(void)
 	#if defined(UBLOX_USE_I2C)
 	uint16_t len;
 	I2C_read16(UBLOX_MAX_ADDRESS, 0xFD, &len);
-	if(len) {
+	if(len)
 		I2C_read8(UBLOX_MAX_ADDRESS, 0xFF, &val);
 	#elif defined(UBLOX_USE_UART)
 	val = sdGetTimeout(&SD5, TIME_IMMEDIATE);
@@ -358,8 +358,10 @@ bool GPS_Init(void) {
 	palSetLineMode(LINE_GPS_TXD, PAL_MODE_ALTERNATE(11));		// UART TXD
 
 	// Init UART
+	#if defined(UBLOX_USE_UART)
 	TRACE_INFO("GPS  > Init GPS UART");
 	sdStart(&SD5, &gps_config);
+	#endif
 
 	// Switch MOSFET
 	TRACE_INFO("GPS  > Switch on");
