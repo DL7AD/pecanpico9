@@ -33,7 +33,7 @@ class MyDB extends SQLite3 {
 			AND position.lat != 0
 			AND position.lon != 0
 			AND position.isnew = 1
-			AND position.time + 86400*14 > CAST(strftime('%s', 'now') as DECIMAL)
+			-- AND position.time + 86400*14 > CAST(strftime('%s', 'now') as DECIMAL)
 			GROUP BY position.call,position.time
 			ORDER BY position.time ASC
 		");

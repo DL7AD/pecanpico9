@@ -68,17 +68,20 @@ function drawItems() {
 			}
 
 			// Line between points
-			if(last)
-				var line = new google.maps.Polyline({
-					path: [last,value],
-					geodesic: true,
-					strokeColor: last.org == 'log' || value.org == 'log' ? '#FF0000' : '#008000',
-					strokeOpacity: 0.4,
-					strokeWeight: 5,
-					map: map
-				});
+			if(last) {
+				if(last.lat != last.lng || value.lat != value.lng) {
+					var line = new google.maps.Polyline({
+						path: [last,value],
+						geodesic: true,
+						strokeColor: last.org == 'log' || value.org == 'log' ? '#FF0000' : '#008000',
+						strokeOpacity: 0.4,
+						strokeWeight: 5,
+						map: map
+					});
+					console.log(last,value);
+				}
 				items.push(line);
-
+			}
 			last = value;
 		});
 	});
