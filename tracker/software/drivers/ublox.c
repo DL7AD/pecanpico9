@@ -34,23 +34,25 @@ void gps_transmit_string(uint8_t *cmd, uint8_t length)
 }
 
 /**
-  * Receives a single byte from the GPS. Returns 0x00 is there is no byte available
+  * Receives a single byte from the GPS and assigns to supplied pointer.
+  * Returns false is there is no byte available else true
   */
-uint8_t gps_receive_byte(void)
+bool gps_receive_byte(uint8_t *data)
 {
-	uint8_t val = 0x00;
-
 	#if defined(UBLOX_USE_I2C)
 	uint16_t len;
 	I2C_read16(UBLOX_MAX_ADDRESS, 0xFD, &len);
-	if(len)
-		I2C_read8(UBLOX_MAX_ADDRESS, 0xFF, &val);
+	if(len) {
+		I2C_read8(UBLOX_MAX_ADDRESS, 0xFF, data);
+		return true;
+	}
 	#elif defined(UBLOX_USE_UART)
-	val = sdGetTimeout(&SD5, TIME_IMMEDIATE);
-	if(val == 0xFF) val = 0x00;
-	#endif
-
-	return val;
+	if((msg = sdGetTimeout(&SD5, TIME_IMMEDIATE)) != MSG_TIMEOUT) {
+	  *data = msg;
+	  return true;
+	}
+    #endif
+    return false;
 }
 
 /**
@@ -58,7 +60,7 @@ uint8_t gps_receive_byte(void)
   *
   * waits for transmission of an ACK/NAK message from the GPS.
   *
-  * returns 1 if ACK was received, 0 if NAK was received
+  * returns 1 if ACK was received, 0 if NAK was received or timeout
   *
   */
 uint8_t gps_receive_ack(uint8_t class_id, uint8_t msg_id, uint16_t timeout) {
@@ -77,8 +79,8 @@ uint8_t gps_receive_ack(uint8_t class_id, uint8_t msg_id, uint16_t timeout) {
 	while(sTimeout >= chVTGetSystemTimeX()) {
 
 		// Receive one byte
-		rx_byte = gps_receive_byte();
-		if(!rx_byte) {
+		;
+		if(!gps_receive_byte(&rx_byte)) {
 			chThdSleepMilliseconds(10);
 			continue;
 		}
@@ -102,7 +104,7 @@ uint8_t gps_receive_ack(uint8_t class_id, uint8_t msg_id, uint16_t timeout) {
 
 	}
 
-	return false;
+	return 0;
 }
 
 /**
@@ -124,8 +126,7 @@ uint16_t gps_receive_payload(uint8_t class_id, uint8_t msg_id, unsigned char *pa
 	while(sTimeout >= chVTGetSystemTimeX()) {
 
 		// Receive one byte
-		rx_byte = gps_receive_byte();
-		if(!rx_byte) {
+      if(!gps_receive_byte(&rx_byte)) {
 			chThdSleepMilliseconds(10);
 			continue;
 		}
@@ -380,7 +381,7 @@ bool GPS_Init(void) {
 	if(status) {
 		TRACE_INFO("GPS  > ... Disable NMEA output OK");
 	} else {
-		TRACE_ERROR("GPS  > Communication Eror");
+		TRACE_ERROR("GPS  > Communication Error [disable NMEA]");
 		return false;
 	}
 
@@ -389,7 +390,7 @@ bool GPS_Init(void) {
 	if(status) {
 		TRACE_INFO("GPS  > ... Set airborne model OK");
 	} else {
-		TRACE_ERROR("GPS  > Communication Eror");
+		TRACE_ERROR("GPS  > Communication Error [set airborne]");
 		return false;
 	}
 
