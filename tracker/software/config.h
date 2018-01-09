@@ -14,7 +14,7 @@
 												 * save energy using 1.8V. This option is activated automatically if ACTIVATE_USB is set
 												 * true. */
 
-#define ACTIVATE_USB				TRUE		/* If set to true, the USB interface will be switched on. The tracker is also switched to
+#define ACTIVATE_USB				FALSE		/* If set to true, the USB interface will be switched on. The tracker is also switched to
 												 * 3V, because USB would not work at 1.8V. Note that the transmission power is increased
 												 * too when operating at 3V. This option will also run the STM32 at 48MHz (AHB) permanently
 												 * because USB needs that speed, otherwise it is running at 6MHz which saves a lot of power. */
@@ -32,6 +32,7 @@ extern systime_t log_cycle_time;
 extern bool keep_cam_switched_on;
 extern uint16_t gps_on_vbat;
 extern uint16_t gps_off_vbat;
+extern uint16_t gps_onper_vbat;
 
 #endif
 

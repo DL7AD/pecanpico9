@@ -49,13 +49,14 @@
 #define PAC1720_REVISION				0xFF
 
 
-void pac1720_init(void);
-int16_t pac1720_getIsol(void);
-int16_t pac1720_getPbat(void);
-int16_t pac1720_getAvgPbat(void);
-uint16_t pac1720_getVbat(void);
-int16_t pac1720_getAvgRbat(void);
-uint16_t pac1720_getVsol(void);
+int16_t pac1720_get_pbat(void);
+int16_t pac1720_get_psol(void);
+uint16_t pac1720_get_vbat(void);
+uint16_t pac1720_get_vsol(void);
 bool pac1720_isAvailable(void);
+void pac1720_get_avg(uint16_t* vbat, uint16_t* vsol, int16_t* pbat, int16_t* psol);
+void pac1720_init(void);
+uint8_t pac1720_hasError(void);
 
 #endif
+

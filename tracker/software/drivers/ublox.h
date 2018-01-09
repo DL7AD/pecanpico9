@@ -15,7 +15,7 @@
 //#define UBLOX_USE_UART
 #define UBLOX_USE_I2C
 
-#define isGPSLocked(pos) ((pos)->type == 3 && (pos)->num_svs >= 5)
+#define isGPSLocked(pos) ((pos)->type == 3 && (pos)->num_svs >= 4 && (pos)->fixOK == true)
 
 typedef struct {
 	ptime_t time;		// Time
@@ -24,6 +24,8 @@ typedef struct {
 	int32_t lat;		// latitude in deg * 10^7, range -90 .. +90 * 10^7
 	int32_t lon;		// longitude in deg * 10^7, range -180 .. +180 * 10^7
 	int32_t alt;		// altitude in m, range 0m, up to ~40000m, clamped
+	bool fixOK;			// Flag that is set to true, when DOP is with the limits
+	uint16_t pdop;		// Position DOP
 } gpsFix_t;
 
 uint8_t gps_set_gps_only(void);

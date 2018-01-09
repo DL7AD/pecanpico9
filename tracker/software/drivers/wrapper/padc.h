@@ -8,10 +8,10 @@
 
 void initADC(void);
 void deinitADC(void);
-uint16_t getBatteryVoltageMV(void);
-uint16_t getSolarVoltageMV(void);
-uint16_t getUSBVoltageMV(void);
-uint16_t getSTM32Temperature(void);
+uint16_t stm32_get_vbat(void);
+uint16_t stm32_get_vsol(void);
+uint16_t stm32_get_vusb(void);
+uint16_t stm32_get_temp(void);
 void boost_voltage(bool boost);
 
 #endif

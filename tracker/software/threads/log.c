@@ -159,7 +159,7 @@ THD_FUNCTION(logThread, arg)
 				trackPoint_t log;
 				getNextLogTrackPoint(&log);
 
-				TRACE_INFO("id=%d date=%04d-%02d-%02d time=%02d:%02d:%02d lat=%d lon=%d alt=%d", log.id, log.time.year, log.time.month, log.time.day, log.time.hour, log.time.minute,log.time.second, log.gps_lat, log.gps_lon, log.gps_alt);
+				TRACE_INFO("id=%d time=%d lat=%d lon=%d alt=%d", log.id, log.gps_time, log.gps_lat, log.gps_lon, log.gps_alt);
 				int64_t lat = (int64_t)log.gps_lat + (int64_t)900000000 + 13733;
 				lat <<= 16;
 				lat /= 1800000000;
@@ -167,9 +167,8 @@ THD_FUNCTION(logThread, arg)
 				lon <<= 16;
 				lon /= 3600000000;
 
-				uint32_t time = date2UnixTimestamp(log.time) / 1000;
-				pkt[i*5+0] = time & 0xFFFF;
-				pkt[i*5+1] = time >> 16;
+				pkt[i*5+0] = log.gps_time & 0xFFFF;
+				pkt[i*5+1] = log.gps_time >> 16;
 				pkt[i*5+2] = lat; // Latitude (get full 16bit resolution over 180°)
 				pkt[i*5+3] = lon; // Longitude (get full 16bit resolution over 360°)
 				pkt[i*5+4] = log.gps_alt; // Altitude in meters	 (cut off first two MSB bytes)
@@ -196,7 +195,7 @@ THD_FUNCTION(logThread, arg)
 
 					// Encode and transmit log packet
 					aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
-					aprs_encode_data_packet(&ax25_handle, 'L', &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91), getLastTrackPoint()); // Encode packet
+					aprs_encode_data_packet(&ax25_handle, 'L', &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91)); // Encode packet
 					msg.bin_len = aprs_encode_finalize(&ax25_handle);
 
 					// Transmit packet

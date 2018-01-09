@@ -90,7 +90,7 @@ bool BME280_isAvailable(uint8_t address);
 void BME280_Init(bme280_t *handle, uint8_t address);
 int16_t BME280_getTemperature(bme280_t *handle);
 uint32_t BME280_getPressure(bme280_t *handle, uint16_t means);
-uint16_t BME280_getHumidity(bme280_t *handle);
+uint8_t BME280_getHumidity(bme280_t *handle);
 int32_t BME280_getAltitude(uint32_t seaLevel, uint32_t atmospheric);
 
 #endif

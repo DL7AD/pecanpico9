@@ -8,14 +8,14 @@
 #include "bme280.h"
 #include "padc.h"
 #include "pac1720.h"
+#include "ov5640.h"
 #include "radio.h"
 #include "flash.h"
 #include "watchdog.h"
-#include "image.h"
+#include "pi2c.h"
 
 static trackPoint_t trackPoints[2];
 static trackPoint_t* lastTrackPoint;
-static systime_t nextLogEntryTimer;
 static module_conf_t trac_conf = {.name = "TRAC"}; // Fake config needed for watchdog tracking
 static bool threadStarted = false;
 static bool tracking_useGPS = false;
@@ -127,243 +127,256 @@ void waitForNewTrackPoint(void)
 		chThdSleepMilliseconds(1000);
 }
 
+
+static void aquirePosition(trackPoint_t* tp, trackPoint_t* ltp, systime_t timeout)
+{
+	systime_t start = chVTGetSystemTimeX();
+
+	gpsFix_t gpsFix;
+	memset(&gpsFix, 0, sizeof(gpsFix_t));
+
+	// Switch on GPS if enough power is available and GPS is needed by any position thread
+	uint16_t batt = stm32_get_vbat();
+	if(!tracking_useGPS) { // No position thread running
+		tp->gps_lock = GPS_OFF;
+	} else if(batt < gps_on_vbat) {
+		tp->gps_lock = GPS_LOWBATT1;
+	} else {
+
+		// Switch on GPS
+		bool status = GPS_Init();
+
+		if(status) {
+
+			// Search for lock as long enough power is available
+			do {
+				batt = stm32_get_vbat();
+				gps_get_fix(&gpsFix);
+			} while(!isGPSLocked(&gpsFix) && batt >= gps_off_vbat && chVTGetSystemTimeX() <= start + timeout); // Do as long no GPS lock and within timeout, timeout=cycle-1sec (-3sec in order to keep synchronization)
+
+			if(batt < gps_off_vbat) { // GPS was switched on but prematurely switched off because the battery is low on power, switch off GPS
+
+				GPS_Deinit();
+				TRACE_WARN("TRAC > GPS sampling finished GPS LOW BATT");
+				tp->gps_lock = GPS_LOWBATT2;
+
+			} else if(!isGPSLocked(&gpsFix)) { // GPS was switched on but it failed to get a lock, keep GPS switched on
+
+				TRACE_WARN("TRAC > GPS sampling finished GPS LOSS");
+				tp->gps_lock = GPS_LOSS;
+
+			} else { // GPS locked successfully, switch off GPS (unless cycle is less than 60 seconds)
+
+				// Switch off GPS (if cycle time is more than 60 seconds)
+				if(track_cycle_time < S2ST(60)) {
+					TRACE_INFO("TRAC > Keep GPS switched on because cycle < 60sec");
+					tp->gps_lock = GPS_LOCKED2;
+				} else if(gps_onper_vbat != 0 && batt >= gps_onper_vbat) {
+					TRACE_INFO("TRAC > Keep GPS switched on because VBAT >= %dmV", gps_onper_vbat);
+					tp->gps_lock = GPS_LOCKED2;
+				} else {
+					TRACE_INFO("TRAC > Switch off GPS");
+					GPS_Deinit();
+					tp->gps_lock = GPS_LOCKED1;
+				}
+
+				// Debug
+				TRACE_INFO("TRAC > GPS sampling finished GPS LOCK");
+
+				// Calibrate RTC
+				setTime(&gpsFix.time);
+
+				// Take time from GPS
+				tp->gps_time = date2UnixTimestamp(&gpsFix.time);
+
+				// Set new GPS fix
+				tp->gps_lat = gpsFix.lat;
+				tp->gps_lon = gpsFix.lon;
+				tp->gps_alt = gpsFix.alt;
+
+				tp->gps_sats = gpsFix.num_svs;
+				tp->gps_pdop = (gpsFix.pdop+3)/5;
+			}
+
+		} else { // GPS communication error
+
+			GPS_Deinit();
+			tp->gps_lock = GPS_ERROR;
+
+		}
+	}
+
+	tp->gps_ttff = ST2S(chVTGetSystemTimeX() - start); // Time to first fix
+
+	if(tp->gps_lock != GPS_LOCKED1 && tp->gps_lock != GPS_LOCKED2) { // We have no valid GPS fix
+		// Take time from internal RTC
+		ptime_t time;
+		getTime(&time);
+		tp->gps_time = date2UnixTimestamp(&time);
+
+		// Take GPS fix from old lock
+		tp->gps_lat = ltp->gps_lat;
+		tp->gps_lon = ltp->gps_lon;
+		tp->gps_alt = ltp->gps_alt;
+	}
+}
+
+static void measureVoltage(trackPoint_t* tp)
+{
+	tp->adc_vbat = stm32_get_vbat();
+	tp->adc_vsol = stm32_get_vsol();
+
+	pac1720_get_avg(&tp->pac_vbat, &tp->pac_vsol, &tp->pac_pbat, &tp->pac_psol);
+}
+
+static bool bme280_error;
+
+static void getSensors(trackPoint_t* tp)
+{
+	// Measure BME280
+	bme280_t handle;
+
+	if(BME280_isAvailable(BME280_ADDRESS_INT)) {
+		BME280_Init(&handle, BME280_ADDRESS_INT);
+		tp->sen_i1_press = BME280_getPressure(&handle, 256);
+		tp->sen_i1_hum = BME280_getHumidity(&handle);
+		tp->sen_i1_temp = BME280_getTemperature(&handle);
+		bme280_error = false;
+	} else { // No internal BME280 found
+		TRACE_ERROR("TRAC > Internal BME280 not available");
+		tp->sen_i1_press = 0;
+		tp->sen_i1_hum = 0;
+		tp->sen_i1_temp = 0;
+		bme280_error = true;
+	}
+
+	// Measure various temperature sensors
+	tp->stm32_temp = stm32_get_temp();
+	tp->si4464_temp = Si4464_getLastTemperature();
+
+	// Measure light intensity from OV5640
+	tp->light_intensity = OV5640_getLastLightIntensity() & 0xFFFF;
+}
+
+static void setSystemStatus(trackPoint_t* tp) {
+	// Set system errors
+	tp->sys_error = 0;
+
+	tp->sys_error |= (I2C_hasError()     & 0x1)  << 0;
+	tp->sys_error |= (tp->gps_lock == GPS_ERROR) << 2;
+	tp->sys_error |= (pac1720_hasError() & 0x3)  << 3;
+	tp->sys_error |= (OV5640_hasError()  & 0x7)  << 5;
+
+	tp->sys_error |= (bme280_error & 0x1)        << 8;
+	tp->sys_error |= 0x1                         << 9;  // No external BME280 available (PP9a doesnt have external sensors, but PP10a has)
+	tp->sys_error |= 0x1                         << 10; // No external BME280 available (PP9a doesnt have external sensors, but PP10a has)
+
+	// Set system time
+	tp->sys_time = ST2S(chVTGetSystemTimeX());
+}
+
 /**
   * Tracking Module (Thread)
   */
 THD_FUNCTION(trackingThread, arg) {
 	(void)arg;
 
-	uint32_t id = 1;
+	uint32_t id = 0;
 	lastTrackPoint = &trackPoints[0];
 
-	// Fill initial values by PAC1720 and BME280 and RTC
-
-	// Time
-	ptime_t rtc;
-	getTime(&rtc);
-	lastTrackPoint->time.year = rtc.year;
-	lastTrackPoint->time.month = rtc.month;
-	lastTrackPoint->time.day = rtc.day;
-	lastTrackPoint->time.hour = rtc.hour;
-	lastTrackPoint->time.minute = rtc.minute;
-	lastTrackPoint->time.second = rtc.second;
+	// Read time from RTC
+	ptime_t time;
+	getTime(&time);
+	lastTrackPoint->gps_time = date2UnixTimestamp(&time);
 
 	// Get last tracking point from memory
 	TRACE_INFO("TRAC > Read last track point from flash memory");
 	trackPoint_t* lastLogPoint = getLastLog();
 
 	if(lastLogPoint != NULL) { // If there has been stored a trackpoint, then get the last know GPS fix
-		TRACE_INFO("TRAC > Found track point in flash memory ID=%d", lastLogPoint->id);
-		id = lastLogPoint->id+1;
-		lastTrackPoint->gps_lat = lastLogPoint->gps_lat;
-		lastTrackPoint->gps_lon = lastLogPoint->gps_lon;
-		lastTrackPoint->gps_alt = lastLogPoint->gps_alt;
-	} else {
-		TRACE_INFO("TRAC > No track point found in flash memory");
-	}
+		trackPoints[0].reset     = lastLogPoint->reset+1;
+		trackPoints[1].reset     = lastLogPoint->reset+1;
+		lastTrackPoint->gps_lat  = lastLogPoint->gps_lat;
+		lastTrackPoint->gps_lon  = lastLogPoint->gps_lon;
+		lastTrackPoint->gps_alt  = lastLogPoint->gps_alt;
+		lastTrackPoint->gps_sats = lastLogPoint->gps_sats;
+		lastTrackPoint->gps_ttff = lastLogPoint->gps_ttff;
 
-	lastTrackPoint->gps_lock = GPS_LOG; // Tell other threads that it has been taken from log
-	lastTrackPoint->gps_sats = 0;
-	lastTrackPoint->gps_ttff = 0;
-
-	// Debug last stored GPS position
-	if(lastLogPoint != NULL) {
 		TRACE_INFO(
-			"TRAC > Last GPS position (from memory)\r\n"
+			"TRAC > Last track point (from memory)\r\n"
+			"%s Reset %d ID %d\r\n"
 			"%s Latitude: %d.%07ddeg\r\n"
 			"%s Longitude: %d.%07ddeg\r\n"
 			"%s Altitude: %d Meter",
+			TRACE_TAB, lastLogPoint->reset, lastLogPoint->id,
 			TRACE_TAB, lastTrackPoint->gps_lat/10000000, (lastTrackPoint->gps_lat > 0 ? 1:-1)*lastTrackPoint->gps_lat%10000000,
 			TRACE_TAB, lastTrackPoint->gps_lon/10000000, (lastTrackPoint->gps_lon > 0 ? 1:-1)*lastTrackPoint->gps_lon%10000000,
 			TRACE_TAB, lastTrackPoint->gps_alt
 		);
 	} else {
-		TRACE_INFO("TRAC > No GPS position in memory");
+		TRACE_INFO("TRAC > No track point found in flash memory");
 	}
 
-	// Voltage/Current
-	lastTrackPoint->adc_vsol = getSolarVoltageMV();
-	lastTrackPoint->adc_vbat = getBatteryVoltageMV();
-	lastTrackPoint->adc_vusb = getUSBVoltageMV();
-	lastTrackPoint->adc_pbat = pac1720_getPbat();
+	lastTrackPoint->gps_lock = GPS_LOG; // Mark trackPoint as LOG packet
 
-	bme280_t bme280;
+	// Initialize Si4464 to get Temperature readout
+	Si4464_Init();
+	Si4464_shutdown();
 
-	// Atmosphere condition
-	if(BME280_isAvailable(BME280_ADDRESS_INT)) {
-		BME280_Init(&bme280, BME280_ADDRESS_INT);
-		lastTrackPoint->air_press = BME280_getPressure(&bme280, 256);
-		lastTrackPoint->air_hum = BME280_getHumidity(&bme280);
-		lastTrackPoint->air_temp = BME280_getTemperature(&bme280);
-	} else { // No internal BME280 found
-		TRACE_ERROR("TRAC > No BME280 found");
-		lastTrackPoint->air_press = 0;
-		lastTrackPoint->air_hum = 0;
-		lastTrackPoint->air_temp = 0;
-	}
+	// Measure telemetry
+	measureVoltage(lastTrackPoint);
+	getSensors(lastTrackPoint);
+	setSystemStatus(lastTrackPoint);
 
-	/*
-	 * Get last image ID. This is important because Habhub does mix up different
-	 * images with the same it. So it is good to use a new image ID when the
-	 * tracker has been reset.
-	 */
-	if(lastLogPoint != NULL)
-		gimage_id = lastLogPoint->id_image+1;
+	// Write Trackpoint to Flash memory
+	writeLogTrackPoint(lastTrackPoint);
 
-	systime_t time = chVTGetSystemTimeX();
+	// Wait for position threads to start
+	chThdSleepMilliseconds(100);
+
+	systime_t cycle_time = chVTGetSystemTimeX();
 	while(true)
 	{
 		TRACE_INFO("TRAC > Do module TRACKING MANAGER cycle");
 		trac_conf.wdg_timeout = chVTGetSystemTimeX() + S2ST(600); // TODO: Implement more sophisticated method
 
-		trackPoint_t* tp = &trackPoints[id % (sizeof(trackPoints) / sizeof(trackPoint_t))]; // Current track point
-		trackPoint_t* ltp = &trackPoints[(id-1) % (sizeof(trackPoints) / sizeof(trackPoint_t))]; // Last track point
+		trackPoint_t* tp  = &trackPoints[(id+1) % 2]; // Current track point (the one which is processed now)
+		trackPoint_t* ltp = &trackPoints[ id    % 2]; // Last track point
 
-		// Search for GPS satellites
-		gpsFix_t gpsFix = {{0,0,0,0,0,0,0},0,0,0,0,0};
+		// Get GPS position
+		aquirePosition(tp, ltp, track_cycle_time - S2ST(3));
 
-		// Switch on GPS is enough power is available and GPS is needed by any position thread
-		uint16_t batt = getBatteryVoltageMV();
-		if(!tracking_useGPS) { // No position thread running
-			tp->gps_lock = GPS_OFF;
-		} else if(batt < gps_on_vbat) {
-			tp->gps_lock = GPS_LOWBATT1;
-		} else {
+		tp->id = ++id; // Serial ID
 
-			// Switch on GPS
-			bool status = GPS_Init();
-
-			if(status) {
-
-				// Search for lock as long enough power is available
-				do {
-					batt = getBatteryVoltageMV();
-					gps_get_fix(&gpsFix);
-				} while(!isGPSLocked(&gpsFix) && batt >= gps_off_vbat && chVTGetSystemTimeX() <= time + track_cycle_time - S2ST(3)); // Do as long no GPS lock and within timeout, timeout=cycle-1sec (-3sec in order to keep synchronization)
-
-				if(batt < gps_off_vbat) { // GPS was switched on but prematurely switched off because the battery is low on power, switch off GPS
-
-					GPS_Deinit();
-					TRACE_WARN("TRAC > GPS sampling finished GPS LOW BATT");
-					tp->gps_lock = GPS_LOWBATT2;
-
-				} else if(!isGPSLocked(&gpsFix)) { // GPS was switched on but it failed to get a lock, keep GPS switched on
-
-					TRACE_WARN("TRAC > GPS sampling finished GPS LOSS");
-					tp->gps_lock = GPS_LOSS;
-
-				} else { // GPS locked successfully, switch off GPS (unless cycle is less than 60 seconds)
-
-					// Switch off GPS (if cycle time is more than 60 seconds)
-					if(track_cycle_time >= S2ST(60)) {
-						TRACE_INFO("TRAC > Switch off GPS");
-						GPS_Deinit();
-					} else {
-						TRACE_INFO("TRAC > Keep GPS switched of because cycle < 60sec");
-					}
-
-					// Debug
-					TRACE_INFO("TRAC > GPS sampling finished GPS LOCK");
-
-					// Calibrate RTC
-					setTime(gpsFix.time);
-
-					// Take time from GPS
-					tp->time.year = gpsFix.time.year;
-					tp->time.month = gpsFix.time.month;
-					tp->time.day = gpsFix.time.day;
-					tp->time.hour = gpsFix.time.hour;
-					tp->time.minute = gpsFix.time.minute;
-					tp->time.second = gpsFix.time.second;
-
-					// Set new GPS fix
-					tp->gps_lat = gpsFix.lat;
-					tp->gps_lon = gpsFix.lon;
-					tp->gps_alt = gpsFix.alt;
-
-					tp->gps_lock = GPS_LOCKED;
-					tp->gps_sats = gpsFix.num_svs;
-				}
-
-			} else { // GPS communication error
-
-				GPS_Deinit();
-				tp->gps_lock = GPS_ERROR;
-
-			}
-		}
-
-		if(tp->gps_lock != GPS_LOCKED) { // We have no valid GPS fix
-			// Take time from internal RTC
-			getTime(&rtc);
-			tp->time.year = rtc.year;
-			tp->time.month = rtc.month;
-			tp->time.day = rtc.day;
-			tp->time.hour = rtc.hour;
-			tp->time.minute = rtc.minute;
-			tp->time.second = rtc.second;
-
-			// Take GPS fix from old lock
-			tp->gps_lat = ltp->gps_lat;
-			tp->gps_lon = ltp->gps_lon;
-			tp->gps_alt = ltp->gps_alt;
-		}
-
-		tp->id = id; // Serial ID
-		tp->gps_ttff = ST2S(chVTGetSystemTimeX() - time); // Time to first fix
-
-		// Power management
-		tp->adc_vsol = getSolarVoltageMV();
-		tp->adc_vbat = getBatteryVoltageMV();
-		tp->adc_vusb = getUSBVoltageMV();
-		tp->adc_pbat = pac1720_getAvgPbat();
-		tp->adc_rbat = pac1720_getAvgRbat();
-
-		bme280_t bme280;
-
-		// Atmosphere condition
-		if(BME280_isAvailable(BME280_ADDRESS_INT)) {
-			BME280_Init(&bme280, BME280_ADDRESS_INT);
-			tp->air_press = BME280_getPressure(&bme280, 256);
-			tp->air_hum = BME280_getHumidity(&bme280);
-			tp->air_temp = BME280_getTemperature(&bme280);
-		} else { // No internal BME280 found
-			TRACE_ERROR("TRAC > Internal BME280 not available");
-			tp->air_press = 0;
-			tp->air_hum = 0;
-			tp->air_temp = 0;
-		}
-
-		// Set last time ID
-		tp->id_image = gimage_id;
+		// Measure telemetry
+		measureVoltage(tp);
+		getSensors(tp);
+		setSystemStatus(tp);
 
 		// Trace data
+		unixTimestamp2Date(&time, tp->gps_time);
 		TRACE_INFO(	"TRAC > New tracking point available (ID=%d)\r\n"
 					"%s Time %04d-%02d-%02d %02d:%02d:%02d\r\n"
 					"%s Pos  %d.%05d %d.%05d Alt %dm\r\n"
-					"%s Sats %d  TTFF %dsec\r\n"
-					"%s ADC Vbat=%d.%03dV Vsol=%d.%03dV VUSB=%d.%03dV Pbat=%dmW Rbat=%dmOhm\r\n"
-					"%s AIR p=%6d.%01dPa T=%2d.%02ddegC phi=%2d.%01d%% ImageID=%d",
+					"%s Sats %d TTFF %dsec\r\n"
+					"%s ADC Vbat=%d.%03dV Vsol=%d.%03dV Pbat=%dmW\r\n"
+					"%s AIR p=%6d.%01dPa T=%2d.%02ddegC phi=%2d.%01d%%",
 					tp->id,
-					TRACE_TAB, tp->time.year, tp->time.month, tp->time.day, tp->time.hour, tp->time.minute, tp->time.day,
+					TRACE_TAB, time.year, time.month, time.day, time.hour, time.minute, time.day,
 					TRACE_TAB, tp->gps_lat/10000000, (tp->gps_lat > 0 ? 1:-1)*(tp->gps_lat/100)%100000, tp->gps_lon/10000000, (tp->gps_lon > 0 ? 1:-1)*(tp->gps_lon/100)%100000, tp->gps_alt,
 					TRACE_TAB, tp->gps_sats, tp->gps_ttff,
-					TRACE_TAB, tp->adc_vbat/1000, (tp->adc_vbat%1000), tp->adc_vsol/1000, (tp->adc_vsol%1000), tp->adc_vusb/1000, (tp->adc_vusb%1000), tp->adc_pbat, tp->adc_rbat,
-					TRACE_TAB, tp->air_press/10, tp->air_press%10, tp->air_temp/100, tp->air_temp%100, tp->air_hum/10, tp->air_hum%10, tp->id_image
+					TRACE_TAB, tp->adc_vbat/1000, (tp->adc_vbat%1000), tp->adc_vsol/1000, (tp->adc_vsol%1000), tp->pac_pbat,
+					TRACE_TAB, tp->sen_i1_press/10, tp->sen_i1_press%10, tp->sen_i1_temp/100, tp->sen_i1_temp%100, tp->sen_i1_hum/10, tp->sen_i1_hum%10
 		);
 
-		// Append logging (timeout)
-		if(nextLogEntryTimer <= chVTGetSystemTimeX())
-		{
-			writeLogTrackPoint(tp);
-			nextLogEntryTimer += log_cycle_time;
-		}
+		// Write Trackpoint to Flash memory
+		writeLogTrackPoint(tp);
 
-		// Switch last recent track point
+		// Switch last track point
 		lastTrackPoint = tp;
-		id++;
 
-		time = chThdSleepUntilWindowed(time, time + track_cycle_time); // Wait until time + cycletime
+		// Wait until cycle
+		cycle_time = chThdSleepUntilWindowed(cycle_time, cycle_time + track_cycle_time);
 	}
 }
 
@@ -377,7 +390,7 @@ void init_tracking_manager(bool useGPS)
 		threadStarted = true;
 
 		TRACE_INFO("TRAC > Startup tracking thread");
-		thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(2*1024), "TRA", NORMALPRIO, trackingThread, NULL);
+		thread_t *th = chThdCreateFromHeap(NULL, THD_WORKING_AREA_SIZE(2*1024), "TRA", NORMALPRIO+1, trackingThread, NULL);
 		if(!th) {
 			// Print startup error, do not start watchdog for this thread
 			TRACE_ERROR("TRAC > Could not startup thread (not enough memory available)");

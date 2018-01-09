@@ -28,7 +28,7 @@ THD_FUNCTION(wdgThread, arg) {
 	uint8_t counter = 0;
 	while(true)
 	{
-		chThdSleepMilliseconds(1000);
+		chThdSleepMilliseconds(500);
 
 		bool healthy = true;
 		for(uint8_t i=0; i<threads_cnt; i++) {

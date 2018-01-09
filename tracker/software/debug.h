@@ -98,12 +98,6 @@ extern bool debug_on_usb;
 	chMtxUnlock(&trace_mtx); \
 }
 
-#define PRINT_TIME(thd) { \
-	ptime_t dbgtime; \
-	getTime(&dbgtime); \
-	TRACE_INFO("%-4s > Current time: %02d-%02d-%02d %02d:%02d:%02d:%03d", thd, dbgtime.year, dbgtime.month, dbgtime.day, dbgtime.hour, dbgtime.minute, dbgtime.second, dbgtime.millisecond); \
-}
-
 void debugOnUSB(BaseSequentialStream *chp, int argc, char *argv[]);
 void printConfig(BaseSequentialStream *chp, int argc, char *argv[]);
 void printPicture(BaseSequentialStream *chp, int argc, char *argv[]);

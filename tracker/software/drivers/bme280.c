@@ -139,7 +139,7 @@ uint32_t BME280_getPressure(bme280_t *handle, uint16_t means) {
   * Reads the relative humidity
   * @return rel. humidity in % * 10
   */
-uint16_t BME280_getHumidity(bme280_t *handle) {
+uint8_t BME280_getHumidity(bme280_t *handle) {
 	int32_t adc_H;
 	uint16_t tmp;
 	I2C_read16(handle->address, BME280_REGISTER_HUMIDDATA, &tmp);
@@ -160,7 +160,7 @@ uint16_t BME280_getHumidity(bme280_t *handle) {
 	v_x1_u32r = (v_x1_u32r < 0) ? 0 : v_x1_u32r;
 	v_x1_u32r = (v_x1_u32r > 419430400) ? 419430400 : v_x1_u32r;
 	float h = (v_x1_u32r>>12);
-	return h / 102;
+	return h / 1020;
 }
 
 /**

@@ -36,6 +36,7 @@ extern "C" {
 #define SSDV_PKT_SIZE_HEADER  (0x0F)
 #define SSDV_PKT_SIZE_CRC     (0x04)
 #define SSDV_PKT_SIZE_RSCODES (0x20)
+#define SSDV_PKT_SIZE_PADDING (0x48)
 
 #define TBL_LEN (546) /* Maximum size of the DQT and DHT tables */
 #define HBUFF_LEN (16) /* Extra space for reading marker data */
@@ -45,6 +46,7 @@ extern "C" {
 #define SSDV_TYPE_INVALID (0xFF)
 #define SSDV_TYPE_NORMAL  (0x00)
 #define SSDV_TYPE_NOFEC   (0x01)
+#define SSDV_TYPE_PADDING (0x02)
 
 typedef struct
 {

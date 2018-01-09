@@ -21,7 +21,9 @@ void OV5640_SetResolution(resolution_t res);
 void OV5640_init(void);
 void OV5640_deinit(void);
 bool OV5640_isAvailable(void);
-uint32_t OV5640_getLightIntensity(void);
+void OV5640_setLightIntensity(void);
+uint32_t OV5640_getLastLightIntensity(void);
+uint8_t OV5640_hasError(void);
 
 #endif
 

@@ -26,5 +26,7 @@ bool I2C_read16_LE(uint8_t address, uint8_t reg, uint16_t *val);
 void I2C_Lock(void);
 void I2C_Unlock(void);
 
+uint8_t I2C_hasError(void);
+
 #endif
 

@@ -1,6 +1,7 @@
 from datetime import datetime,timedelta,timezone
 import sqlite3
 import base91
+import struct
 
 def insert_log(sqlite, call, data):
 
@@ -25,7 +26,7 @@ def insert_log(sqlite, call, data):
 
 	sqlite.commit()
 
-def decode_position(tim, posi, tel):
+def decode_position(posi, tel):
 	# Decode latitude
 	y3 = ord(posi[1]) - 33
 	y2 = ord(posi[2]) - 33
@@ -48,12 +49,8 @@ def decode_position(tim, posi, tel):
 	ze = z0 + z1*91
 	z = pow(1.002, ze) / 3.281
 
-	# Decode time
+	# Time
 	timd = datetime.now(timezone.utc)
-	timd = timd.replace(hour = int(tim[0:2]), minute = int(tim[2:4]), second = int(tim[4:6]), microsecond=0)
-	now = datetime.now(timezone.utc)
-	if now < timd: # Packet was sampled yesterday
-		timd -= timedelta(1)
 
 	# Decode GPS Fix Type
 	isnew = ((ord(posi[12])-33) >> 5) & 0x1
@@ -68,15 +65,23 @@ def decode_position(tim, posi, tel):
 
 	return timd,x,y,z,teld,isnew
 
-def insert_position(sqlite, call, tim, posi, comm, tel): #sqlite, call, data
-	# Decode
-	timd,x,y,z,teld,isnew = decode_position(tim, posi, tel)
+def insert_position(sqlite, call, posi, comm, tel): #sqlite, call, data
+	# Decode position
+	timd,x,y,z,teld,isnew = decode_position(posi, tel)
+
+	# Decode comment
+	data = base91.decode(comm)
+	(adc_vsol,adc_vbat,pac_vsol,pac_vbat,pac_pbat,pac_psol,light_intensity,
+	 gps_lock,gps_sats,gps_ttff,gps_pdop,gps_alt,gps_lat,
+	 gps_lon,sen_i1_press,sen_e1_press,sen_e2_press,sen_i1_temp,sen_e1_temp,
+	 sen_e2_temp,sen_i1_hum,sen_e1_hum,sen_e2_hum,dummy2,stm32_temp,
+	 si4464_temp,reset,_id,gps_time,sys_time,sys_error) = struct.unpack('HHHHhhHBBBBHiiIIIhhhBBBBhhHIIII', data[:72])
 
 	# Insert
-	sqlite.cursor().execute("""
-		INSERT OR REPLACE INTO position (call,time,org,lat,lon,alt,isnew,comment,sequ,tel1,tel2,tel3,tel4,tel5)
-		VALUES (?,?,'pos',?,?,?,?,?,?,?,?,?,?,?)""",
-		(call, int(timd.timestamp()), y, x, int(z), isnew, comm, teld[0], teld[1], teld[2], teld[3], teld[4], teld[5])
+	sqlite.cursor().execute(
+		"""INSERT INTO position (call,rxtime,org,adc_vsol,adc_vbat,pac_vsol,pac_vbat,pac_pbat,pac_psol,light_intensity,gps_lock,gps_sats,gps_ttff,gps_pdop,gps_alt,gps_lat,gps_lon,sen_i1_press,sen_e1_press,sen_e2_press,sen_i1_temp,sen_e1_temp,sen_e2_temp,sen_i1_hum,sen_e1_hum,sen_e2_hum,sys_error,stm32_temp,si4464_temp,reset,id,sys_time,gps_time)
+		VALUES (?,?,'pos',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+		(call,int(timd.timestamp()), adc_vsol,adc_vbat,pac_vsol,pac_vbat,pac_pbat,pac_psol,light_intensity,gps_lock,gps_sats,gps_ttff,gps_pdop,gps_alt,gps_lat,gps_lon,sen_i1_press,sen_e1_press,sen_e2_press,sen_i1_temp,sen_e1_temp,sen_e2_temp,sen_i1_hum,sen_e1_hum,sen_e2_hum,sys_error,stm32_temp,si4464_temp,reset,_id,sys_time,gps_time)
 	)
 	sqlite.commit()
 
@@ -84,4 +89,25 @@ def insert_position(sqlite, call, tim, posi, comm, tel): #sqlite, call, data
 	tim_stringified = timd.strftime("%Y-%m-%d %H:%M:%S")
 	print("Decoded position from %s time %s => lat=%f lon=%f alt=%d new=%d comment=%s, sequ=%d tel=[%d,%d,%d,%d,%d]"
 		% (call, tim_stringified, y, x, int(z), isnew, comm, teld[0], teld[1], teld[2], teld[3], teld[4], teld[5]))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

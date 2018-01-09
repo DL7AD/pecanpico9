@@ -1,0 +1,42 @@
+html, body {
+	font: 10pt Monospace;
+	margin: 0;
+	margin: 0;
+	height: 100%;
+}
+.inner {
+	margin: 3px;
+	padding: 3px;
+	border: solid 1px #777777;
+}
+.call {
+	background-color: #DDDDDD;
+	padding: 5px;
+	margin: 4px 0;
+}
+a {
+	text-decoration: none;
+}
+a:hover {
+	text-decoration: underline;
+}
+img {
+	margin: 3px;
+}
+.pic {
+	display: inline-block;
+	float: left;
+	border: solid 1px #777777;
+	margin: 3px 3px;
+	padding: 4px;
+	font: 9pt Monospace;
+}
+.pic img {
+	margin: 0;
+}
+td,th {
+	vertical-align: top;
+	text-align: left;
+	padding: 1px 0;
+	margin: 0;
+}

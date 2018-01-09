@@ -18,8 +18,9 @@ static const SPIConfig ls_spicfg = {
 };
 #define getSPIDriver() &ls_spicfg
 
-uint32_t outdiv;
-bool initialized = false;
+static uint32_t outdiv;
+static bool initialized = false;
+static int16_t lastTemp;
 
 /**
  * Initializes Si4464 transceiver chip. Adjustes the frequency which is shifted by variable
@@ -37,7 +38,7 @@ void Si4464_Init(void) {
 	palSetLine(LINE_RADIO_CS);
 
 	// Reset radio
-	Si4464_shutdown();
+	palSetLine(LINE_RADIO_SDN);
 	palSetLine(LINE_OSC_EN); // Activate Oscillator
 	chThdSleepMilliseconds(10);
 
@@ -104,7 +105,8 @@ void Si4464_Init(void) {
 	Si4464_write(use_lsb_first, 5);
 
 	// Temperature readout
-	TRACE_INFO("SI   > Transmitter temperature %d degC", Si4464_getTemperature());
+	lastTemp = Si4464_getTemperature();
+	TRACE_INFO("SI   > Transmitter temperature %d degC", lastTemp/100);
 	initialized = true;
 }
 
@@ -293,10 +295,14 @@ void stopTx(void) {
 }
 
 void Si4464_shutdown(void) {
-	palSetLine(LINE_RADIO_SDN);	// Power down chip
+	palSetLineMode(LINE_SPI_SCK, PAL_MODE_INPUT_PULLDOWN);		// SCK
+	palSetLineMode(LINE_SPI_MISO, PAL_MODE_INPUT_PULLDOWN);		// MISO
+	palSetLineMode(LINE_SPI_MOSI, PAL_MODE_INPUT_PULLDOWN);		// MOSI
+	palSetLineMode(LINE_RADIO_CS, PAL_MODE_INPUT_PULLDOWN);		// RADIO CS
+	palSetLineMode(LINE_RADIO_SDN, PAL_MODE_INPUT_PULLDOWN);	// RADIO SDN
+	palSetLineMode(LINE_OSC_EN, PAL_MODE_OUTPUT_PUSHPULL);		// Oscillator
+
 	palSetLine(LINE_IO_LED1);	// Set indication LED
-	palClearLine(LINE_OSC_EN);	// Shutdown oscillator
-	RADIO_WRITE_GPIO(false);	// Set GPIO1 low
 	initialized = false;
 }
 
@@ -351,11 +357,14 @@ uint8_t Si4464_getState(void) {
 	return rxData[2];
 }
 
-int8_t Si4464_getTemperature(void) {
+int16_t Si4464_getTemperature(void) {
 	uint8_t txData[2] = {0x14, 0x10};
 	uint8_t rxData[8];
 	Si4464_read(txData, 2, rxData, 8);
 	uint16_t adc = rxData[7] | ((rxData[6] & 0x7) << 8);
-	return (899*adc)/4096 - 293;
+	return (89900*adc)/4096 - 29300;
 }
 
+int16_t Si4464_getLastTemperature(void) {
+	return lastTemp;
+}

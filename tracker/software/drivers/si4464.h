@@ -39,7 +39,8 @@ bool radioTune(uint32_t frequency, uint16_t shift, int8_t level, uint16_t size);
 void Si4464_writeFIFO(uint8_t *msg, uint8_t size);
 uint8_t Si4464_freeFIFO(void);
 uint8_t Si4464_getState(void);
-int8_t Si4464_getTemperature(void);
+int16_t Si4464_getTemperature(void);
+int16_t Si4464_getLastTemperature(void);
 
 #endif
 

@@ -70,12 +70,15 @@ void positionToMaidenhead(char m[], double lat, double lon)
   * Replaces placeholders with variables
   */
 void replace_placeholders(char* fskmsg, uint16_t size, trackPoint_t *tp) {
+	ptime_t time;
+	unixTimestamp2Date(&time, tp->gps_time);
+
 	char buf[16];
 	chsnprintf(buf, sizeof(buf), "%d", tp->id);
 	str_replace(fskmsg, size, "<ID>", buf);
-	chsnprintf(buf, sizeof(buf), "%04d-%02d-%02d", tp->time.year, tp->time.month, tp->time.day);
+	chsnprintf(buf, sizeof(buf), "%04d-%02d-%02d", time.year, time.month, time.day);
 	str_replace(fskmsg, size, "<DATE>", buf);
-	chsnprintf(buf, sizeof(buf), "%02d:%02d:%02d", tp->time.hour, tp->time.minute, tp->time.second);
+	chsnprintf(buf, sizeof(buf), "%02d:%02d:%02d", time.hour, time.minute, time.second);
 	str_replace(fskmsg, size, "<TIME>", buf);
 	chsnprintf(buf, sizeof(buf), "%d.%05d", tp->gps_lat/10000000, ((tp->gps_lat > 0 ? 1:-1)*tp->gps_lat%10000000)/100);
 	str_replace(fskmsg, size, "<LAT>", buf);
@@ -91,15 +94,13 @@ void replace_placeholders(char* fskmsg, uint16_t size, trackPoint_t *tp) {
 	str_replace(fskmsg, size, "<VBAT>", buf);
 	chsnprintf(buf, sizeof(buf), "%d.%02d", tp->adc_vsol/1000, (tp->adc_vsol%1000)/10);
 	str_replace(fskmsg, size, "<VSOL>", buf);
-	chsnprintf(buf, sizeof(buf), "%d.%03d", tp->adc_pbat/1000, (tp->adc_pbat >= 0 ? 1 : -1) * (tp->adc_pbat%1000));
+	chsnprintf(buf, sizeof(buf), "%d.%03d", tp->pac_pbat/1000, (tp->pac_pbat >= 0 ? 1 : -1) * (tp->pac_pbat%1000));
 	str_replace(fskmsg, size, "<PBAT>", buf);
-	chsnprintf(buf, sizeof(buf), "%d.%03d", tp->adc_rbat/1000, (tp->adc_rbat >= 0 ? 1 : -1) * (tp->adc_rbat%1000));
-	str_replace(fskmsg, size, "<RBAT>", buf);
-	chsnprintf(buf, sizeof(buf), "%d", tp->air_press/10);
+	chsnprintf(buf, sizeof(buf), "%d", tp->sen_i1_press/10);
 	str_replace(fskmsg, size, "<PRESS>", buf);
-	chsnprintf(buf, sizeof(buf), "%d.%d", tp->air_temp/100, (tp->air_temp%100)/10);
+	chsnprintf(buf, sizeof(buf), "%d.%d", tp->sen_i1_temp/100, (tp->sen_i1_temp%100)/10);
 	str_replace(fskmsg, size, "<TEMP>", buf);
-	chsnprintf(buf, sizeof(buf), "%d", tp->air_hum/10);
+	chsnprintf(buf, sizeof(buf), "%d", tp->sen_i1_hum/10);
 	str_replace(fskmsg, size, "<HUM>", buf);
 	positionToMaidenhead(buf, tp->gps_lat/10000000.0, tp->gps_lon/10000000.0);
 	str_replace(fskmsg, size, "<LOC>", buf);

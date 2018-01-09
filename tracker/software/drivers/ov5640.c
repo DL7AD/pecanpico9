@@ -12,6 +12,9 @@
 #include "padc.h"
 #include <string.h>
 
+static uint32_t lightIntensity;
+static uint8_t error;
+
 struct regval_list {
 	uint16_t reg;
 	uint8_t val;
@@ -962,6 +965,8 @@ CH_IRQ_HANDLER(Vector5C) {
 
 bool OV5640_Capture(uint8_t* buffer, uint32_t size)
 {
+	OV5640_setLightIntensity();
+
 	/*
 	 * Note:
 	 *  If there are no Chibios devices enabled that use DMA then...
@@ -1073,21 +1078,31 @@ bool OV5640_Capture(uint8_t* buffer, uint32_t size)
 	// Capture done, unlock I2C
 	I2C_Unlock();
 
-	if(dma_error) {
-		if(dma_flags & STM32_DMA_ISR_HTIF)
+	if(dma_error)
+	{
+		if(dma_flags & STM32_DMA_ISR_HTIF) {
 			TRACE_ERROR("CAM  > DMA abort - last buffer segment");
-		if(dma_flags & STM32_DMA_ISR_FEIF)
+			error = 0x2;
+		}
+		if(dma_flags & STM32_DMA_ISR_FEIF) {
 			TRACE_ERROR("CAM  > DMA FIFO error");
-		if(dma_flags & STM32_DMA_ISR_TEIF)
+			error = 0x3;
+		}
+		if(dma_flags & STM32_DMA_ISR_TEIF) {
 			TRACE_ERROR("CAM  > DMA stream transfer error");
-		if(dma_flags & STM32_DMA_ISR_DMEIF)
+			error = 0x4;
+		}
+		if(dma_flags & STM32_DMA_ISR_DMEIF) {
 			TRACE_ERROR("CAM  > DMA direct mode error");
+			error = 0x5;
+		}
 		TRACE_ERROR("CAM  > Error capturing image");
 		return false;
 	}
 
     TRACE_INFO("CAM  > Capture success");
 
+	error = 0x0;
 	return true;
 }
 
@@ -1226,6 +1241,8 @@ void OV5640_init(void)
 
 	chThdSleepMilliseconds(100);
 
+	OV5640_setLightIntensity();
+
 	// Send settings to OV5640
 	TRACE_INFO("CAM  > Transmit config to camera");
 	OV5640_TransmitConfig();
@@ -1281,6 +1298,7 @@ bool OV5640_isAvailable(void)
 	if(I2C_read8_16bitreg(OV5640_I2C_ADR, 0x300A, &val) && I2C_read8_16bitreg(OV5640_I2C_ADR, 0x300B, &val2)) {
 		ret = val == 0x56 && val2 == 0x40;
 	} else {
+		error = 0x1;
 		ret = false;
 	}
 
@@ -1294,12 +1312,23 @@ bool OV5640_isAvailable(void)
 	return ret;
 }
 
-uint32_t OV5640_getLightIntensity(void)
+void OV5640_setLightIntensity(void)
 {
 	uint8_t val1,val2,val3;
 	I2C_read8_16bitreg(OV5640_I2C_ADR, 0x3C1B, &val1);
 	I2C_read8_16bitreg(OV5640_I2C_ADR, 0x3C1C, &val2);
 	I2C_read8_16bitreg(OV5640_I2C_ADR, 0x3C1D, &val3);
-	return (val1 << 16) | (val2 << 8) | val3;
+	lightIntensity = (val1 << 16) | (val2 << 8) | val3;
+}
+
+uint32_t OV5640_getLastLightIntensity(void)
+{
+	uint32_t ret = lightIntensity;
+	return ret;
+}
+
+uint8_t OV5640_hasError(void)
+{
+	return error;
 }
 

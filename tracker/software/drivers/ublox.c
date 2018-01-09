@@ -186,35 +186,48 @@ uint16_t gps_receive_payload(uint8_t class_id, uint8_t msg_id, unsigned char *pa
   *
   */
 bool gps_get_fix(gpsFix_t *fix) {
-	static uint8_t response[92];
+	static uint8_t navpvt[128];
+	static uint8_t navstatus[32];
 
 	// Transmit request
-	uint8_t pvt[] = {0xB5, 0x62, 0x01, 0x07, 0x00, 0x00, 0x08, 0x19};
-	gps_transmit_string(pvt, sizeof(pvt));
+	uint8_t navpvt_req[] = {0xB5, 0x62, 0x01, 0x07, 0x00, 0x00, 0x08, 0x19};
+	gps_transmit_string(navpvt_req, sizeof(navpvt_req));
 
-	if(!gps_receive_payload(0x01, 0x07, response, 5000)) { // Receive request
-		TRACE_ERROR("GPS  > PVT Polling FAILED");
+	if(!gps_receive_payload(0x01, 0x07, navpvt, 3000)) { // Receive request
+		TRACE_ERROR("GPS  > NAV-PVT Polling FAILED");
 		return false;
 	}
 
-	fix->num_svs = response[23];
-	fix->type = response[20];
+	uint8_t navstatus_req[] = {0xB5, 0x62, 0x01, 0x03, 0x00, 0x00, 0x04, 0x0D};
+	gps_transmit_string(navstatus_req, sizeof(navstatus_req));
 
-	fix->time.year = response[4] + (response[5] << 8);
-	fix->time.month = response[6];
-	fix->time.day = response[7];
-	fix->time.hour = response[8];
-	fix->time.minute = response[9];
-	fix->time.second = response[10];
+	if(!gps_receive_payload(0x01, 0x03, navstatus, 3000)) { // Receive request
+		TRACE_ERROR("GPS  > NAV-STATUS Polling FAILED");
+		return false;
+	}
+
+	// Extract data from message
+	fix->fixOK = navstatus[5] & 0x1;
+	fix->pdop = navpvt[76] + (navpvt[77] << 8);
+
+	fix->num_svs = navpvt[23];
+	fix->type = navpvt[20];
+
+	fix->time.year = navpvt[4] + (navpvt[5] << 8);
+	fix->time.month = navpvt[6];
+	fix->time.day = navpvt[7];
+	fix->time.hour = navpvt[8];
+	fix->time.minute = navpvt[9];
+	fix->time.second = navpvt[10];
 
 	fix->lat = (int32_t) (
-			(uint32_t)(response[28]) + ((uint32_t)(response[29]) << 8) + ((uint32_t)(response[30]) << 16) + ((uint32_t)(response[31]) << 24)
+			(uint32_t)(navpvt[28]) + ((uint32_t)(navpvt[29]) << 8) + ((uint32_t)(navpvt[30]) << 16) + ((uint32_t)(navpvt[31]) << 24)
 			);
 	fix->lon = (int32_t) (
-			(uint32_t)(response[24]) + ((uint32_t)(response[25]) << 8) + ((uint32_t)(response[26]) << 16) + ((uint32_t)(response[27]) << 24)
+			(uint32_t)(navpvt[24]) + ((uint32_t)(navpvt[25]) << 8) + ((uint32_t)(navpvt[26]) << 16) + ((uint32_t)(navpvt[27]) << 24)
 			);
 	int32_t alt_tmp = (((int32_t) 
-			((uint32_t)(response[36]) + ((uint32_t)(response[37]) << 8) + ((uint32_t)(response[38]) << 16) + ((uint32_t)(response[39]) << 24))
+			((uint32_t)(navpvt[36]) + ((uint32_t)(navpvt[37]) << 8) + ((uint32_t)(navpvt[38]) << 16) + ((uint32_t)(navpvt[39]) << 24))
 			) / 1000);
 	if (alt_tmp <= 0) {
 		fix->alt = 1;
@@ -224,10 +237,10 @@ bool gps_get_fix(gpsFix_t *fix) {
 		fix->alt = (uint16_t)alt_tmp;
 	}
 
-	TRACE_INFO("GPS  > PVT Polling OK time=%04d-%02d-%02d %02d:%02d:%02d lat=%d.%05d lon=%d.%05d alt=%dm sats=%d",
+	TRACE_INFO("GPS  > Polling OK time=%04d-%02d-%02d %02d:%02d:%02d lat=%d.%05d lon=%d.%05d alt=%dm sats=%d fixOK=%d pDOP=%d.%02d",
 		fix->time.year, fix->time.month, fix->time.day, fix->time.hour, fix->time.minute, fix->time.day,
 		fix->lat/10000000, (fix->lat > 0 ? 1:-1)*(fix->lat/100)%100000, fix->lon/10000000, (fix->lon > 0 ? 1:-1)*(fix->lon/100)%100000,
-		fix->alt, fix->num_svs
+		fix->alt, fix->num_svs, fix->fixOK, fix->pdop/100, fix->pdop%100
 	);
 
 	return true;
@@ -385,7 +398,7 @@ bool GPS_Init(void) {
 		return false;
 	}
 
-	cntr = 5;
+	cntr = 3;
 	while((status = gps_set_airborne_model()) == false && cntr--);
 	if(status) {
 		TRACE_INFO("GPS  > ... Set airborne model OK");

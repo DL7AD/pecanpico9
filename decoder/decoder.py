@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import serial,re
+import serial,re,io
 import base91
 import sys
 import argparse
@@ -12,11 +12,10 @@ import position
 
 # Parse arguments from terminal
 parser = argparse.ArgumentParser(description='APRS/SSDV decoder')
-parser.add_argument('-c', '--call', help='Callsign of the station', default='N0CALL')
-parser.add_argument('-n', '--grouping', help='Amount packets that will be sent to the SSDV server in one request', default=1, type=int)
+parser.add_argument('-c', '--call', help='Callsign of the station', default='DL7AD')
 parser.add_argument('-d', '--device', help='Serial device (\'-\' for stdin)', default='-')
 parser.add_argument('-b', '--baudrate', help='Baudrate for serial device', default=9600, type=int)
-parser.add_argument('-s', '--server', help='SSDV server URL', default='https://ssdv.habhub.org/api/v0/packets')
+parser.add_argument('-v', '--verbose', help='Activates more debug messages', action="store_true")
 args = parser.parse_args()
 
 # Open SQLite database
@@ -25,36 +24,58 @@ sqlite.cursor().execute("""
 	CREATE TABLE IF NOT EXISTS position
 	(
 		call TEXT,
-		time INTEGER,
+		rxtime INTEGER,
 		org TEXT,
-		lat FLOAT,
-		lon FLOAT,
-		alt INTEGER,
-		isnew INTEGER,
-		comment TEXT,
-		sequ INTEGER,
-		tel1 INTEGER,
-		tel2 INTEGER,
-		tel3 INTEGER,
-		tel4 INTEGER,
-		tel5 INTEGER,
-		PRIMARY KEY (call, time)
+
+		reset INTEGER,
+		id INTEGER,
+		time INTEGER,
+
+		adc_vsol INTEGER,
+		adc_vbat INTEGER,
+		pac_vsol INTEGER,
+		pac_vbat INTEGER,
+		pac_pbat INTEGER,
+		pac_psol INTEGER,
+
+		light_intensity INTEGER,
+
+		gps_time INTEGER,
+		gps_lock INTEGER,
+		gps_sats INTEGER,
+		gps_ttff INTEGER,
+		gps_pdop INTEGER,
+		gps_alt INTEGER,
+		gps_lat INTEGER,
+		gps_lon INTEGER,
+
+		sen_i1_press INTEGER,
+		sen_e1_press INTEGER,
+		sen_e2_press INTEGER,
+		sen_i1_temp INTEGER,
+		sen_e1_temp INTEGER,
+		sen_e2_temp INTEGER,
+		sen_i1_hum INTEGER,
+		sen_e1_hum INTEGER,
+		sen_e2_hum INTEGER,
+
+		stm32_temp INTEGER,
+		si4464_temp INTEGER,
+
+		sys_time INTEGER,
+		sys_error INTEGER
 	)
 """)
 sqlite.cursor().execute("""
 	CREATE TABLE IF NOT EXISTS image
 	(
+		id INTEGER,
 		call TEXT,
-		time INTEGER,
+		rxtime INTEGER,
 		imageID INTEGER,
 		packetID INTEGER,
-		lat FLOAT,
-		lon FLOAT,
-		alt INTEGER,
-		data1 TEXT,
-		data2 TEXT,
-		crc TEXT,
-		PRIMARY KEY (call, time, imageID, packetID)
+		data TEXT,
+		PRIMARY KEY (call,id,packetID)
 	)
 """)
 
@@ -66,36 +87,35 @@ def received_data(data):
 	# Image		(.*)\>APECAN(.*?):\/([0-9]{6}h)(.{13})I(.*)
 	# Log		(.*)\>APECAN(.*?):\/([0-9]{6}h)(.{13})L(.*)
 
-	all = re.search("(.*)\>APECAN(.*?):\/([0-9]{6}h)(.{13})", data)
-	pos = re.search("(.*)\>APECAN(.*?):\/([0-9]{6}h)(.{13})(.*?)\|(.*)\|", data)
-	dat = re.search("(.*)\>APECAN(.*?):\/([0-9]{6}h)(.{13})(I|J|L)(.*)", data)
+	all = re.search("(.*)\>APECAN(.*?):", data)
+	pos = re.search("(.*)\>APECAN(.*?):\!(.{13})(.*?)\|(.*)\|", data)
+	dat = re.search("(.*)\>APECAN(.*?):\{\{(I|L)(.*)", data)
 
-	if all:
+	if pos or dat:
 		# Debug
-		print('='*100)
-		print(data)
-		print('-'*100)
+		if args.verbose:
+			print('='*100)
+			print(data.strip())
+			print('-'*100)
 
 		call = all.group(1).split(' ')[-1]
 		rxer = all.group(2).split(',')[-1]
 		if not len(rxer): rxer = args.call
-		tim  = all.group(3)
-		posi = all.group(4)
 
 		if pos: # Position packet (with comment and telementry)
 
-			comm = pos.group(5)
-			tel  = pos.group(6)
-			position.insert_position(sqlite, call, tim, posi, comm, tel)
+			posi = pos.group(3)
+			comm = pos.group(4)
+			tel  = pos.group(5)
+			position.insert_position(sqlite, call, posi, comm, tel)
 
 		elif dat: # Data packet
 
-			typ  = dat.group(5)
-			data_b91 = dat.group(6)
-			data = base91.decode(data_b91) # Decode Base91
+			typ  = dat.group(3)
+			data = base91.decode(dat.group(4)) # Decode Base91
 
-			if typ is 'I' or typ is 'J': # Image packet
-				image.insert_image(sqlite, rxer, call, tim, posi, data, typ, args.server, args.grouping)
+			if typ is 'I': # Image packet
+				image.insert_image(sqlite, rxer, call, data)
 			elif typ is 'L': # Log packet
 				position.insert_log(sqlite, call, data)
 
@@ -111,12 +131,12 @@ if args.device == 'I': # Source APRS-IS
 		print('exit...')
 		sys.exit(1)
 
-	wdg = time.time() + 1 # Connection watchdog
+	wdg = time.time() + 10 # Connection watchdog
 	buf = ''
 	while True:
 		# Read data
 		try:
-			buf += tn.read_eager().decode('ascii')
+			buf += tn.read_eager().decode('charmap')
 		except EOFError: # Server has connection closed
 			wdg = 0 # Tell watchdog to restart connection
 		except UnicodeDecodeError:
@@ -146,7 +166,7 @@ if args.device == 'I': # Source APRS-IS
 				tn = telnetlib.Telnet("rotate.aprs2.net", 14580, 3)
 				tn.write(("user %s filter u/APECAN\n" % args.call).encode('ascii'))
 				print('Connected')
-				wdg = time.time() + 1
+				wdg = time.time() + 10
 			except Exception as e:
 				print('Could not connect to APRS-IS: %s' % str(e))
 				print('Try again...')
@@ -156,8 +176,7 @@ if args.device == 'I': # Source APRS-IS
 elif args.device is '-': # Source stdin
 
 	while True:
-		data = sys.stdin.readline()
-		received_data(data)
+		received_data(sys.stdin.readline())
 
 else: # Source Serial connection
 

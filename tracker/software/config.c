@@ -362,13 +362,14 @@
 
 module_conf_t config[7];
 
-uint8_t ssdv_buffer[128*1024] __attribute__((aligned(32)));	// Image buffer
+uint8_t ssdv_buffer[256*1024] __attribute__((aligned(32)));	// Image buffer
 
-systime_t track_cycle_time = S2ST(30);						// Tracking cycle (all peripheral data [airpressure, GPS, temperature, ...] is collected each 60 seconds
-systime_t log_cycle_time = S2ST(30);						// Log cycle time in seconds (600 seconds)
+systime_t track_cycle_time = S2ST(60);						// Tracking cycle (all peripheral data [airpressure, GPS, temperature, ...] is collected each 60 seconds
 bool keep_cam_switched_on =	false;							// Keep camera switched on and initialized, this makes image capturing faster but takes a lot of power over long time
 uint16_t gps_on_vbat = 3000;								// Battery voltage threshold at which GPS is switched on
 uint16_t gps_off_vbat = 2500;								// Battery voltage threshold at which GPS is switched off
+uint16_t gps_onper_vbat = 3000;								// Battery voltage threshold at which GPS is kept switched on all time. This value must be larger
+															// than gps_on_vbat and gps_off_vbat otherwise this value has no effect. Value 0 disables this feature
 
 void start_user_modules(void)
 {
@@ -439,7 +440,6 @@ void start_user_modules(void)
 	config[3].trigger.type = TRIG_CONTINUOUSLY;				// Transmit continuously
 	chsnprintf(config[3].aprs_conf.callsign, 16, "DL7AD");	// APRS Callsign
 	config[3].aprs_conf.ssid = 14;							// APRS SSID
-	config[3].aprs_conf.symbol = SYM_BALLOON;				// APRS Symbol
 	config[3].aprs_conf.preamble = 300;						// APRS Preamble (300ms)
 	config[3].ssdv_conf.ram_buffer = ssdv_buffer;			// Camera buffer
 	config[3].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
@@ -457,7 +457,6 @@ void start_user_modules(void)
 	config[4].trigger.type = TRIG_CONTINUOUSLY;				// Transmit continuously
 	chsnprintf(config[4].aprs_conf.callsign, 16, "DL7AD");	// APRS Callsign
 	config[4].aprs_conf.ssid = 13;							// APRS SSID
-	config[4].aprs_conf.symbol = SYM_BALLOON;				// APRS Symbol
 	config[4].aprs_conf.preamble = 100;						// APRS Preamble (100ms)
 	config[4].ssdv_conf.ram_buffer = ssdv_buffer;			// Camera buffer
 	config[4].ssdv_conf.ram_size = sizeof(ssdv_buffer);		// Buffer size
@@ -496,7 +495,6 @@ void start_user_modules(void)
 	config[6].trigger.timeout = 60;							// Timeout 180 sec
 	chsnprintf(config[6].aprs_conf.callsign, 16, "DL7AD");	// APRS Callsign
 	config[6].aprs_conf.ssid = 13;							// APRS SSID
-	config[6].aprs_conf.symbol = SYM_BALLOON;				// APRS Symbol
 	chsnprintf(config[6].aprs_conf.path, 16, "WIDE1-1");	// APRS Path
 	config[6].aprs_conf.preamble = 300;						// APRS Preamble (300ms)
 	//start_logging_thread(&config[6]);

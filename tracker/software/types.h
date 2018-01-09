@@ -32,7 +32,6 @@ typedef enum {
 	TEL_VBAT,
 	TEL_VSOL,
 	TEL_PBAT,
-	TEL_RBAT,
 	TEL_PRESS,
 	TEL_TEMP,
 	TEL_HUM
@@ -53,9 +52,9 @@ typedef struct {
 typedef enum {
 	SLEEP_DISABLED,
 	SLEEP_WHEN_VBAT_BELOW_THRES,
-	SLEEP_WHEN_RBAT_BELOW_THRES,
+	SLEEP_WHEN_VSOL_BELOW_THRES,
 	SLEEP_WHEN_VBAT_ABOVE_THRES,
-	SLEEP_WHEN_RBAT_ABOVE_THRES,
+	SLEEP_WHEN_VSOL_ABOVE_THRES,
 	SLEEP_WHEN_DISCHARGING,
 	SLEEP_WHEN_CHARGING
 } sleep_type_t;
@@ -63,7 +62,7 @@ typedef enum {
 typedef struct {
 	sleep_type_t type;
 	uint16_t vbat_thres;
-	uint16_t rbat_thres;
+	uint16_t vsol_thres;
 } sleep_conf_t;
 
 typedef struct {

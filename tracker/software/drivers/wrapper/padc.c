@@ -68,44 +68,28 @@ void doConversion(void)
 	deinitADC();
 }
 
-static uint16_t getBatteryVoltageMV_STM32(void)
+uint16_t stm32_get_vbat(void)
 {
 	doConversion();
 	return samples[2] * vcc_ref * DIVIDER_VBAT / 4096;
 }
 
-static uint16_t getSolarVoltageMV_STM32(void)
+uint16_t stm32_get_vsol(void)
 {
 	doConversion();
 	return samples[0] * vcc_ref * DIVIDER_VSOL / 4096;
 }
 
-uint16_t getBatteryVoltageMV(void)
-{
-	uint16_t vbat = getBatteryVoltageMV_STM32(); // Get value from STM32
-	uint16_t vbat_pac = pac1720_getVbat(); // Get value from PAC1720
-
-	return abs(vbat-vbat_pac) < 200 ? vbat_pac : vbat;
-}
-
-uint16_t getSolarVoltageMV(void)
-{
-	uint16_t vsol = getSolarVoltageMV_STM32(); // Get value from STM32
-	uint16_t vsol_pac = pac1720_getVsol(); // Get value from PAC1720
-
-	return abs(vsol-vsol_pac) < 200 ? vsol_pac : vsol;
-}
-
-uint16_t getUSBVoltageMV(void)
+uint16_t stm32_get_vusb(void)
 {
 	doConversion();
 	return samples[1] * vcc_ref * DIVIDER_VUSB / 4096;
 }
 
-uint16_t getSTM32Temperature(void)
+uint16_t stm32_get_temp(void)
 {
 	doConversion();
-	return samples[3];
+	return (((int32_t)samples[3]*40 * vcc_ref / 4096)-30400) + 2500 + 850/*Calibration*/;
 }
 
 void boost_voltage(bool boost)

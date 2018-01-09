@@ -31,6 +31,7 @@ static uint32_t txj;					// Bytecounter
 
 // Radio related
 static mutex_t radio_mtx;				// Radio mutex
+static bool nextTransmissionWaiting;	// Flag that informs the feeder thread to keep the radio switched on
 bool radio_mtx_init = false;
 static mod_t active_mod = MOD_NOT_SET;
 static radioMSG_t radio_msg;
@@ -265,7 +266,7 @@ THD_FUNCTION(si_fifo_feeder_thd, arg)
 		}
 		Si4464_writeFIFO(&radio_msg.buffer[c], more); // Write into FIFO
 		c += more;
-		chThdSleepMilliseconds(15); // That value is ok up to 38k4
+		chThdSleepMilliseconds(15); // That value is ok up to 96k
 	}
 
 	// Shutdown radio (and wait for Si4464 to finish transmission)
@@ -322,11 +323,17 @@ void shutdownRadio(void)
 {
 	// Wait for PH to finish transmission
 	while(Si4464_getState() == SI4464_STATE_TX)
-		chThdSleepMilliseconds(10);
+		chThdSleepMilliseconds(1);
 
-	TRACE_INFO("RAD  > Shutdown radio");
-	Si4464_shutdown();
-	active_mod = MOD_NOT_SET;
+	if(!nextTransmissionWaiting) { // No thread is waiting for radio, so shutdown radio
+		TRACE_INFO("RAD  > Transmission finished");
+		TRACE_INFO("RAD  > Shutdown radio");
+		Si4464_shutdown();
+		active_mod = MOD_NOT_SET;
+	} else {
+		TRACE_INFO("RAD  > Transmission finished");
+		TRACE_INFO("RAD  > Keep radio switched on");
+	}
 }
 
 /**
@@ -478,6 +485,23 @@ void lockRadio(void)
 	radio_mtx_init = true;
 
 	chMtxLock(&radio_mtx);
+	nextTransmissionWaiting = true;
+
+	// Wait for old feeder thread to terminate
+	if(feeder_thd != NULL) // No waiting on first use
+		chThdWait(feeder_thd);
+}
+
+/* This method is only called by image.c. It's not different to lockRadio() with
+ * the exception that the radio it shutdown after transmission (if there is any) */
+void lockRadioByCamera(void)
+{
+	// Initialize mutex
+	if(!radio_mtx_init)
+		chMtxObjectInit(&radio_mtx);
+	radio_mtx_init = true;
+
+	chMtxLock(&radio_mtx);
 
 	// Wait for old feeder thread to terminate
 	if(feeder_thd != NULL) // No waiting on first use
@@ -486,6 +510,7 @@ void lockRadio(void)
 
 void unlockRadio(void)
 {
+	nextTransmissionWaiting = false;
 	chMtxUnlock(&radio_mtx);
 }
 

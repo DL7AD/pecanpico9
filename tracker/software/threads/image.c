@@ -301,12 +301,11 @@ static void flush_ssdv_buffer(prot_t protocol, ax25_t *ax25_handle, radioMSG_t *
 	}
 }
 
-void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_t image_id, trackPoint_t* captureLocation, bool redudantTx)
+void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, uint8_t image_id, bool redudantTx)
 {
 	ssdv_t ssdv;
 	uint8_t pkt[SSDV_PKT_SIZE];
-	uint8_t pkt_base91i[160];
-	uint8_t pkt_base91j[160];
+	uint8_t pkt_base91[256];
 	const uint8_t *b;
 	uint32_t bi = 0;
 	uint8_t c = SSDV_OK;
@@ -314,7 +313,7 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 
 	// Init SSDV (FEC at 2FSK, non FEC at APRS)
 	bi = 0;
-	ssdv_enc_init(&ssdv, conf->protocol == PROT_SSDV_2FSK ? SSDV_TYPE_NORMAL : SSDV_TYPE_NOFEC, conf->ssdv_conf.callsign, image_id, conf->ssdv_conf.quality);
+	ssdv_enc_init(&ssdv, conf->protocol == PROT_SSDV_2FSK ? SSDV_TYPE_NORMAL : SSDV_TYPE_PADDING, conf->ssdv_conf.callsign, image_id, conf->ssdv_conf.quality);
 	ssdv_enc_set_buffer(&ssdv, pkt);
 
 	// Init transmission packet
@@ -371,27 +370,11 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 				TRACE_INFO("IMG  > Encode APRS/SSDV packet");
 
 				// Sync byte, CRC and FEC of SSDV not transmitted (because its not neccessary inside an APRS packet)
-				base91_encode(&pkt[6  ], pkt_base91i, 109+16);
-				pkt[112+16] = pkt[6];
-				pkt[113+16] = pkt[7];
-				pkt[114+16] = pkt[8];
-				base91_encode(&pkt[112+16], pkt_base91j, 108+16);
+				base91_encode(&pkt[6], pkt_base91, 174);
 
-				aprs_encode_data_packet(&ax25_handle, 'I', &conf->aprs_conf, pkt_base91i, strlen((char*)pkt_base91i), captureLocation);
-				aprs_encode_data_packet(&ax25_handle, 'J', &conf->aprs_conf, pkt_base91j, strlen((char*)pkt_base91j), captureLocation);
+				aprs_encode_data_packet(&ax25_handle, 'I', &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91));
 				if(redudantTx)
-				{
-					if(conf->protocol == PROT_APRS_AFSK) // AFSK can handle max. 2 packets in the buffer
-					{
-						// Transmit packets
-						flush_ssdv_buffer(conf->protocol, &ax25_handle, &msg);
-
-						// Initialize new packet buffer
-						aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
-					}
-					aprs_encode_data_packet(&ax25_handle, 'I', &conf->aprs_conf, pkt_base91i, strlen((char*)pkt_base91i), captureLocation);
-					aprs_encode_data_packet(&ax25_handle, 'J', &conf->aprs_conf, pkt_base91j, strlen((char*)pkt_base91j), captureLocation);
-				}
+					aprs_encode_data_packet(&ax25_handle, 'I', &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91));
 
 				// Transmit if buffer is almost full or if single packet transmission is activated (packet_spacing != 0)
 				// or if AFSK is selected (because the encoding takes a lot of buffer)
@@ -402,9 +385,6 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 
 					// Initialize new packet buffer
 					aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
-
-					if(!conf->packet_spacing)
-						chThdSleepMilliseconds(8000); // Leave a little break because it will overflow some devices
 				}
 				break;
 
@@ -432,6 +412,8 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 				TRACE_ERROR("IMG  > Unsupported protocol selected for module IMAGE");
 		}
 
+		chThdSleepMilliseconds(100); // Leave other threads some time
+
 		// Packet spacing (delay)
 		if(conf->packet_spacing)
 			chThdSleepMilliseconds(conf->packet_spacing);
@@ -445,6 +427,7 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
   */
 static bool analyze_image(uint8_t *image, uint32_t image_len)
 {
+	return true;
 	#if !OV5640_USE_DMA_DBM
 	if(image_len >= 65535)
 	{
@@ -461,7 +444,7 @@ static bool analyze_image(uint8_t *image, uint32_t image_len)
 	uint16_t i = 0;
 	uint8_t c = SSDV_OK;
 
-	ssdv_enc_init(&ssdv, SSDV_TYPE_NORMAL, "", 0, 7);
+	ssdv_enc_init(&ssdv, SSDV_TYPE_NOFEC, "", 0, 7);
 	ssdv_enc_set_buffer(&ssdv, pkt);
 
 	while(true) // FIXME: I get caught in these loops occasionally and never return
@@ -515,7 +498,7 @@ bool takePicture(ssdv_conf_t *conf, bool enableJpegValidation)
 		camera_found = true;
 
 		// Lock Radio (The radio uses the same DMA for SPI as the camera)
-		lockRadio(); // Lock radio
+		lockRadioByCamera(); // Lock radio
 
 		uint8_t cntr = 5;
 		bool jpegValid;
@@ -582,17 +565,13 @@ THD_FUNCTION(imgThread, arg)
 			bool camera_found = takePicture(&conf->ssdv_conf, true);
 			gimage_id++; // Increase SSDV image counter
 
-			// Get capture location
-			trackPoint_t captureLocation;
-			memcpy(&captureLocation, getLastTrackPoint(), sizeof(trackPoint_t));
-
 			// Radio transmission
 			if(camera_found) {
 				TRACE_INFO("IMG  > Encode/Transmit SSDV ID=%d", gimage_id-1);
-				encode_ssdv(conf->ssdv_conf.ram_buffer, conf->ssdv_conf.size_sampled, conf, gimage_id-1, &captureLocation, conf->ssdv_conf.redundantTx);
+				encode_ssdv(conf->ssdv_conf.ram_buffer, conf->ssdv_conf.size_sampled, conf, gimage_id-1, conf->ssdv_conf.redundantTx);
 			} else { // No camera found
 				TRACE_INFO("IMG  > Encode/Transmit SSDV (no cam found) ID=%d", gimage_id-1);
-				encode_ssdv(noCameraFound, sizeof(noCameraFound), conf, gimage_id-1, &captureLocation, conf->ssdv_conf.redundantTx);
+				encode_ssdv(noCameraFound, sizeof(noCameraFound), conf, gimage_id-1, conf->ssdv_conf.redundantTx);
 			}
 		}
 
@@ -609,7 +588,7 @@ void start_image_thread(module_conf_t *conf)
 		TRACE_ERROR("IMG  > Could not startup thread (not enough memory available)");
 	} else {
 		register_thread_at_wdg(conf);
-		conf->wdg_timeout = chVTGetSystemTimeX() + S2ST(1);
+		conf->wdg_timeout = chVTGetSystemTimeX() + S2ST(1) + MS2ST(conf->init_delay);
 	}
 }
 

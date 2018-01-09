@@ -8,6 +8,8 @@
 
 #define I2C_DRIVER	(&I2CD1)
 
+static uint8_t error;
+
 const I2CConfig _i2cfg = {
 	OPMODE_I2C,
 	200000,
@@ -23,8 +25,12 @@ static bool I2C_transmit(uint8_t addr, uint8_t *txbuf, uint32_t txbytes, uint8_t
 
 	if(i2c_status == MSG_TIMEOUT) { // Restart I2C at timeout
 		TRACE_ERROR("I2C  > TIMEOUT (ADDR 0x%02x)", addr);
+		error = 0x1;
 	} else if(i2c_status == MSG_RESET) {
 		TRACE_ERROR("I2C  > RESET (ADDR 0x%02x)", addr);
+		error = 0x0;
+	} else {
+		error = 0x0;
 	}
 
 	return i2c_status == MSG_OK;
@@ -95,5 +101,10 @@ bool I2C_write8_16bitreg(uint8_t address, uint16_t reg, uint8_t value) // 16bit 
 {
 	uint8_t txbuf[] = {reg >> 8, reg & 0xFF, value};
 	return I2C_transmit(address, txbuf, 3, NULL, 0, MS2ST(100));
+}
+
+uint8_t I2C_hasError(void)
+{
+	return error;
 }
 

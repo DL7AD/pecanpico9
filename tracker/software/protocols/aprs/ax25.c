@@ -133,7 +133,7 @@ void ax25_send_header(ax25_t *packet, const char *callsign, uint8_t ssid, const 
 	}
 	for(i=0; i<preamble; i++)
 	{
-		ax25_send_sync(packet);
+		ax25_send_flag(packet);
 	}
 
 	// Send flag
