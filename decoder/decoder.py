@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 
 import serial,re,io
-import base91
 import sys
 import argparse
 import telnetlib
@@ -63,7 +62,8 @@ sqlite.cursor().execute("""
 		si4464_temp INTEGER,
 
 		sys_time INTEGER,
-		sys_error INTEGER
+		sys_error INTEGER,
+		PRIMARY KEY (call,reset,id,time)
 	)
 """)
 sqlite.cursor().execute("""
@@ -104,20 +104,18 @@ def received_data(data):
 
 		if pos: # Position packet (with comment and telementry)
 
-			posi = pos.group(3)
 			comm = pos.group(4)
-			tel  = pos.group(5)
-			position.insert_position(sqlite, call, posi, comm, tel)
+			position.insert_position(sqlite, call, comm, 'pos')
 
 		elif dat: # Data packet
 
 			typ  = dat.group(3)
-			data = base91.decode(dat.group(4)) # Decode Base91
+			data = dat.group(4)
 
 			if typ is 'I': # Image packet
 				image.insert_image(sqlite, rxer, call, data)
 			elif typ is 'L': # Log packet
-				position.insert_log(sqlite, call, data)
+				position.insert_position(sqlite, call, data, 'log')
 
 if args.device == 'I': # Source APRS-IS
 

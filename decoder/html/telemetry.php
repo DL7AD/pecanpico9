@@ -187,11 +187,10 @@ function loadRecentData() {
 		$('#act_pos').text(time_format(json['lastActivity']['pos']));
 		$('#act_img').text(time_format(json['lastActivity']['img']));
 
-		// TODO: Remove old entries
-
 		// Update charts if there is new data or at a timeout of 300 seconds
 		if(tel.length > 0 || json['time']-lastChartUpdate > 300) {
 
+			// Add new rows
 			var time = json['time'];
 			xAxis.minValue = new Date((time-<?=$range?>)*1000),
 			xAxis.maxValue = new Date(time*1000),
@@ -210,7 +209,7 @@ function loadRecentData() {
 					dataLight.addRow([null,null]);
 				}
 
-				var time = new Date(data['rxtime']*1000);
+				var time = new Date(data['org'] == 'pos' ? data['rxtime']*1000 : data['gps_time']*1000);
 				dataBattery.addRow([time, data['adc_vbat'], data['pac_vbat'], data['pac_pbat']/10]);
 				dataSolar.addRow([time, data['adc_vsol'], data['pac_vsol'], data['pac_psol']/10]);
 				dataTemp.addRow([time, data['sen_i1_temp']/100, data['sen_e1_temp']/100, data['sen_e2_temp']/100, data['stm32_temp']/100, data['si4464_temp']/100]);
@@ -220,6 +219,19 @@ function loadRecentData() {
 				last = data['rxtime'];
 			});
 
+			// Remove old rows
+			var removeTime = new Date((time-<?=$range?>)*1000);
+			for(var c=0; c<dataBattery.getNumberOfColumns(); c++) {
+				if(dataBattery.getValue(c, 0) < removeTime) {
+					dataBattery.removeRow(c);
+					dataSolar.removeRow(c);
+					dataTemp.removeRow(c);
+					dataGPS.removeRow(c);
+					dataLight.removeRow(c);
+				}
+			}
+
+			// Update charts
 			batteryChart.draw(dataBattery, voltageOptions);
 			solarChart.draw(dataSolar, voltageOptions);
 			tempChart.draw(dataTemp, tempOptions);

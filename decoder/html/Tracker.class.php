@@ -84,7 +84,20 @@ class Tracker {
 		if($from - $to > 64281600)
 			$from = $from + 64281600; // Max. 744 days (2 non leap years + 14 weeks)
 
-		$stmt = Database::getInstance()->prepare("SELECT * FROM position WHERE :from <= rxtime AND rxtime <= :to AND call = :call ORDER BY rxtime ASC");
+		$stmt = Database::getInstance()->prepare("
+			SELECT *
+			FROM position
+			WHERE (
+				:from <= rxtime
+				AND rxtime <= :to
+				AND org = 'pos'
+			) OR (
+				:from <= gps_time
+				AND gps_time <= :to
+				AND org = 'log'
+			) AND call = :call
+			ORDER BY rxtime ASC
+		");
 		$stmt->bindValue(':call', $this->call, SQLITE3_TEXT);
 		$stmt->bindValue(':from', $from, SQLITE3_INTEGER);
 		$stmt->bindValue(':to', $to, SQLITE3_INTEGER);
@@ -131,3 +144,4 @@ class Tracker {
 	}
 }
 ?>
+

@@ -2,11 +2,11 @@ import binascii
 import urllib.request
 import urllib.error
 from datetime import datetime
-from position import decode_position
 from subprocess import *
 import time
 import threading
 from shutil import copyfile
+import base91
 
 def decode_callsign(code):
 	callsign = ''
@@ -59,9 +59,10 @@ def imgproc():
 		time.sleep(1)
 
 w = time.time()
-def insert_image(sqlite, receiver, call, data):
+def insert_image(sqlite, receiver, call, data_b91):
 	global imageProcessor,imageData,w
 
+	data = base91.decode(data_b91)
 	if len(data) != 174:
 		return # APRS message has invalid type or length (or both)
 
@@ -106,7 +107,7 @@ def insert_image(sqlite, receiver, call, data):
 			_id = 0
 
 	# Debug
-	print('Received image packet %d Packet %d ServerID %d' % (imageID, packetID, _id))
+	print('Received image packet Call=%s ImageID=%d PacketID=%d ServerID=%d' % (call, imageID, packetID, _id))
 
 	# Insert into database
 	cur.execute("""

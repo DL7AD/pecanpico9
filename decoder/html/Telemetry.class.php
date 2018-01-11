@@ -1,24 +1,9 @@
 <?php
 class Telemetry {
-
-	/*const TYPE_INT		= 0; // Integer
-	const TYPE_STR		= 1; // String
-	const TYPE_HTML		= 2; // HTML
-
-	const LOC_INT		= 0; // Internal
-	const LOC_EXT		= 1; // External
-
-	const LOC_INT1		= 0; // Internal 1
-	const LOC_EXT1		= 1; // External 1
-	const LOC_EXT2		= 2; // External 2
-
-	const COL_GREEN		= "#008000";
-	const COL_ORANGE	= "#CC6600";
-	const COL_RED		= "#FF0000";*/
-
 	function __construct($sqlResult) {
 		$this->reset = $sqlResult['reset'];
 		$this->id = $sqlResult['id'];
+		$this->org = $sqlResult['org'];
 
 		$this->rxtime = $sqlResult['rxtime'];
 
@@ -68,101 +53,6 @@ class Telemetry {
 		$this->err_bme280_e2 = ($this->sys_error >> 10) & 0x1;
 
 	}
-	/*function getOV9655Error($type) {
-		$error = ($this->sys_error >> 4) & 0x3;
-		if($type == self::TYPE_INT)
-			return $error;
-
-		switch($error) {
-			case 0: return $this->colorize($type, self::COL_GREEN, "OK");
-			case 1: return $this->colorize($type, self::COL_RED, "I2C Error - Camera not found");
-			case 2: return $this->colorize($type, self::COL_RED, "DMA abort - last buffer segment");
-			case 3: return $this->colorize($type, self::COL_RED, "DMA FIFO error");
-			case 4: return $this->colorize($type, self::COL_RED, "DMA stream transfer error");
-			case 5: return $this->colorize($type, self::COL_RED, "DMA direct mode error");
-		}
-	}
-	function getGPSStatus($type) {
-		if($type == self::TYPE_INT)
-			return $this->gps_lock;
-
-		switch($this->gps_lock) {
-			case 0: return $this->colorize($type, self::COL_GREEN, "GPS locked");
-			case 1: return $this->colorize($type, self::COL_GREEN, "GPS locked - kept switched on");
-			case 2: return $this->colorize($type, self::COL_RED, "GPS loss");
-			case 3: return $this->colorize($type, self::COL_ORANGE, "Low Batt before switched on");
-			case 4: return $this->colorize($type, self::COL_ORANGE, "Low Batt while switched on");
-			case 5: return $this->colorize($type, self::COL_GREEN, "Data from memory");
-			case 6: return $this->colorize($type, self::COL_RED, "GPS communication error");
-		}
-	}
-	function getEVA7MError($type) {
-		$error = ($this->sys_error >> 2) & 0x1;
-		if($type == self::TYPE_INT)
-			return $error;
-
-		switch($error) {
-			case 0: return $this->colorize($type, self::COL_GREEN, "OK");
-			case 1: return $this->colorize($type, self::COL_RED, "Fail");
-		}
-	}
-	function getI2cError($loc, $type) {
-		$error = $loc == self::LOC_INT ? $this->sys_error & 0x1 : ($this->sys_error >> 1) & 0x1;
-		if($type == self::TYPE_INT)
-			return $error;
-
-		switch($error) {
-			case 0: return $this->colorize($type, self::COL_GREEN, "OK");
-			case 1: return $this->colorize($type, self::COL_RED, "Fail");
-		}
-	}
-	function getPAC1720Error($type) {
-		$error = ($this->sys_error >> 3) & 0x1;
-		if($type == self::TYPE_INT)
-			return $error;
-
-		switch($error) {
-			case 0: return $this->colorize($type, self::COL_GREEN, "OK");
-			case 1: return $this->colorize($type, self::COL_RED, "Fail");
-		}
-	}
-	function getBME280Error($type, $loc) {
-		switch($loc) {
-			case self::LOC_INT1: $error = ($this->sys_error >> 7) & 0x1; break;
-			case self::LOC_EXT1: $error = ($this->sys_error >> 8) & 0x1; break;
-			case self::LOC_EXT2: $error = ($this->sys_error >> 9) & 0x1; break;
-		}
-		if($type == self::TYPE_INT)
-			return $error;
-
-		switch($error) {
-			case 0: return $this->colorize($type, self::COL_GREEN, "OK");
-			case 1: return $this->colorize($type, self::COL_RED, "Fail");
-		}
-	}
-
-	private function colorize($type, $color, $str) {
-		if($type == self::TYPE_HTML)
-			return "<font color=\"$color\">$str</font>";
-		elseif($type == self::TYPE_STR)
-			return $str;
-	}*/
 }
 ?>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

@@ -147,32 +147,7 @@ THD_FUNCTION(logThread, arg)
 		if(!p_sleep(&conf->sleep_conf))
 		{
 			// Get log from memory
-
-			uint16_t pkt[80]; // 16 PositionPoints each 10 bytes
-			uint8_t pkt_base91[BASE91LEN(160)];
-			for(uint16_t t=0; t<sizeof(pkt_base91); t++) pkt_base91[t] = 0; // Deleting buffer
-
-			TRACE_INFO("LOG  > Encode 16 log points")
-
-			for(uint8_t i=0; i<16; i++)
-			{
-				trackPoint_t log;
-				getNextLogTrackPoint(&log);
-
-				TRACE_INFO("id=%d time=%d lat=%d lon=%d alt=%d", log.id, log.gps_time, log.gps_lat, log.gps_lon, log.gps_alt);
-				int64_t lat = (int64_t)log.gps_lat + (int64_t)900000000 + 13733;
-				lat <<= 16;
-				lat /= 1800000000;
-				int64_t lon = (int64_t)log.gps_lon + (int64_t)1800000000 + 27466;
-				lon <<= 16;
-				lon /= 3600000000;
-
-				pkt[i*5+0] = log.gps_time & 0xFFFF;
-				pkt[i*5+1] = log.gps_time >> 16;
-				pkt[i*5+2] = lat; // Latitude (get full 16bit resolution over 180°)
-				pkt[i*5+3] = lon; // Longitude (get full 16bit resolution over 360°)
-				pkt[i*5+4] = log.gps_alt; // Altitude in meters	 (cut off first two MSB bytes)
-			}
+			trackPoint_t log;
 
 			// Encode radio message
 			radioMSG_t msg;
@@ -188,14 +163,19 @@ THD_FUNCTION(logThread, arg)
 					msg.afsk_conf = &(conf->afsk_conf);
 					msg.gfsk_conf = &(conf->gfsk_conf);
 
-					ax25_t ax25_handle;
-
 					// Encode Base91
-					base91_encode((uint8_t*)pkt, pkt_base91, sizeof(pkt));
+					uint8_t pkt_base91[BASE91LEN(sizeof(log))];
 
 					// Encode and transmit log packet
+					ax25_t ax25_handle;
 					aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
-					aprs_encode_data_packet(&ax25_handle, 'L', &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91)); // Encode packet
+
+					for(uint8_t i=0; i<2; i++) { // Transmit two log packets
+						getNextLogTrackPoint(&log);
+						base91_encode((uint8_t*)&log, pkt_base91, sizeof(log));
+						aprs_encode_data_packet(&ax25_handle, 'L', &conf->aprs_conf, pkt_base91, strlen((char*)pkt_base91)); // Encode packet
+					}
+
 					msg.bin_len = aprs_encode_finalize(&ax25_handle);
 
 					// Transmit packet
