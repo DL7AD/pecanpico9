@@ -6,6 +6,7 @@
 #include "debug.h"
 #include "padc.h"
 #include "pac1720.h"
+#include "geofence.h"
 
 /**
   * Sleeping method. Returns true if sleeping condition are given.
@@ -30,6 +31,11 @@ bool p_sleep(const sleep_conf_t *config)
 		case SLEEP_WHEN_CHARGING:
 			TRACE_WARN("Sleeping method not implemented");
 			return false;
+
+		case SLEEP_OUTSIDE_BERLIN:;
+			chThdSleepMilliseconds(1000);
+			trackPoint_t* t = getLastTrackPoint();
+			return !isPointInBerlin(t->gps_lat, t->gps_lon);
 
 		case SLEEP_DISABLED:
 			return false;

@@ -19,5 +19,6 @@ bool isPointInAustralia(int32_t lat, int32_t lon);
 bool isPointInNewZealand(int32_t lat, int32_t lon);
 bool isPointInArgentina(int32_t lat, int32_t lon);
 bool isPointInBrazil(int32_t lat, int32_t lon);
+bool isPointInBerlin(int32_t lat, int32_t lon);
 
 #endif

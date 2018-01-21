@@ -385,6 +385,9 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 
 					// Initialize new packet buffer
 					aprs_encode_init(&ax25_handle, buffer, sizeof(buffer), msg.mod);
+
+					if(!conf->packet_spacing)
+						chThdSleepMilliseconds(6000);
 				}
 				break;
 
@@ -412,7 +415,7 @@ void encode_ssdv(const uint8_t *image, uint32_t image_len, module_conf_t* conf, 
 				TRACE_ERROR("IMG  > Unsupported protocol selected for module IMAGE");
 		}
 
-		chThdSleepMilliseconds(100); // Leave other threads some time
+		chThdSleepMilliseconds(100);
 
 		// Packet spacing (delay)
 		if(conf->packet_spacing)
@@ -550,6 +553,7 @@ THD_FUNCTION(imgThread, arg)
 {
 	module_conf_t* conf = (module_conf_t*)arg;
 
+	conf->wdg_timeout = chVTGetSystemTimeX() + S2ST(1200);
 	if(conf->init_delay) chThdSleepMilliseconds(conf->init_delay);
 	TRACE_INFO("IMG  > Startup image thread");
 

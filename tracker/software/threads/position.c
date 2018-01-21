@@ -111,6 +111,7 @@ THD_FUNCTION(posThread, arg)
 	module_conf_t* conf = (module_conf_t*)arg;
 
 	// Wait
+	conf->wdg_timeout = chVTGetSystemTimeX() + S2ST(1200);
 	if(conf->init_delay) chThdSleepMilliseconds(conf->init_delay);
 
 	// Start tracking manager (if not running yet)

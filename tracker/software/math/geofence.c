@@ -592,6 +592,13 @@ const coord_t brazil[] = {
 	{-374980860, -390901540},
 	{-364801770, -452864430}
 };
+const coord_t berlin[] = {
+	// Latitude  Longitude (in deg*10000000)
+	{530000000, 130000000},
+	{530000000, 140000000},
+	{520000000, 140000000},
+	{520000000, 130000000}
+};
 
 // http://stackoverflowcom/questions/924171/geo-fencing-point-inside-outside-polygon
 /**
@@ -646,12 +653,7 @@ bool isPointInArgentina(int32_t lat, int32_t lon) { // Also includes Uruguay and
 bool isPointInBrazil(int32_t lat, int32_t lon) {
 	return isPointInPolygon(brazil, sizeof(brazil)/sizeof(brazil[0]), lat, lon);
 }
-
-
-
-
-
-
-
-
+bool isPointInBerlin(int32_t lat, int32_t lon) {
+	return isPointInPolygon(berlin, sizeof(berlin)/sizeof(berlin[0]), lat, lon);
+}
 
