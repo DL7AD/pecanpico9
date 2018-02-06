@@ -121,7 +121,7 @@ if args.device == 'I': # Source APRS-IS
 
 	print('Connect to APRS-IS')
 	try:
-		tn = telnetlib.Telnet("rotate.aprs2.net", 14580, 3)
+		tn = telnetlib.Telnet("euro.aprs2.net", 14580, 3)
 		tn.write(("user %s filter u/APECAN\n" % args.call).encode('ascii'))
 		print('Connected')
 	except Exception as e:
@@ -161,7 +161,7 @@ if args.device == 'I': # Source APRS-IS
 		if wdg < time.time():
 			print('APRS-IS connection lost... reconnect')
 			try:
-				tn = telnetlib.Telnet("rotate.aprs2.net", 14580, 3)
+				tn = telnetlib.Telnet("euro.aprs2.net", 14580, 3)
 				tn.write(("user %s filter u/APECAN\n" % args.call).encode('ascii'))
 				print('Connected')
 				wdg = time.time() + 10
