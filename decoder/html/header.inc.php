@@ -17,6 +17,9 @@ if(array_key_exists('call', $_GET)) {
 }
 
 $range = isset($_GET['range']) && is_numeric($_GET['range']) ? $_GET['range'] : 86400;
+
+if($tel->rxtime < time() - $range)
+	$range = time() - $tel->rxtime;
 ?>
 <link href="style.css" rel="stylesheet" type="text/css">
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>

@@ -201,7 +201,7 @@ function loadRecentData() {
 
 			$.each(tel, function(key, data) {
 
-				if(last != null && data['rxtime'] - last > 300) {
+				if(last != null && data['rxtime'] - last > 1210) {
 					dataBattery.addRow([null, null, null, null]);
 					dataSolar.addRow([null, null, null, null]);
 					dataTemp.addRow([null,null,null,null,null,null]);

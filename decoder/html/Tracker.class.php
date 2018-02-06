@@ -87,7 +87,7 @@ class Tracker {
 		$stmt = Database::getInstance()->prepare("
 			SELECT *
 			FROM position
-			WHERE (
+			WHERE ((
 				:from <= rxtime
 				AND rxtime <= :to
 				AND org = 'pos'
@@ -95,7 +95,8 @@ class Tracker {
 				:from <= gps_time
 				AND gps_time <= :to
 				AND org = 'log'
-			) AND call = :call
+			))
+			AND call = :call
 			ORDER BY rxtime ASC
 		");
 		$stmt->bindValue(':call', $this->call, SQLITE3_TEXT);
