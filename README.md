@@ -1,6 +1,8 @@
 # Pecan Pico 9 - A lightweight APRS tracker for balloons
 This Project contains the Pecan Pico project in it's 9th version. A Pecan is a cheap lightweight APRS position tracker designed especially for small ballons which may fly for monthes. This tracker has been made in respect of weight, functionality and price because it's usually used once like a satellite. While the balloon can fly for a long time, this tracker is solar powered and recharges it's battery at daytime and uses the power stored in the battery at night.
 
+Note: The most recent Pecan design is [Pecan Pico 10](http://github.com/DL7AD/pecanpico10/)
+
 ![Pecan Pico 9a](pecanpico9a.jpg)<br>
 *Pecan Pico 9a*
 
