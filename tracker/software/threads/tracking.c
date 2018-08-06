@@ -227,6 +227,7 @@ static void measureVoltage(trackPoint_t* tp)
 	tp->adc_vsol = stm32_get_vsol();
 
 	pac1720_get_avg(&tp->pac_vbat, &tp->pac_vsol, &tp->pac_pbat, &tp->pac_psol);
+	tp->pac_pbat = -tp->pac_pbat;
 }
 
 static uint8_t bme280_error;
