@@ -270,7 +270,7 @@ void setModem2GFSK(gfsk_conf_t* conf) {
 	Si4464_write(setup_data_rate, 7);
 
 	// Use 2GFSK from FIFO (PH)
-	uint8_t use_2gfsk[] = {0x11, 0x20, 0x01, 0x00, 0x03};
+	uint8_t use_2gfsk[] = {0x11, 0x20, 0x01, 0x00, 0x02};
 	Si4464_write(use_2gfsk, 5);
 }
 

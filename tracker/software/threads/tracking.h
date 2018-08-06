@@ -5,6 +5,26 @@
 #include "hal.h"
 #include "ptime.h"
 
+
+#define BME_STATUS_BITS         2
+#define BME_STATUS_MASK         0x3
+#define BME_OK_VALUE            0x0
+#define BME_FAIL_VALUE          0x1
+#define BME_NOT_FITTED_VALUE    0x2
+
+#define BME_ALL_STATUS_MASK     0x3F
+#define BME_ALL_STATUS_SHIFT    8
+
+#define BMEI1_STATUS_SHIFT      BME_ALL_STATUS_SHIFT
+#define BMEI1_STATUS_MASK       (BME_STATUS_MASK << BMEI1_STATUS_SHIFT)
+
+#define BMEE1_STATUS_SHIFT      BMEI1_STATUS_SHIFT + BME_STATUS_BITS
+#define BMEE1_STATUS_MASK       (BME_STATUS_MASK << BMEE1_STATUS_SHIFT)
+
+#define BMEE2_STATUS_SHIFT      BMEI1_STATUS_SHIFT + BME_STATUS)BITS
+#define BMEE2_STATUS_MASK       (BME_STATUS_MASK << BMEE2_STATUS_SHIFT)
+
+
 typedef enum {
 	GPS_LOCKED1,	// The GPS is locked, the GPS has been switched off
 	GPS_LOCKED2,	// The GPS is locked, the GPS has been kept switched on
@@ -60,14 +80,18 @@ typedef struct {
 
 	uint32_t sys_time;		// System time (in seconds)
 	uint32_t sys_error;			// System error flags
-								// Bit 0: I2C_I EVA7M
-								// Bit 1: I2C_I PAC1720
-								// Bit 2: I2C_I OV5640
-								// Bit 3: I2C_I BME280_I1
-								// Bit 4: I2C_E BME280_E1
-								// Bit 5: I2C_E BME280_E2
-								// Bit 6: UART EVA7M
-								// Bit 7: <reserved>
+                      /*
+                       * Set system errors.
+                       *
+                       * Bit usage:
+                       * -  0:1  I2C status
+                       * -  2:2  GPS status
+                       * -  3:4  pac1720 status
+                       * -  5:7  OV5640 status
+                       * -  8:9  BMEi1 status (0 = OK, 1 = Fail, 2 = Not fitted)
+                       * - 10:11 BMEe1 status (0 = OK, 1 = Fail, 2 = Not fitted)
+                       * - 12:13 BMEe2 status (0 = OK, 1 = Fail, 2 = Not fitted)
+                       */
 } trackPoint_t;
 
 void waitForNewTrackPoint(void);

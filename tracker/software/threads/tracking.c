@@ -200,7 +200,7 @@ static void aquirePosition(trackPoint_t* tp, trackPoint_t* ltp, systime_t timeou
 
 		} else { // GPS communication error
 
-			GPS_Deinit();
+			//GPS_Deinit();
 			tp->gps_lock = GPS_ERROR;
 
 		}
@@ -229,7 +229,7 @@ static void measureVoltage(trackPoint_t* tp)
 	pac1720_get_avg(&tp->pac_vbat, &tp->pac_vsol, &tp->pac_pbat, &tp->pac_psol);
 }
 
-static bool bme280_error;
+static uint8_t bme280_error;
 
 static void getSensors(trackPoint_t* tp)
 {
@@ -241,14 +241,15 @@ static void getSensors(trackPoint_t* tp)
 		tp->sen_i1_press = BME280_getPressure(&handle, 256);
 		tp->sen_i1_hum = BME280_getHumidity(&handle);
 		tp->sen_i1_temp = BME280_getTemperature(&handle);
-		bme280_error = false;
+		bme280_error = 0x0;
 	} else { // No internal BME280 found
 		TRACE_ERROR("TRAC > Internal BME280 not available");
 		tp->sen_i1_press = 0;
 		tp->sen_i1_hum = 0;
 		tp->sen_i1_temp = 0;
-		bme280_error = true;
+		bme280_error = 0x1;
 	}
+	bme280_error |= 0x0A;
 
 	// Measure various temperature sensors
 	tp->stm32_temp = stm32_get_temp();
@@ -259,17 +260,28 @@ static void getSensors(trackPoint_t* tp)
 }
 
 static void setSystemStatus(trackPoint_t* tp) {
-	// Set system errors
+
+  /*
+   * Set system errors.
+   *
+   * Bit usage:
+   * -  0:1  I2C status
+   * -  2:2  GPS status
+   * -  3:4  pac1720 status
+   * -  5:7  OV5640 status
+   * -  8:9  BMEi1 status (0 = OK, 1 = Fail, 2 = Not fitted)
+   * -  10:11 BMEe1 status (0 = OK, 1 = Fail, 2 = Not fitted)
+   * -  12:13 BMEe2 status (0 = OK, 1 = Fail, 2 = Not fitted)
+   */
 	tp->sys_error = 0;
 
-	tp->sys_error |= (I2C_hasError()     & 0x1)  << 0;
-	tp->sys_error |= (tp->gps_lock == GPS_ERROR) << 2;
-	tp->sys_error |= (pac1720_hasError() & 0x3)  << 3;
-	tp->sys_error |= (OV5640_hasError()  & 0x7)  << 5;
+	tp->sys_error |= (I2C_hasError()     & 0x1)   << 0;
+	tp->sys_error |= (tp->gps_lock == GPS_ERROR)  << 2;
+	tp->sys_error |= (pac1720_hasError() & 0x3)   << 3;
+	tp->sys_error |= (OV5640_hasError()  & 0x7)   << 5;
 
-	tp->sys_error |= (bme280_error & 0x1)        << 8;
-	tp->sys_error |= 0x1                         << 9;  // No external BME280 available (PP9a doesnt have external sensors, but PP10a has)
-	tp->sys_error |= 0x1                         << 10; // No external BME280 available (PP9a doesnt have external sensors, but PP10a has)
+	tp->sys_error |= (bme280_error & BME_ALL_STATUS_MASK)
+	    << BME_ALL_STATUS_SHIFT;
 
 	// Set system time
 	tp->sys_time = ST2S(chVTGetSystemTimeX());

@@ -46,7 +46,7 @@ typedef struct {
 	telemetry_t tel[5];			// Telemetry types
 	bool tel_enc;				// Transmit telemetry encoding information
 	uint16_t tel_enc_cycle;		// Telemetry encoding cycle in seconds
-	char tel_comment[32];		// Telemetry comment
+	char tel_comment[64];		// Telemetry comment
 } aprs_conf_t;
 
 typedef enum {

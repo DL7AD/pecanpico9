@@ -47,6 +47,7 @@ bool gps_receive_byte(uint8_t *data)
 		return true;
 	}
 	#elif defined(UBLOX_USE_UART)
+	uint8_t msg;
 	if((msg = sdGetTimeout(&SD5, TIME_IMMEDIATE)) != MSG_TIMEOUT) {
 	  *data = msg;
 	  return true;
